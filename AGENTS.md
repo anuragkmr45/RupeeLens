@@ -67,6 +67,7 @@ Before opening or merging a PR:
 - run `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`
 - run `pnpm lint:openapi` when contract docs or CI wiring changes
 - run `pnpm db:validate` when schema or migration manifests change
+- run Android prebuild plus native unit/instrumentation tests for notification-listener or native capture changes
 - add or adjust tests for changed behavior
 - add parser fixtures for parser changes
 - update contract tests when API behavior changes

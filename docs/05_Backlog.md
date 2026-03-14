@@ -206,7 +206,7 @@ Detect payment notifications reliably and turn them into structured capture even
 - **Story points:** 8
 - **Goal:** Observe supported payment notifications only after explicit user opt-in.
 - **Dependencies:** SET-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: blocked | Owner: codex | Started At: 2026-03-14 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo-side implementation, Expo prebuild, and root lint/typecheck/test/build passed, but native Gradle validation is blocked in this environment because no Java runtime, Android SDK, adb, or emulator is configured.
 
 **Description**  
 Create native Android service to receive notifications, filter by allowed packages, and persist raw payload snapshots needed for parsing. Add onboarding checks and diagnostics.

@@ -77,7 +77,7 @@ pnpm dev:api
 pnpm dev:worker
 ```
 
-`pnpm dev:client` starts the Expo placeholder app. `pnpm dev:api` boots the API on port `3000` by default with `GET /health`. `pnpm dev:worker` starts the worker and emits an initial heartbeat log.
+`pnpm dev:client` starts the Expo app shell and showcase. `pnpm dev:api` boots the API on port `3000` by default with `GET /health`. `pnpm dev:worker` starts the worker and emits an initial heartbeat log.
 
 ## Remote Config Foundation
 
@@ -89,7 +89,20 @@ curl "http://127.0.0.1:3000/v1/bootstrap/config?platform=android&appVersion=1.0.
 EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3000 pnpm dev:client
 ```
 
-The bootstrap response is signed with `X-Bootstrap-Content-Hash` and `X-Bootstrap-Signature`. The client reads cached config from SQLite first, then refreshes in background. `client/app.json` now carries the default local `runtimeVersion` and `rolloutChannel` under `expo.extra`.
+The bootstrap response is signed with `X-Bootstrap-Content-Hash` and `X-Bootstrap-Signature`. The client reads cached config from SQLite first, then refreshes in background. `client/app.config.ts` now carries the default local `runtimeVersion` and `rolloutChannel` under `extra`.
+
+## Android Capture Foundation
+
+CAP-001 adds the native notification-listener foundation, source allowlist controls, and a temporary diagnostics section in the showcase screen.
+
+```bash
+pnpm --filter @upi-spend-tracker/client exec expo prebuild --platform android --clean
+pnpm --filter @upi-spend-tracker/client exec expo run:android
+cd client/android && ./gradlew testDebugUnitTest
+cd client/android && ./gradlew connectedDebugAndroidTest
+```
+
+The generated `client/android` directory remains prebuild output and is not tracked. The local Expo module source lives in `client/modules/notification-capture`.
 
 ## Pull Request Workflow
 
@@ -116,10 +129,11 @@ The reusable execution-plan template lives in `PLANS.md`. The full Codex plannin
 
 ## Current Scope
 
-- Design-system showcase screen only; no feature screens, navigation, or global state yet
+- Design-system showcase screen plus temporary remote-config and capture diagnostics sections; no feature screens, navigation, or global state yet
 - Health endpoint only; no business APIs, auth, or sync implementation yet
 - Worker heartbeat stub only; no queues, DB, exports, or background jobs yet
-- No deployment CI, analytics providers, Android native notification capture, Room capture DB implementation, or remote config implementation yet
+- Android native notification-listener foundation exists, but parser execution, dedupe, quick-classify actions, and domain import are not implemented yet
+- No deployment CI, analytics providers, full Room capture repository, or sync implementation yet
 
 ## Backlog Tracking Convention
 

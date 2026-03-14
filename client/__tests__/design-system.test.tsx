@@ -42,6 +42,59 @@ jest.mock('../src/lib/bootstrap-config', () => ({
   }),
 }));
 
+jest.mock('../src/lib/capture', () => ({
+  useCaptureDiagnostics: () => ({
+    allowlistState: {
+      'com.google.android.apps.nbu.paisa.user': true,
+      'com.phonepe.app': false,
+      'in.org.npci.upiapp': false,
+      'net.one97.paytm': false,
+    },
+    error: null,
+    loading: false,
+    openNotificationListenerSettings: jest.fn(),
+    refresh: jest.fn(),
+    setAllSourcesEnabled: jest.fn(),
+    setSourceEnabled: jest.fn(),
+    summary: {
+      allowlistedPackages: ['com.google.android.apps.nbu.paisa.user'],
+      lastSnapshot: {
+        appLabel: 'Google Pay',
+        packageName: 'com.google.android.apps.nbu.paisa.user',
+        postedAtMillis: 1_710_374_400_000,
+        snapshotId: 1,
+      },
+      permissionStatus: 'granted' as const,
+      recentIgnoredCounts: {
+        notAllowlisted: 2,
+        unsupported: 1,
+      },
+    },
+    supportedSources: [
+      {
+        displayName: 'Google Pay',
+        enabledByDefault: false,
+        packageName: 'com.google.android.apps.nbu.paisa.user',
+      },
+      {
+        displayName: 'PhonePe',
+        enabledByDefault: false,
+        packageName: 'com.phonepe.app',
+      },
+      {
+        displayName: 'Paytm',
+        enabledByDefault: false,
+        packageName: 'net.one97.paytm',
+      },
+      {
+        displayName: 'BHIM',
+        enabledByDefault: false,
+        packageName: 'in.org.npci.upiapp',
+      },
+    ],
+  }),
+}));
+
 import { fireEvent, render } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
 import { Text, View } from 'react-native';
@@ -144,5 +197,6 @@ describe('design system primitives', () => {
     expect(screen.getByText('Quick classify preview')).toBeTruthy();
     expect(screen.getByText('Captured from notification · just now')).toBeTruthy();
     expect(screen.getByText('Remote Config Foundation')).toBeTruthy();
+    expect(screen.getByText('Capture Diagnostics')).toBeTruthy();
   });
 });

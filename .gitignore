@@ -3,5 +3,7 @@ dist
 coverage
 .expo
 .expo-shared
+client/android
+client/ios
 .DS_Store
 *.tsbuildinfo

@@ -5,6 +5,7 @@ import { AppShell } from '../components/AppShell';
 import { BottomSheet } from '../components/BottomSheet';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { CaptureDiagnosticsCard } from '../components/CaptureDiagnosticsCard';
 import { Chip } from '../components/Chip';
 import { EmptyState } from '../components/EmptyState';
 import { KPIBlock } from '../components/KPIBlock';
@@ -214,6 +215,8 @@ export function DesignSystemShowcaseScreen() {
           ) : null}
         </View>
       </Card>
+
+      <CaptureDiagnosticsCard />
 
       <Card
         header={

@@ -208,12 +208,12 @@
       ],
       "tests": "Instrumented tests for listener callbacks and allowlist filtering; manual tests with sample apps.",
       "done": "Notification listener stable on supported Android versions.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "blocked",
+      "owner": "codex",
+      "started_at": "2026-03-14",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo-side implementation, Expo prebuild, and root lint/typecheck/test/build passed, but native Gradle validation is blocked in this environment because no Java runtime, Android SDK, adb, or emulator is configured."
     },
     {
       "id": "CAP-002",

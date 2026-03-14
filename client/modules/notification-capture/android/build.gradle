@@ -1,0 +1,42 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+  id 'org.jetbrains.kotlin.kapt'
+}
+
+group = 'expo.modules.notificationcapture'
+version = '0.0.0'
+
+def roomVersion = '2.7.2'
+
+android {
+  namespace "expo.modules.notificationcapture"
+
+  defaultConfig {
+    versionCode 1
+    versionName "0.0.0"
+  }
+
+  lint {
+    abortOnError false
+  }
+
+  testOptions {
+    unitTests.returnDefaultValues = true
+  }
+}
+
+dependencies {
+  implementation "androidx.core:core-ktx:1.17.0"
+  implementation "androidx.room:room-runtime:${roomVersion}"
+  kapt "androidx.room:room-compiler:${roomVersion}"
+
+  testImplementation "junit:junit:4.13.2"
+
+  androidTestImplementation "androidx.test:core-ktx:1.6.1"
+  androidTestImplementation "androidx.test.ext:junit:1.2.1"
+}
+
+kapt {
+  correctErrorTypes true
+}

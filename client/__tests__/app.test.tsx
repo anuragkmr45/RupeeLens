@@ -73,6 +73,49 @@ jest.mock('../src/lib/bootstrap-config', () => {
   };
 });
 
+jest.mock('../src/lib/capture', () => ({
+  useCaptureDiagnostics: () => ({
+    allowlistState: {
+      'com.google.android.apps.nbu.paisa.user': true,
+      'com.phonepe.app': false,
+      'in.org.npci.upiapp': false,
+      'net.one97.paytm': false,
+    },
+    error: null,
+    loading: false,
+    openNotificationListenerSettings: jest.fn(),
+    refresh: jest.fn(),
+    setAllSourcesEnabled: jest.fn(),
+    setSourceEnabled: jest.fn(),
+    summary: {
+      allowlistedPackages: ['com.google.android.apps.nbu.paisa.user'],
+      lastSnapshot: {
+        appLabel: 'Google Pay',
+        packageName: 'com.google.android.apps.nbu.paisa.user',
+        postedAtMillis: 1_710_374_400_000,
+        snapshotId: 1,
+      },
+      permissionStatus: 'granted' as const,
+      recentIgnoredCounts: {
+        notAllowlisted: 2,
+        unsupported: 1,
+      },
+    },
+    supportedSources: [
+      {
+        displayName: 'Google Pay',
+        enabledByDefault: false,
+        packageName: 'com.google.android.apps.nbu.paisa.user',
+      },
+      {
+        displayName: 'PhonePe',
+        enabledByDefault: false,
+        packageName: 'com.phonepe.app',
+      },
+    ],
+  }),
+}));
+
 import { render } from '@testing-library/react-native';
 
 import App from '../App';
@@ -84,5 +127,6 @@ describe('App', () => {
     expect(await screen.findByText('Design System Showcase')).toBeTruthy();
     expect(await screen.findByText('Current cycle')).toBeTruthy();
     expect(await screen.findByText('Remote Config Foundation')).toBeTruthy();
+    expect(await screen.findByText('Capture Diagnostics')).toBeTruthy();
   });
 });

@@ -8,6 +8,18 @@ _No active plan. Waiting for the next ticket._
 
 ## Blocked Plans
 
+### CAP-001 — Android NotificationListenerService and Allowlist Controls
+
+- **Status:** blocked
+- **Ticket:** CAP-001
+- **Goal:** Ship the Android-native notification listener foundation with explicit user-controlled source allowlisting, minimal raw snapshot persistence, and a temporary diagnostics surface without expanding into parser, dedupe, onboarding, or domain-import work.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `.gitignore`, `README.md`, `AGENTS.md`, `client/app.config.ts`, `client/package.json`, `client/modules/notification-capture/**`, `client/src/lib/capture/**`, `client/src/app/**`, `client/src/components/**`, and related tests.
+- **Rationale:** The backlog defines CAP-001 as the first Android-native capture ticket after the repo, design-system, migrations, and remote-config foundations. The app now has the native listener module, allowlist controls, bounded raw snapshot persistence, and a diagnostics surface, but the required Android Gradle validation path depends on local Java/SDK tooling that is not present in this environment.
+- **Risks:** Pulling CAP-002/CAP-003/CAP-004 logic into the listener foundation, storing too much sensitive raw notification data, or claiming native stability without running the required Gradle and device-backed checks.
+- **Validation commands:** `pnpm install`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm --filter @upi-spend-tracker/client exec expo prebuild --platform android --clean`, `cd client/android && ./gradlew testDebugUnitTest`, `cd client/android && ./gradlew connectedDebugAndroidTest`.
+- **Done when:** A local Expo module provides `NotificationListenerService` plus allowlist storage/diagnostics APIs, supported apps default to opt-in only, allowlisted notifications persist minimal raw snapshots in a bounded Room table, the client diagnostics surface can show permission state and source toggles, validations pass, and backlog tracking is synchronized with CAP-001 closed truthfully.
+- **Outcome:** Added the local Expo notification-capture module, Android manifest plugin, Room-backed bounded snapshot persistence, native allowlist storage, JS diagnostics APIs, and a client diagnostics card. `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm --filter @upi-spend-tracker/client exec expo prebuild --platform android --clean`, and `CI=1 pnpm dev:client` passed. CAP-001 remains blocked because `./gradlew testDebugUnitTest` could not start without a configured Java runtime, and the environment also lacks `ANDROID_HOME` / `ANDROID_SDK_ROOT`, `adb`, and `emulator`, so `connectedDebugAndroidTest` could not be run here.
+
 ### SET-002 — Final Remote Closeout
 
 - **Status:** blocked
