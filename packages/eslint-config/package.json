@@ -1,0 +1,14 @@
+{
+  "name": "@upi-spend-tracker/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "dependencies": {
+    "@eslint/js": "^10.0.1",
+    "globals": "^17.4.0",
+    "typescript-eslint": "^8.57.0"
+  }
+}

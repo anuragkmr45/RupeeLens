@@ -1,0 +1,31 @@
+{
+  "name": "upi-spend-tracker",
+  "private": true,
+  "packageManager": "pnpm@10.25.0",
+  "engines": {
+    "node": ">=22 <25",
+    "pnpm": ">=10 <11"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present --sort run build",
+    "build:shared": "pnpm --filter @upi-spend-tracker/shared-types --filter @upi-spend-tracker/shared-utils --filter @upi-spend-tracker/contracts --sort run build",
+    "ci:verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "dev:api": "pnpm --filter @upi-spend-tracker/api dev",
+    "dev:client": "pnpm run build:shared && pnpm --filter @upi-spend-tracker/client start",
+    "dev:worker": "pnpm --filter @upi-spend-tracker/worker dev",
+    "format": "prettier . --write",
+    "lint": "pnpm -r --if-present run lint",
+    "lint:openapi": "spectral lint --ruleset .spectral.yaml --fail-severity=error docs/04_API_Contract.yaml",
+    "test": "pnpm -r --if-present run test",
+    "typecheck": "pnpm -r --if-present --sort run typecheck"
+  },
+  "devDependencies": {
+    "@stoplight/spectral-cli": "^6.15.0",
+    "@types/node": "^25.5.0",
+    "eslint": "^10.0.3",
+    "prettier": "^3.8.1",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

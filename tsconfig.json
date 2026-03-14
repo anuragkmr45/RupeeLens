@@ -1,0 +1,20 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/shared-types"
+    },
+    {
+      "path": "./packages/shared-utils"
+    },
+    {
+      "path": "./packages/contracts"
+    },
+    {
+      "path": "./server/api"
+    },
+    {
+      "path": "./server/worker"
+    }
+  ]
+}

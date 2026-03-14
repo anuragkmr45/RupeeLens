@@ -1,0 +1,21 @@
+{
+  "name": "@upi-spend-tracker/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@upi-spend-tracker/shared-types": "workspace:*",
+    "@upi-spend-tracker/shared-utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@upi-spend-tracker/eslint-config": "workspace:*",
+    "@upi-spend-tracker/tsconfig": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint .",
+    "test": "vitest run src",
+    "typecheck": "tsc -b --pretty false tsconfig.json"
+  }
+}

@@ -1,0 +1,165 @@
+name: PR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+      - ready_for_review
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scope:
+    name: Scope
+    runs-on: ubuntu-latest
+    outputs:
+      client_changed: ${{ steps.detect.outputs.client_changed }}
+      api_changed: ${{ steps.detect.outputs.api_changed }}
+      worker_changed: ${{ steps.detect.outputs.worker_changed }}
+      packages_changed: ${{ steps.detect.outputs.packages_changed }}
+      docs_changed: ${{ steps.detect.outputs.docs_changed }}
+      root_changed: ${{ steps.detect.outputs.root_changed }}
+      changed_areas: ${{ steps.detect.outputs.changed_areas }}
+    steps:
+      - name: Detect changed areas
+        id: detect
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            if (!pr) {
+              core.setFailed('This workflow only supports pull_request events.');
+              return;
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              ...context.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+
+            const areas = {
+              client: [],
+              api: [],
+              worker: [],
+              packages: [],
+              docs: [],
+              root: [],
+            };
+
+            for (const file of files) {
+              const filename = file.filename;
+
+              if (filename.startsWith('client/')) {
+                areas.client.push(filename);
+              } else if (filename.startsWith('server/api/')) {
+                areas.api.push(filename);
+              } else if (filename.startsWith('server/worker/')) {
+                areas.worker.push(filename);
+              } else if (filename.startsWith('packages/')) {
+                areas.packages.push(filename);
+              } else if (filename.startsWith('docs/')) {
+                areas.docs.push(filename);
+              } else {
+                areas.root.push(filename);
+              }
+            }
+
+            const changedAreas = Object.entries(areas)
+              .filter(([, paths]) => paths.length > 0)
+              .map(([area]) => area);
+
+            for (const [area, paths] of Object.entries(areas)) {
+              core.setOutput(`${area}_changed`, paths.length > 0 ? 'true' : 'false');
+            }
+
+            core.setOutput('changed_areas', changedAreas.join(',') || 'none');
+
+            const table = [
+              '| Area | Changed | File Count |',
+              '| --- | --- | --- |',
+              ...Object.entries(areas).map(([area, paths]) => {
+                return `| ${area} | ${paths.length > 0 ? 'yes' : 'no'} | ${paths.length} |`;
+              }),
+            ].join('\n');
+
+            const changedFileList = files.length > 0
+              ? files.map((file) => `- ${file.filename}`).join('\n')
+              : 'No files changed.';
+
+            await core.summary
+              .addHeading('Changed Scope')
+              .addRaw(`${table}\n\n`)
+              .addRaw(`Changed areas: ${changedAreas.join(', ') || 'none'}\n\n`)
+              .addDetails('Changed files', changedFileList)
+              .write();
+
+  pr-title:
+    name: PR Title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = context.payload.pull_request?.title ?? '';
+            const pattern = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: [^\s].+$/;
+
+            if (!pattern.test(title)) {
+              core.setFailed(
+                [
+                  `PR title "${title}" is not a valid Conventional Commits title.`,
+                  'Expected format: type(optional-scope): summary',
+                  'Examples:',
+                  '- feat(set-002): add pr quality gates',
+                  '- fix(api): tighten health response typing',
+                  '- docs(readme): document ci verification',
+                ].join('\n'),
+              );
+            }
+
+  openapi:
+    name: OpenAPI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint OpenAPI contract
+        run: pnpm lint:openapi
+
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run canonical verification
+        run: pnpm ci:verify

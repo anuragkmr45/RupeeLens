@@ -1,0 +1,1992 @@
+openapi: 3.1.0
+info:
+  title: UPI Spend Tracker API
+  version: 1.0.0
+  summary: Backend contract for Android-first UPI Spend Tracker v1
+  description: Cloud APIs for guest sessions, multi-device pairing, bootstrap config,
+    sync, transactions, categories, rules, budgets, reports, and exports.
+servers:
+- url: https://api.example.com
+  description: Production
+- url: https://staging-api.example.com
+  description: Staging
+tags:
+- name: Health
+- name: Sessions
+- name: Devices
+- name: Bootstrap
+- name: Sync
+- name: Transactions
+- name: Categories
+- name: Rules
+- name: Budgets
+- name: Reports
+- name: Exports
+security:
+- bearerAuth: []
+paths:
+  /health:
+    get:
+      tags:
+      - Health
+      summary: Health check for the API runtime
+      security: []
+      responses:
+        '200':
+          description: API runtime is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /v1/sessions/guest:
+    post:
+      tags:
+      - Sessions
+      summary: Create guest user session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGuestSessionRequest'
+      responses:
+        '201':
+          description: Guest session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/sessions/refresh:
+    post:
+      tags:
+      - Sessions
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshSessionRequest'
+      responses:
+        '200':
+          description: Tokens refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/device-pairings:
+    post:
+      tags:
+      - Devices
+      summary: Create one-time pairing code for adding another device
+      responses:
+        '201':
+          description: Pairing code created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevicePairingCodeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/device-pairings/consume:
+    post:
+      tags:
+      - Devices
+      summary: Consume one-time pairing code and join existing account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsumePairingCodeRequest'
+      responses:
+        '200':
+          description: Device paired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/devices/register:
+    post:
+      tags:
+      - Devices
+      summary: Register or update current device metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceRequest'
+      responses:
+        '200':
+          description: Device registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/bootstrap/config:
+    get:
+      tags:
+      - Bootstrap
+      summary: Get feature flags, parser config, and runtime compatibility info
+      parameters:
+      - in: query
+        name: platform
+        required: true
+        schema:
+          type: string
+          enum:
+          - android
+          - ios
+      - in: query
+        name: appVersion
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: runtimeVersion
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: channel
+        required: false
+        schema:
+          type: string
+          enum:
+          - internal
+          - beta
+          - production
+      responses:
+        '200':
+          description: Bootstrap config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapConfigResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/sync/push:
+    post:
+      tags:
+      - Sync
+      summary: Push a batch of local operations to server
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncPushRequest'
+      responses:
+        '200':
+          description: Push processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncPushResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/sync/pull:
+    get:
+      tags:
+      - Sync
+      summary: Pull entity changes since cursor
+      parameters:
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 250
+      responses:
+        '200':
+          description: Delta sync response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncPullResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/transactions:
+    get:
+      tags:
+      - Transactions
+      summary: List transactions
+      parameters:
+      - in: query
+        name: from
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: to
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - new
+          - classified
+          - partial
+          - skipped
+          - deleted
+      - in: query
+        name: merchantId
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: categoryId
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: search
+        schema:
+          type: string
+      - in: query
+        name: page
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - in: query
+        name: pageSize
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      responses:
+        '200':
+          description: Transactions list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags:
+      - Transactions
+      summary: Create or upsert a transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionUpsertRequest'
+      responses:
+        '201':
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/transactions/{transactionId}:
+    get:
+      tags:
+      - Transactions
+      summary: Get transaction detail
+      parameters:
+      - $ref: '#/components/parameters/TransactionId'
+      responses:
+        '200':
+          description: Transaction detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Transactions
+      summary: Update transaction
+      parameters:
+      - $ref: '#/components/parameters/TransactionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionPatchRequest'
+      responses:
+        '200':
+          description: Transaction updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags:
+      - Transactions
+      summary: Soft delete transaction
+      parameters:
+      - $ref: '#/components/parameters/TransactionId'
+      responses:
+        '204':
+          description: Transaction deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/transactions/{transactionId}/classify:
+    post:
+      tags:
+      - Transactions
+      summary: Classify a transaction with item rows and optional rule creation
+      parameters:
+      - $ref: '#/components/parameters/TransactionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassifyTransactionRequest'
+      responses:
+        '200':
+          description: Transaction classified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionDetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/categories:
+    get:
+      tags:
+      - Categories
+      summary: List categories
+      responses:
+        '200':
+          description: Categories
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+    post:
+      tags:
+      - Categories
+      summary: Create category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryUpsertRequest'
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /v1/categories/{categoryId}:
+    patch:
+      tags:
+      - Categories
+      summary: Update category
+      parameters:
+      - $ref: '#/components/parameters/CategoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryPatchRequest'
+      responses:
+        '200':
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+    delete:
+      tags:
+      - Categories
+      summary: Soft delete category
+      parameters:
+      - $ref: '#/components/parameters/CategoryId'
+      responses:
+        '204':
+          description: Category deleted
+  /v1/rules:
+    get:
+      tags:
+      - Rules
+      summary: List rules
+      responses:
+        '200':
+          description: Rules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleListResponse'
+    post:
+      tags:
+      - Rules
+      summary: Create rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuleUpsertRequest'
+      responses:
+        '201':
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rule'
+  /v1/rules/{ruleId}:
+    patch:
+      tags:
+      - Rules
+      summary: Update rule
+      parameters:
+      - $ref: '#/components/parameters/RuleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RulePatchRequest'
+      responses:
+        '200':
+          description: Rule updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rule'
+    delete:
+      tags:
+      - Rules
+      summary: Delete rule
+      parameters:
+      - $ref: '#/components/parameters/RuleId'
+      responses:
+        '204':
+          description: Rule deleted
+  /v1/budgets:
+    get:
+      tags:
+      - Budgets
+      summary: List budgets
+      responses:
+        '200':
+          description: Budgets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetListResponse'
+    post:
+      tags:
+      - Budgets
+      summary: Create budget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BudgetUpsertRequest'
+      responses:
+        '201':
+          description: Budget created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+  /v1/budgets/{budgetId}:
+    get:
+      tags:
+      - Budgets
+      summary: Get budget detail
+      parameters:
+      - $ref: '#/components/parameters/BudgetId'
+      responses:
+        '200':
+          description: Budget detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetDetailResponse'
+    patch:
+      tags:
+      - Budgets
+      summary: Update budget
+      parameters:
+      - $ref: '#/components/parameters/BudgetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BudgetPatchRequest'
+      responses:
+        '200':
+          description: Budget updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+    delete:
+      tags:
+      - Budgets
+      summary: Delete budget
+      parameters:
+      - $ref: '#/components/parameters/BudgetId'
+      responses:
+        '204':
+          description: Budget deleted
+  /v1/reports/summary:
+    get:
+      tags:
+      - Reports
+      summary: Get period summary
+      parameters:
+      - in: query
+        name: from
+        required: true
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: to
+        required: true
+        schema:
+          type: string
+          format: date-time
+      responses:
+        '200':
+          description: Report summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportSummaryResponse'
+  /v1/reports/breakdown:
+    get:
+      tags:
+      - Reports
+      summary: Get grouped spend breakdown
+      parameters:
+      - in: query
+        name: from
+        required: true
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: to
+        required: true
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: groupBy
+        required: true
+        schema:
+          type: string
+          enum:
+          - category
+          - merchant
+          - item
+          - hourOfDay
+          - dayOfWeek
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 25
+      responses:
+        '200':
+          description: Breakdown response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportBreakdownResponse'
+  /v1/exports/csv:
+    post:
+      tags:
+      - Exports
+      summary: Request CSV export
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExportRequest'
+      responses:
+        '202':
+          description: Export accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportJobResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TransactionId:
+      in: path
+      name: transactionId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CategoryId:
+      in: path
+      name: categoryId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RuleId:
+      in: path
+      name: ruleId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BudgetId:
+      in: path
+      name: budgetId
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+      - status
+      - service
+      - timestamp_utc
+      properties:
+        status:
+          type: string
+          enum:
+          - healthy
+        service:
+          type: string
+          enum:
+          - api
+        timestamp_utc:
+          type: string
+          format: date-time
+    CreateGuestSessionRequest:
+      type: object
+      required:
+      - deviceName
+      - platform
+      properties:
+        deviceName:
+          type: string
+          maxLength: 120
+        platform:
+          type: string
+          enum:
+          - android
+          - ios
+        appVersion:
+          type: string
+        runtimeVersion:
+          type: string
+        timezone:
+          type: string
+        locale:
+          type: string
+    RefreshSessionRequest:
+      type: object
+      required:
+      - refreshToken
+      properties:
+        refreshToken:
+          type: string
+    SessionResponse:
+      type: object
+      required:
+      - userId
+      - deviceId
+      - accessToken
+      - refreshToken
+      - expiresInSeconds
+      properties:
+        userId:
+          type: string
+          format: uuid
+        deviceId:
+          type: string
+          format: uuid
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresInSeconds:
+          type: integer
+        syncMode:
+          type: string
+          enum:
+          - local_only
+          - cloud_sync
+    DevicePairingCodeResponse:
+      type: object
+      required:
+      - pairingCode
+      - expiresAt
+      properties:
+        pairingCode:
+          type: string
+          minLength: 6
+          maxLength: 16
+        expiresAt:
+          type: string
+          format: date-time
+    ConsumePairingCodeRequest:
+      type: object
+      required:
+      - pairingCode
+      - deviceName
+      - platform
+      properties:
+        pairingCode:
+          type: string
+        deviceName:
+          type: string
+        platform:
+          type: string
+          enum:
+          - android
+          - ios
+        appVersion:
+          type: string
+        runtimeVersion:
+          type: string
+        timezone:
+          type: string
+        locale:
+          type: string
+    RegisterDeviceRequest:
+      type: object
+      required:
+      - platform
+      - deviceName
+      properties:
+        platform:
+          type: string
+          enum:
+          - android
+          - ios
+        deviceName:
+          type: string
+        appVersion:
+          type: string
+        runtimeVersion:
+          type: string
+        notificationCaptureEnabled:
+          type: boolean
+        supportedPackages:
+          type: array
+          items:
+            type: string
+        timezone:
+          type: string
+        locale:
+          type: string
+    Device:
+      type: object
+      required:
+      - id
+      - platform
+      - deviceName
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        platform:
+          type: string
+          enum:
+          - android
+          - ios
+        deviceName:
+          type: string
+        appVersion:
+          type: string
+        runtimeVersion:
+          type: string
+        notificationCaptureEnabled:
+          type: boolean
+        supportedPackages:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+    BootstrapConfigResponse:
+      type: object
+      required:
+      - configVersion
+      - minSupportedVersion
+      - featureFlags
+      - parserConfig
+      - cacheTtlSeconds
+      properties:
+        configVersion:
+          type: string
+        minSupportedVersion:
+          type: string
+        softUpgradeVersion:
+          type: string
+        runtimeCompatibility:
+          type: object
+          properties:
+            compatible:
+              type: boolean
+            reason:
+              type: string
+        featureFlags:
+          type: object
+          additionalProperties:
+            type: boolean
+        parserConfig:
+          type: object
+          additionalProperties: true
+        copyOverrides:
+          type: object
+          additionalProperties:
+            type: string
+        cacheTtlSeconds:
+          type: integer
+        rolloutChannel:
+          type: string
+          enum:
+          - internal
+          - beta
+          - production
+    SyncPushRequest:
+      type: object
+      required:
+      - deviceId
+      - operations
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        baseCursor:
+          type: string
+        operations:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OutboxOperation'
+    SyncPushResponse:
+      type: object
+      required:
+      - accepted
+      - rejected
+      - newCursor
+      properties:
+        accepted:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperationAck'
+        rejected:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperationRejection'
+        conflicts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConflictRecord'
+        newCursor:
+          type: string
+    SyncPullResponse:
+      type: object
+      required:
+      - cursor
+      - hasMore
+      - changes
+      properties:
+        cursor:
+          type: string
+        hasMore:
+          type: boolean
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityChange'
+    OutboxOperation:
+      type: object
+      required:
+      - opId
+      - entityType
+      - entityId
+      - opType
+      - entityVersion
+      - payload
+      properties:
+        opId:
+          type: string
+        entityType:
+          type: string
+          enum:
+          - transaction
+          - transaction_item
+          - category
+          - merchant
+          - merchant_alias
+          - rule
+          - budget
+          - budget_scope
+        entityId:
+          type: string
+        opType:
+          type: string
+          enum:
+          - upsert
+          - delete
+        entityVersion:
+          type: integer
+          minimum: 1
+        payload:
+          type: object
+          additionalProperties: true
+        occurredAt:
+          type: string
+          format: date-time
+    OperationAck:
+      type: object
+      required:
+      - opId
+      - entityId
+      - entityType
+      - serverVersion
+      properties:
+        opId:
+          type: string
+        entityId:
+          type: string
+        entityType:
+          type: string
+        serverVersion:
+          type: integer
+        status:
+          type: string
+          enum:
+          - accepted
+          - idempotent_replay
+    OperationRejection:
+      type: object
+      required:
+      - opId
+      - code
+      - message
+      properties:
+        opId:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+        fieldErrors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+    ConflictRecord:
+      type: object
+      required:
+      - entityType
+      - entityId
+      - clientVersion
+      - serverVersion
+      - serverState
+      properties:
+        entityType:
+          type: string
+        entityId:
+          type: string
+        clientVersion:
+          type: integer
+        serverVersion:
+          type: integer
+        serverState:
+          type: object
+          additionalProperties: true
+        conflictReason:
+          type: string
+    EntityChange:
+      type: object
+      required:
+      - entityType
+      - entityId
+      - changeType
+      - version
+      - data
+      properties:
+        entityType:
+          type: string
+        entityId:
+          type: string
+        changeType:
+          type: string
+          enum:
+          - upsert
+          - delete
+        version:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+        data:
+          type: object
+          additionalProperties: true
+    Transaction:
+      type: object
+      required:
+      - id
+      - amountMinor
+      - currencyCode
+      - paidAt
+      - status
+      - version
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        amountMinor:
+          type: integer
+        currencyCode:
+          type: string
+          example: INR
+        merchantId:
+          type: string
+          format: uuid
+        merchantRaw:
+          type: string
+        merchantNorm:
+          type: string
+        source:
+          type: string
+          enum:
+          - capture
+          - manual
+          - import
+        sourceApp:
+          type: string
+        paidAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+        status:
+          type: string
+          enum:
+          - new
+          - classified
+          - partial
+          - skipped
+          - deleted
+        version:
+          type: integer
+        deletedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TransactionItem:
+      type: object
+      required:
+      - id
+      - itemName
+      - totalAmountMinor
+      - confirmed
+      - version
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        transactionId:
+          type: string
+          format: uuid
+        itemName:
+          type: string
+        itemNorm:
+          type: string
+        qty:
+          type: number
+        unitAmountMinor:
+          type: integer
+        totalAmountMinor:
+          type: integer
+        categoryId:
+          type: string
+          format: uuid
+        suggestionSource:
+          type: string
+          enum:
+          - manual
+          - rule
+          - history
+        suggestionScore:
+          type: number
+        confirmed:
+          type: boolean
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TransactionDetailResponse:
+      type: object
+      required:
+      - transaction
+      - items
+      properties:
+        transaction:
+          $ref: '#/components/schemas/Transaction'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionItem'
+        auditEvents:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEvent'
+    TransactionListResponse:
+      type: object
+      required:
+      - items
+      - page
+      - pageSize
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+    TransactionUpsertRequest:
+      type: object
+      required:
+      - amountMinor
+      - currencyCode
+      - paidAt
+      - source
+      properties:
+        amountMinor:
+          type: integer
+        currencyCode:
+          type: string
+        merchantId:
+          type: string
+          format: uuid
+        merchantRaw:
+          type: string
+        merchantNorm:
+          type: string
+        source:
+          type: string
+          enum:
+          - capture
+          - manual
+          - import
+        sourceApp:
+          type: string
+        paidAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+        status:
+          type: string
+          enum:
+          - new
+          - classified
+          - partial
+          - skipped
+    TransactionPatchRequest:
+      type: object
+      required:
+      - version
+      properties:
+        version:
+          type: integer
+        merchantId:
+          type: string
+          format: uuid
+        merchantRaw:
+          type: string
+        merchantNorm:
+          type: string
+        note:
+          type: string
+        status:
+          type: string
+          enum:
+          - new
+          - classified
+          - partial
+          - skipped
+    ClassifyTransactionRequest:
+      type: object
+      required:
+      - version
+      - items
+      properties:
+        version:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassifyItemInput'
+        remainderType:
+          type: string
+          enum:
+          - none
+          - tip
+          - tax
+          - fee
+          - unknown
+        remainderAmountMinor:
+          type: integer
+        createRule:
+          type: boolean
+          default: false
+        ruleDraft:
+          $ref: '#/components/schemas/RuleDraft'
+    ClassifyItemInput:
+      type: object
+      required:
+      - itemName
+      - totalAmountMinor
+      properties:
+        itemName:
+          type: string
+        qty:
+          type: number
+        unitAmountMinor:
+          type: integer
+        totalAmountMinor:
+          type: integer
+        categoryId:
+          type: string
+          format: uuid
+    Category:
+      type: object
+      required:
+      - id
+      - name
+      - isSystem
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        iconKey:
+          type: string
+        colorToken:
+          type: string
+        isSystem:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CategoryListResponse:
+      type: object
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+    CategoryUpsertRequest:
+      type: object
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        iconKey:
+          type: string
+        colorToken:
+          type: string
+    CategoryPatchRequest:
+      type: object
+      required:
+      - version
+      properties:
+        version:
+          type: integer
+        name:
+          type: string
+          maxLength: 80
+        iconKey:
+          type: string
+        colorToken:
+          type: string
+    Rule:
+      type: object
+      required:
+      - id
+      - priority
+      - active
+      - merchantMatchType
+      - merchantMatchValue
+      - autoApply
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        priority:
+          type: integer
+        active:
+          type: boolean
+        merchantMatchType:
+          type: string
+          enum:
+          - merchantId
+          - merchantNorm
+          - contains
+          - exact
+        merchantMatchValue:
+          type: string
+        amountMinMinor:
+          type: integer
+        amountMaxMinor:
+          type: integer
+        hourBucket:
+          type: integer
+          minimum: 0
+          maximum: 23
+        weekdayMask:
+          type: integer
+        outputCategoryId:
+          type: string
+          format: uuid
+        outputItemName:
+          type: string
+        autoApply:
+          type: boolean
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    RuleDraft:
+      type: object
+      properties:
+        merchantMatchType:
+          type: string
+          enum:
+          - merchantId
+          - merchantNorm
+          - contains
+          - exact
+        merchantMatchValue:
+          type: string
+        amountMinMinor:
+          type: integer
+        amountMaxMinor:
+          type: integer
+        hourBucket:
+          type: integer
+        weekdayMask:
+          type: integer
+        outputCategoryId:
+          type: string
+          format: uuid
+        outputItemName:
+          type: string
+        autoApply:
+          type: boolean
+    RuleUpsertRequest:
+      type: object
+      required:
+      - priority
+      - merchantMatchType
+      - merchantMatchValue
+      properties:
+        priority:
+          type: integer
+        active:
+          type: boolean
+          default: true
+        merchantMatchType:
+          type: string
+          enum:
+          - merchantId
+          - merchantNorm
+          - contains
+          - exact
+        merchantMatchValue:
+          type: string
+        amountMinMinor:
+          type: integer
+        amountMaxMinor:
+          type: integer
+        hourBucket:
+          type: integer
+          minimum: 0
+          maximum: 23
+        weekdayMask:
+          type: integer
+        outputCategoryId:
+          type: string
+          format: uuid
+        outputItemName:
+          type: string
+        autoApply:
+          type: boolean
+          default: false
+    RulePatchRequest:
+      type: object
+      required:
+      - version
+      properties:
+        version:
+          type: integer
+        priority:
+          type: integer
+        active:
+          type: boolean
+        merchantMatchType:
+          type: string
+          enum:
+          - merchantId
+          - merchantNorm
+          - contains
+          - exact
+        merchantMatchValue:
+          type: string
+        amountMinMinor:
+          type: integer
+        amountMaxMinor:
+          type: integer
+        hourBucket:
+          type: integer
+          minimum: 0
+          maximum: 23
+        weekdayMask:
+          type: integer
+        outputCategoryId:
+          type: string
+          format: uuid
+        outputItemName:
+          type: string
+        autoApply:
+          type: boolean
+    RuleListResponse:
+      type: object
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Rule'
+    BudgetScope:
+      type: object
+      required:
+      - scopeType
+      properties:
+        scopeType:
+          type: string
+          enum:
+          - overall
+          - category
+          - merchant
+          - item
+        scopeRefId:
+          type: string
+          format: uuid
+        scopeValueText:
+          type: string
+    Budget:
+      type: object
+      required:
+      - id
+      - name
+      - periodType
+      - limitMinor
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        periodType:
+          type: string
+          enum:
+          - monthly
+          - weekly
+          - rolling
+          - salary_cycle
+          - custom
+        cycleAnchorDay:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        limitMinor:
+          type: integer
+        alert50:
+          type: boolean
+        alert80:
+          type: boolean
+        alert100:
+          type: boolean
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    BudgetUpsertRequest:
+      type: object
+      required:
+      - name
+      - periodType
+      - limitMinor
+      - scopes
+      properties:
+        name:
+          type: string
+        periodType:
+          type: string
+          enum:
+          - monthly
+          - weekly
+          - rolling
+          - salary_cycle
+          - custom
+        cycleAnchorDay:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        limitMinor:
+          type: integer
+        alert50:
+          type: boolean
+          default: true
+        alert80:
+          type: boolean
+          default: true
+        alert100:
+          type: boolean
+          default: true
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/BudgetScope'
+    BudgetPatchRequest:
+      type: object
+      required:
+      - version
+      properties:
+        version:
+          type: integer
+        name:
+          type: string
+        periodType:
+          type: string
+          enum:
+          - monthly
+          - weekly
+          - rolling
+          - salary_cycle
+          - custom
+        cycleAnchorDay:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        limitMinor:
+          type: integer
+        alert50:
+          type: boolean
+        alert80:
+          type: boolean
+        alert100:
+          type: boolean
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/BudgetScope'
+    BudgetDetailResponse:
+      type: object
+      required:
+      - budget
+      - scopes
+      - summary
+      properties:
+        budget:
+          $ref: '#/components/schemas/Budget'
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/BudgetScope'
+        summary:
+          $ref: '#/components/schemas/BudgetSummary'
+    BudgetListResponse:
+      type: object
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Budget'
+    BudgetSummary:
+      type: object
+      required:
+      - spentMinor
+      - remainingMinor
+      - status
+      properties:
+        spentMinor:
+          type: integer
+        remainingMinor:
+          type: integer
+        projectedMinor:
+          type: integer
+        status:
+          type: string
+          enum:
+          - healthy
+          - warning50
+          - warning80
+          - over_limit
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+    ReportSummaryResponse:
+      type: object
+      required:
+      - from
+      - to
+      - totalSpendMinor
+      - transactionCount
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        totalSpendMinor:
+          type: integer
+        transactionCount:
+          type: integer
+        classifiedTransactionCount:
+          type: integer
+        uncategorizedCount:
+          type: integer
+        topCategory:
+          $ref: '#/components/schemas/NamedAmount'
+        topMerchant:
+          $ref: '#/components/schemas/NamedAmount'
+        topItem:
+          $ref: '#/components/schemas/NamedAmount'
+        comparison:
+          $ref: '#/components/schemas/PeriodComparison'
+        budgetStatuses:
+          type: array
+          items:
+            $ref: '#/components/schemas/BudgetStatusSummary'
+    ReportBreakdownResponse:
+      type: object
+      required:
+      - groupBy
+      - items
+      properties:
+        groupBy:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BreakdownItem'
+    NamedAmount:
+      type: object
+      required:
+      - name
+      - amountMinor
+      properties:
+        name:
+          type: string
+        amountMinor:
+          type: integer
+    BreakdownItem:
+      type: object
+      required:
+      - key
+      - label
+      - amountMinor
+      - transactionCount
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        amountMinor:
+          type: integer
+        transactionCount:
+          type: integer
+        percentage:
+          type: number
+    PeriodComparison:
+      type: object
+      properties:
+        previousTotalSpendMinor:
+          type: integer
+        deltaMinor:
+          type: integer
+        deltaPct:
+          type: number
+    BudgetStatusSummary:
+      type: object
+      required:
+      - budgetId
+      - name
+      - status
+      - spentMinor
+      - limitMinor
+      properties:
+        budgetId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+          - healthy
+          - warning50
+          - warning80
+          - over_limit
+        spentMinor:
+          type: integer
+        limitMinor:
+          type: integer
+    CreateExportRequest:
+      type: object
+      required:
+      - format
+      - resourceTypes
+      properties:
+        format:
+          type: string
+          enum:
+          - csv
+        resourceTypes:
+          type: array
+          items:
+            type: string
+            enum:
+            - transactions
+            - items
+            - categories
+            - budgets
+            - rules
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+    ExportJobResponse:
+      type: object
+      required:
+      - jobId
+      - status
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - queued
+          - processing
+          - completed
+          - failed
+        downloadUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+    AuditEvent:
+      type: object
+      required:
+      - id
+      - action
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        actorDeviceId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        before:
+          type: object
+          additionalProperties: true
+        after:
+          type: object
+          additionalProperties: true
+    FieldError:
+      type: object
+      required:
+      - field
+      - message
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      required:
+      - code
+      - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        fieldErrors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'

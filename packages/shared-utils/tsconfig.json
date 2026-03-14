@@ -1,0 +1,16 @@
+{
+  "extends": "@upi-spend-tracker/tsconfig/node-library.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../shared-types"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "extends": "@upi-spend-tracker/tsconfig/expo.json",
+  "compilerOptions": {
+    "types": [
+      "jest",
+      "react",
+      "react-native"
+    ]
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ]
+}
