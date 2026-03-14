@@ -121,7 +121,7 @@ UI primitives documented and ready for feature teams.
 - **Story points:** 5
 - **Goal:** Make schema changes safe and repeatable across environments.
 - **Dependencies:** SET-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-14 | Completed At: 2026-03-14 | Commit Ref: ea20fcc7de395c6ab42dd4ae52375f4bca8ac9eb | Tracking Notes: Validation passed; client SQLite and server PostgreSQL both initialize from ordered idempotent manifests, `pnpm ci:verify` is green, local PostgreSQL defaults to the Compose-backed service on `127.0.0.1:56432`, and CI `Verify` now validates migrations with a PostgreSQL service container.
 
 **Description**  
 Create migration runners, seed strategy, schema version tracking, rollback guidance, and local developer scripts for both mobile SQLite and server PostgreSQL.

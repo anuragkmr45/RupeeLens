@@ -4,17 +4,17 @@ Use this template before implementing any multi-step, cross-module, or risky cha
 
 ## Active Plan
 
-### SET-003 — Mobile Design System Tokens and UI Primitives
+### SET-004 — Database Migration Framework for Mobile SQLite and Server PostgreSQL
 
 - **Status:** completed
-- **Ticket:** SET-003
-- **Goal:** Implement the backlog-defined mobile design system foundation with shared runtime tokens, light/dark theme support, and a showcase screen covering all required UI primitives.
-- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `packages/shared-utils/**`, `client/App.tsx`, `client/__tests__/**`, `client/src/app/**`, `client/src/components/**`, `client/src/theme/**`, and supporting client exports/tests.
-- **Rationale:** SET-003 is the first application-building ticket after repo/bootstrap work. The backlog and planning docs consistently scope it to mobile design tokens and base primitives only, which should unblock later feature tickets without pulling in navigation, state, or backend work.
-- **Risks:** Accidentally expanding into feature-screen work, breaking Expo build/tests with a heavier UI architecture than needed, introducing cross-workspace boundary drift, or implementing tokens outside a shared package contrary to backlog acceptance criteria.
-- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
-- **Done when:** Shared runtime tokens live in one shared package and are consumed by the client, all backlog-listed primitives exist with light/dark theme support and accessible touch targets, a showcase screen demonstrates them, and backlog tracking is synchronized with SET-003 marked `done` only after validations succeed.
-- **Outcome:** Shared runtime design tokens now live in `packages/shared-utils`, the client ships the full SET-003 primitive set with a light/dark showcase screen, client snapshots/token tests were added, and `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed.
+- **Ticket:** SET-004
+- **Goal:** Implement the backlog-defined migration framework for the app-domain SQLite database and the server PostgreSQL database, with ordered/idempotent migrations, seed strategy, schema tracking, local scripts, and CI validation.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `AGENTS.md`, `README.md`, `docs/09_Database_Migrations.md`, `package.json`, `pnpm-lock.yaml`, `compose.yaml`, `.github/workflows/pr.yml`, `packages/shared-utils/**`, `client/App.tsx`, `client/package.json`, `client/src/lib/db/**`, `client/__tests__/**`, `server/api/package.json`, `server/api/src/db/**`, and supporting tests/scripts.
+- **Rationale:** SET-004 is the foundation ticket that makes schema evolution safe before capture, sync, and domain tickets start writing durable data. The backlog and engineering design consistently require migration-only initialization, idempotence, rollback guidance, and CI validation.
+- **Risks:** Accidentally pulling Room/capture DB work from `CAP-004` into this ticket, overbuilding the schema beyond the foundation entities needed now, destabilizing Expo tests by booting SQLite incorrectly, or adding CI drift between local Postgres scripts and the `Verify` job.
+- **Validation commands:** `pnpm db:server:up`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm db:server:down`.
+- **Done when:** Both the client app-domain DB and the server DB can initialize from empty state using migrations only, reruns remain idempotent, manifest hash validation passes, migration/forward-fix guidance is documented, CI validates migrations through the existing `Verify` job, and backlog tracking is synchronized with SET-004 marked `done` only after validations succeed.
+- **Outcome:** Shared manifest hashing/order helpers now live in `packages/shared-utils`, the client and server each ship an ordered append-only migration runner with idempotent seed handling, root and CI verification now exercise `pnpm db:validate`, migration guidance is documented, and `pnpm db:server:up`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `pnpm ci:verify` all passed before closing the ticket.
 
 ## Blocked Plans
 
@@ -43,6 +43,18 @@ Use this template before implementing any multi-step, cross-module, or risky cha
 - **Done when:** `.github/workflows/pr.yml` provides the `Scope`, `PR Title`, `OpenAPI`, and `Verify` checks; local validation passes; PR guidance/docs are updated; backlog tracking is synchronized; and remote branch protection is truthfully verified before marking the ticket `done`.
 
 ## Completed Plans
+
+### SET-003 — Mobile Design System Tokens and UI Primitives
+
+- **Status:** completed
+- **Ticket:** SET-003
+- **Goal:** Implement the backlog-defined mobile design system foundation with shared runtime tokens, light/dark theme support, and a showcase screen covering all required UI primitives.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `packages/shared-utils/**`, `client/App.tsx`, `client/__tests__/**`, `client/src/app/**`, `client/src/components/**`, `client/src/theme/**`, and supporting client exports/tests.
+- **Rationale:** SET-003 is the first application-building ticket after repo/bootstrap work. The backlog and planning docs consistently scope it to mobile design tokens and base primitives only, which should unblock later feature tickets without pulling in navigation, state, or backend work.
+- **Risks:** Accidentally expanding into feature-screen work, breaking Expo build/tests with a heavier UI architecture than needed, introducing cross-workspace boundary drift, or implementing tokens outside a shared package contrary to backlog acceptance criteria.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** Shared runtime tokens live in one shared package and are consumed by the client, all backlog-listed primitives exist with light/dark theme support and accessible touch targets, a showcase screen demonstrates them, and backlog tracking is synchronized with SET-003 marked `done` only after validations succeed.
+- **Outcome:** Shared runtime design tokens now live in `packages/shared-utils`, the client ships the full SET-003 primitive set with a light/dark showcase screen, client snapshots/token tests were added, and `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed.
 
 ### SET-001 — Repository Bootstrap and Tracking
 

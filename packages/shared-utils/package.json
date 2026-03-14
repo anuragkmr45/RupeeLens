@@ -15,6 +15,7 @@
     "src"
   ],
   "dependencies": {
+    "@noble/hashes": "^2.0.1",
     "@upi-spend-tracker/shared-types": "workspace:*"
   },
   "devDependencies": {

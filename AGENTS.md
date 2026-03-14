@@ -19,13 +19,14 @@ This repository contains the Android-first v1 of UPI Spend Tracker. Codex and hu
 1. Read `docs/01_PRD.md` and `docs/02_Engineering_Design.md` before major implementation.
 2. Treat `docs/04_API_Contract.yaml` as the backend contract source-of-truth.
 3. Update docs/contracts/tests in the same PR whenever behavior changes.
-4. Prefer additive changes over hidden breaking changes.
-5. Do not introduce paid third-party product APIs in v1 without explicit approval.
-6. Do not store unnecessary sensitive raw data.
-7. Do not bypass offline-first design by making core screens depend on live APIs.
-8. For risky parser changes, include fixtures and rollback notes.
-9. Explicit user rules can auto-apply; heuristic suggestions cannot auto-save silently.
-10. Keep AGENTS instructions concise; deeper detail belongs in docs.
+4. Schema changes must include migration updates and `pnpm db:validate`.
+5. Prefer additive changes over hidden breaking changes.
+6. Do not introduce paid third-party product APIs in v1 without explicit approval.
+7. Do not store unnecessary sensitive raw data.
+8. Do not bypass offline-first design by making core screens depend on live APIs.
+9. For risky parser changes, include fixtures and rollback notes.
+10. Explicit user rules can auto-apply; heuristic suggestions cannot auto-save silently.
+11. Keep AGENTS instructions concise; deeper detail belongs in docs.
 
 ## Commands
 
@@ -38,6 +39,13 @@ Run from repository root:
 - `pnpm test`
 - `pnpm build`
 - `pnpm ci:verify`
+- `pnpm db:validate`
+- `pnpm db:server:up`
+- `pnpm db:server:down`
+- `pnpm db:server:migrate`
+- `pnpm db:server:seed`
+- `pnpm db:server:reset`
+- `pnpm db:server:validate`
 - `pnpm dev:client`
 - `pnpm dev:api`
 - `pnpm dev:worker`
@@ -69,6 +77,7 @@ Before opening or merging a PR:
 
 - run lint
 - run OpenAPI lint when contract docs or CI wiring changes
+- run `pnpm db:validate` when schema or migration manifests change
 - run typecheck
 - run relevant tests
 - add/adjust tests for changed behavior

@@ -1,6 +1,6 @@
 # UPI Spend Tracker
 
-Android-first v1 scaffold for a consumer UPI spend tracker. SET-001 establishes the monorepo foundation only: a minimal Expo client placeholder, a Fastify health API, a stub worker heartbeat, shared TypeScript packages, and synchronized backlog tracking.
+Android-first v1 scaffold for a consumer UPI spend tracker. The repository now includes the monorepo foundation, PR quality gates, the mobile design-system showcase, and the database migration framework for the client app-domain SQLite database and the server PostgreSQL database.
 
 ## Repository Layout
 
@@ -23,11 +23,14 @@ Android-first v1 scaffold for a consumer UPI spend tracker. SET-001 establishes 
 
 ```bash
 pnpm install
+pnpm db:server:up
+pnpm db:validate
 pnpm lint
 pnpm lint:openapi
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm db:server:down
 ```
 
 ## Pre-PR Verification
@@ -35,6 +38,7 @@ pnpm build
 Run the same checks that CI expects before opening or updating a pull request:
 
 ```bash
+pnpm db:validate
 pnpm lint
 pnpm lint:openapi
 pnpm typecheck
@@ -43,6 +47,27 @@ pnpm build
 ```
 
 `pnpm ci:verify` runs the canonical non-OpenAPI quality gates in the same order as the `Verify` GitHub Actions job.
+
+## Database Migrations
+
+SET-004 adds the migration framework for the client app-domain SQLite database and the server PostgreSQL database.
+
+```bash
+pnpm db:server:up
+pnpm db:validate
+pnpm db:server:down
+```
+
+Server-only migration commands:
+
+```bash
+pnpm db:server:migrate
+pnpm db:server:seed
+pnpm db:server:reset
+pnpm db:server:validate
+```
+
+Set `SERVER_DATABASE_URL` to target a different PostgreSQL instance. The default local value points at the Compose-backed service on `127.0.0.1:56432` in `compose.yaml`. Detailed policy and rollback guidance live in `docs/09_Database_Migrations.md`.
 
 ## Run The Runtimes
 
@@ -73,10 +98,10 @@ Branch-protection expectations and the exact required check names are documented
 
 ## Current Scope
 
-- Minimal bootstrap screen only; no feature screens, navigation, or global state yet
-- Health endpoint only; no business APIs, auth, DB, or sync implementation yet
+- Design-system showcase screen only; no feature screens, navigation, or global state yet
+- Health endpoint only; no business APIs, auth, or sync implementation yet
 - Worker heartbeat stub only; no queues, DB, exports, or background jobs yet
-- No deployment CI, migrations, analytics providers, notification capture, or remote config implementation yet
+- No deployment CI, analytics providers, Android native notification capture, Room capture DB implementation, or remote config implementation yet
 
 ## Backlog Tracking Convention
 

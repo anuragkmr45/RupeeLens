@@ -130,12 +130,12 @@
       ],
       "tests": "Run migrations from empty DB and on existing DB with prior version; verify schema hash.",
       "done": "Migration workflow documented and validated.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-14",
+      "completed_at": "2026-03-14",
+      "commit_ref": "ea20fcc7de395c6ab42dd4ae52375f4bca8ac9eb",
+      "tracking_notes": "Validation passed; client SQLite and server PostgreSQL both initialize from ordered idempotent manifests, `pnpm ci:verify` is green, local PostgreSQL defaults to the Compose-backed service on `127.0.0.1:56432`, and CI `Verify` now validates migrations with a PostgreSQL service container."
     },
     {
       "id": "SET-005",

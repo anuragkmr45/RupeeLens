@@ -6,14 +6,20 @@
   "dependencies": {
     "@upi-spend-tracker/contracts": "workspace:*",
     "@upi-spend-tracker/shared-utils": "workspace:*",
-    "fastify": "^5.8.2"
+    "fastify": "^5.8.2",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
+    "@types/pg": "^8.15.6",
     "@upi-spend-tracker/eslint-config": "workspace:*",
     "@upi-spend-tracker/tsconfig": "workspace:*"
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",
+    "db:migrate": "tsx src/db/scripts/migrate.ts",
+    "db:reset": "tsx src/db/scripts/reset.ts",
+    "db:seed": "tsx src/db/scripts/seed.ts",
+    "db:validate": "tsx src/db/scripts/validate.ts",
     "dev": "tsx watch src/index.ts",
     "lint": "eslint .",
     "test": "vitest run src",
