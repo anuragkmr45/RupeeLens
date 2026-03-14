@@ -79,6 +79,18 @@ pnpm dev:worker
 
 `pnpm dev:client` starts the Expo placeholder app. `pnpm dev:api` boots the API on port `3000` by default with `GET /health`. `pnpm dev:worker` starts the worker and emits an initial heartbeat log.
 
+## Remote Config Foundation
+
+SET-006 adds the local dev/test bootstrap endpoint and the client-side cached remote-config layer.
+
+```bash
+pnpm dev:api
+curl "http://127.0.0.1:3000/v1/bootstrap/config?platform=android&appVersion=1.0.0&runtimeVersion=1.0.0&channel=internal"
+EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3000 pnpm dev:client
+```
+
+The bootstrap response is signed with `X-Bootstrap-Content-Hash` and `X-Bootstrap-Signature`. The client reads cached config from SQLite first, then refreshes in background. `client/app.json` now carries the default local `runtimeVersion` and `rolloutChannel` under `expo.extra`.
+
 ## Pull Request Workflow
 
 GitHub Actions runs these required pull-request checks:

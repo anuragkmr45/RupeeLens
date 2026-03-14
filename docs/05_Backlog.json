@@ -182,12 +182,12 @@
       ],
       "tests": "Simulate old config, invalid signature, and network loss; verify safe fallback.",
       "done": "Remote config live in dev and test environments.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-14",
+      "completed_at": "2026-03-14",
+      "commit_ref": "c72b046d451c33b1b0d8743a4c5ea6157668ec8a",
+      "tracking_notes": "Signed /v1/bootstrap/config verified in local dev and test flows; client caches config in SQLite settings and refreshes in background; safe fallback verified for invalid signature and network loss; validation and smoke checks passed."
     },
     {
       "id": "CAP-001",

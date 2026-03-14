@@ -1,4 +1,14 @@
 export {
+  DEFAULT_BOOTSTRAP_SIGNING_PUBLIC_KEY,
+  base64UrlToBytes,
+  bytesToBase64Url,
+  canonicalizeJson,
+  compareDottedVersions,
+  getBootstrapContentHash,
+  signEd25519Payload,
+  verifyEd25519Signature,
+} from './bootstrap.js';
+export {
   designElevation,
   designIconSizes,
   designMotion,

@@ -173,6 +173,15 @@ paths:
       responses:
         '200':
           description: Bootstrap config
+          headers:
+            X-Bootstrap-Content-Hash:
+              description: SHA-256 hex digest of the canonical bootstrap JSON response.
+              schema:
+                type: string
+            X-Bootstrap-Signature:
+              description: Base64url Ed25519 signature of the canonical bootstrap JSON response.
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -930,8 +939,7 @@ components:
           additionalProperties:
             type: boolean
         parserConfig:
-          type: object
-          additionalProperties: true
+          $ref: '#/components/schemas/ParserConfig'
         copyOverrides:
           type: object
           additionalProperties:
@@ -944,6 +952,31 @@ components:
           - internal
           - beta
           - production
+    ParserConfig:
+      type: object
+      required:
+      - globalKillSwitch
+      - parserAssignments
+      - parserTemplates
+      properties:
+        globalKillSwitch:
+          type: boolean
+        parserAssignments:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ParserAssignment'
+        parserTemplates:
+          type: object
+          additionalProperties: true
+    ParserAssignment:
+      type: object
+      required:
+      - enabled
+      properties:
+        enabled:
+          type: boolean
+        templateId:
+          type: string
     SyncPushRequest:
       type: object
       required:

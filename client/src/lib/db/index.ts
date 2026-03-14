@@ -11,6 +11,7 @@ import {
 } from './manifest';
 import { clientDatabaseSeeds } from './seeds';
 
+let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let readinessPromise: Promise<SQLiteBootstrapResult> | null = null;
 
 async function openAppDatabaseAsync() {
@@ -21,9 +22,20 @@ async function openAppDatabaseAsync() {
   return database;
 }
 
+export function getAppDatabaseAsync(): Promise<SQLite.SQLiteDatabase> {
+  if (databasePromise === null) {
+    databasePromise = openAppDatabaseAsync().catch((error: unknown) => {
+      databasePromise = null;
+      throw error;
+    });
+  }
+
+  return databasePromise;
+}
+
 export function ensureAppDatabaseReady(): Promise<SQLiteBootstrapResult> {
   if (readinessPromise === null) {
-    readinessPromise = openAppDatabaseAsync()
+    readinessPromise = getAppDatabaseAsync()
       .then((database) =>
         bootstrapSQLiteDatabase(
           database,
@@ -41,6 +53,7 @@ export function ensureAppDatabaseReady(): Promise<SQLiteBootstrapResult> {
 }
 
 export function resetAppDatabaseReadinessForTests(): void {
+  databasePromise = null;
   readinessPromise = null;
 }
 
@@ -56,4 +69,5 @@ export {
   clientDatabaseMigrations,
 } from './manifest';
 export { clientDatabaseSeeds } from './seeds';
+export { readJsonSetting, upsertJsonSetting } from './settings';
 export type { SQLiteBootstrapResult, SQLiteDatabaseAdapter } from './core';

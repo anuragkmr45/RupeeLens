@@ -175,7 +175,7 @@ Docs merged and linked from README.
 - **Story points:** 5
 - **Goal:** Ship parser fixes and staged rollout safely without forcing native releases for every tweak.
 - **Dependencies:** SET-001, SET-004
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-14 | Completed At: 2026-03-14 | Commit Ref: c72b046d451c33b1b0d8743a4c5ea6157668ec8a | Tracking Notes: Signed /v1/bootstrap/config verified in local dev and test flows; client caches config in SQLite settings and refreshes in background; safe fallback verified for invalid signature and network loss; validation and smoke checks passed.
 
 **Description**  
 Build bootstrap config endpoint, mobile cache layer, config TTL, signature/version checks, kill switches, parser templates, and staged rollout support by version/channel.

@@ -32,15 +32,21 @@ importers:
 
   client:
     dependencies:
+      '@upi-spend-tracker/contracts':
+        specifier: workspace:*
+        version: link:../packages/contracts
       '@upi-spend-tracker/shared-utils':
         specifier: workspace:*
         version: link:../packages/shared-utils
       expo:
         specifier: ~55.0.6
         version: 55.0.6(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
+      expo-constants:
+        specifier: ~55.0.7
+        version: 55.0.7(expo@55.0.6)(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(typescript@5.9.3)
       expo-sqlite:
-        specifier: ~16.0.8
-        version: 16.0.10(expo@55.0.6)(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
+        specifier: ~55.0.10
+        version: 55.0.10(expo@55.0.6)(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
       expo-status-bar:
         specifier: ~55.0.4
         version: 55.0.4(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
@@ -112,6 +118,9 @@ importers:
 
   packages/shared-utils:
     dependencies:
+      '@noble/curves':
+        specifier: ^2.0.1
+        version: 2.0.1
       '@noble/hashes':
         specifier: ^2.0.1
         version: 2.0.1
@@ -1192,6 +1201,10 @@ packages:
 
   '@napi-rs/wasm-runtime@1.1.1':
     resolution: {integrity: sha512-p64ah1M1ld8xjWv3qbvFwHiFVWrq1yFvV4f7w+mzaqiR4IlSgkqhcRdHwsGgomwzBH51sRY4NEowLxnaBjcW/A==}
+
+  '@noble/curves@2.0.1':
+    resolution: {integrity: sha512-vs1Az2OOTBiP4q0pwjW5aF0xp9n4MxVrmkFBxc6EKZc6ddYx5gaZiAsZoq0uRRXWbi3AT/sBqn05eRPtn1JCPw==}
+    engines: {node: '>= 20.19.0'}
 
   '@noble/hashes@2.0.1':
     resolution: {integrity: sha512-XlOlEbQcE9fmuXxrVTXCTlG2nlRXa9Rj3rr5Ue/+tX+nmkgbX720YHh0VR3hBF9xDvwnb8D2shVGOwNx+ulArw==}
@@ -2514,8 +2527,8 @@ packages:
     resolution: {integrity: sha512-xI72FTm469FfuuBL2R5aNtthgH+GR7ygOpsx/KcPS0K8AZaZd7VjtEExbzn9/qyyYkWW3T+3dAmCDKOMX8gdmQ==}
     engines: {node: '>=20.16.0'}
 
-  expo-sqlite@16.0.10:
-    resolution: {integrity: sha512-tUOKxE9TpfneRG3eOfbNfhN9236SJ7IiUnP8gCqU7umd9DtgDGB/5PhYVVfl+U7KskgolgNoB9v9OZ9iwXN8Eg==}
+  expo-sqlite@55.0.10:
+    resolution: {integrity: sha512-yLQXkwcA0OVSKuL4t+a6vv+H/Klh8147n7hH75AN0MkC48p3Go7+6GM+3SFENeaBUsmOnOS3XSFxMxxj6PIg4g==}
     peerDependencies:
       expo: '*'
       react: '*'
@@ -6201,6 +6214,10 @@ snapshots:
       '@tybys/wasm-util': 0.10.1
     optional: true
 
+  '@noble/curves@2.0.1':
+    dependencies:
+      '@noble/hashes': 2.0.1
+
   '@noble/hashes@2.0.1': {}
 
   '@nodelib/fs.scandir@2.1.5':
@@ -7871,7 +7888,7 @@ snapshots:
 
   expo-server@55.0.6: {}
 
-  expo-sqlite@16.0.10(expo@55.0.6)(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
+  expo-sqlite@55.0.10(expo@55.0.6)(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
     dependencies:
       await-lock: 2.2.2
       expo: 55.0.6(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)

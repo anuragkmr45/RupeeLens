@@ -5,6 +5,13 @@ import { DesignSystemShowcaseScreen } from './src/app/DesignSystemShowcaseScreen
 import { AppShell } from './src/components/AppShell';
 import { Button } from './src/components/Button';
 import { Card } from './src/components/Card';
+import {
+  BootstrapConfigProvider,
+  createDefaultBootstrapConfigState,
+  getBootstrapRuntimeMetadata,
+  loadBootstrapConfigStateFromDatabase,
+  type BootstrapConfigState,
+} from './src/lib/bootstrap-config';
 import { SectionHeader } from './src/components/SectionHeader';
 import { ensureAppDatabaseReady } from './src/lib/db';
 import { AppThemeProvider, useAppTheme } from './src/theme';
@@ -14,21 +21,37 @@ type BootstrapState = 'error' | 'loading' | 'ready';
 function DatabaseBootstrapBoundary() {
   const { theme, tokens } = useAppTheme();
   const [state, setState] = useState<BootstrapState>('loading');
+  const [bootstrapConfigState, setBootstrapConfigState] =
+    useState<BootstrapConfigState | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [runtimeMetadata] = useState(() => getBootstrapRuntimeMetadata());
 
   useEffect(() => {
     let isActive = true;
 
     setState('loading');
+    setBootstrapConfigState(null);
     setErrorMessage(null);
 
     void ensureAppDatabaseReady()
-      .then(() => {
+      .then(async () => {
+        const initialBootstrapConfigState =
+          await loadBootstrapConfigStateFromDatabase(runtimeMetadata).catch(
+            (error: unknown) =>
+              createDefaultBootstrapConfigState(
+                runtimeMetadata,
+                error instanceof Error
+                  ? error.message
+                  : 'Could not load cached remote config.',
+              ),
+          );
+
         if (!isActive) {
           return;
         }
 
+        setBootstrapConfigState(initialBootstrapConfigState);
         setState('ready');
       })
       .catch((error: unknown) => {
@@ -47,7 +70,7 @@ function DatabaseBootstrapBoundary() {
     return () => {
       isActive = false;
     };
-  }, [attempt]);
+  }, [attempt, runtimeMetadata]);
 
   const styles = StyleSheet.create({
     bodyText: {
@@ -62,7 +85,16 @@ function DatabaseBootstrapBoundary() {
   });
 
   if (state === 'ready') {
-    return <DesignSystemShowcaseScreen />;
+    return (
+      <BootstrapConfigProvider
+        initialState={
+          bootstrapConfigState ?? createDefaultBootstrapConfigState(runtimeMetadata)
+        }
+        runtimeMetadata={runtimeMetadata}
+      >
+        <DesignSystemShowcaseScreen />
+      </BootstrapConfigProvider>
+    );
   }
 
   return (

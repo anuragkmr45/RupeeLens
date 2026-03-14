@@ -11,6 +11,7 @@ import { KPIBlock } from '../components/KPIBlock';
 import { ListItem } from '../components/ListItem';
 import { SectionHeader } from '../components/SectionHeader';
 import { TextField } from '../components/TextField';
+import { useBootstrapConfig } from '../lib/bootstrap-config';
 import { useAppTheme, type ThemePreference } from '../theme';
 
 const categoryOptions = ['Coffee', 'Groceries', 'Transport'] as const;
@@ -62,11 +63,18 @@ function PreviewBadge({ label }: { label: string }) {
 export function DesignSystemShowcaseScreen() {
   const { theme, themeName, themePreference, setThemePreference, tokens } =
     useAppTheme();
+  const bootstrapConfig = useBootstrapConfig();
   const [merchantName, setMerchantName] = useState('Third Wave Coffee');
   const [itemName, setItemName] = useState('Cold brew');
   const [selectedCategory, setSelectedCategory] =
     useState<(typeof categoryOptions)[number]>('Coffee');
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+  const enabledFlagCount = Object.values(bootstrapConfig.config.featureFlags).filter(
+    Boolean,
+  ).length;
+  const enabledParserCount = Object.entries(
+    bootstrapConfig.config.parserConfig.parserAssignments,
+  ).filter(([parserId]) => bootstrapConfig.isParserEnabled(parserId)).length;
 
   const styles = StyleSheet.create({
     bodyText: {
@@ -151,6 +159,59 @@ export function DesignSystemShowcaseScreen() {
             <Button variant="secondary">Review Inbox</Button>
             <Button variant="ghost">Create Budget</Button>
           </View>
+        </View>
+      </Card>
+
+      <Card
+        footer={
+          <Text style={styles.metadataText}>
+            Source: {bootstrapConfig.source}. Last refresh:{' '}
+            {bootstrapConfig.lastRefreshAt ?? 'not yet refreshed'}.
+          </Text>
+        }
+        header={
+          <SectionHeader
+            eyebrow="SET-006"
+            subtitle="Remote config now loads from SQLite immediately and refreshes in the background with signature verification."
+            title="Remote Config Foundation"
+          />
+        }
+      >
+        <View style={styles.sectionStack}>
+          <Text style={styles.bodyText}>
+            Channel: {bootstrapConfig.config.rolloutChannel ?? 'internal'}.
+            Compatibility:{' '}
+            {bootstrapConfig.config.runtimeCompatibility?.compatible
+              ? 'compatible'
+              : bootstrapConfig.config.runtimeCompatibility?.reason ??
+                'unknown'}
+            . Stale fallback: {bootstrapConfig.isStale ? 'yes' : 'no'}.
+          </Text>
+          <View style={styles.kpiGrid}>
+            <KPIBlock
+              label="Enabled flags"
+              supportingText="Remote feature toggles"
+              tone="accent"
+              value={String(enabledFlagCount)}
+            />
+            <KPIBlock
+              label="Enabled parsers"
+              supportingText="Assignments that survive kill switches"
+              tone="positive"
+              value={String(enabledParserCount)}
+            />
+            <KPIBlock
+              label="TTL"
+              supportingText="Seconds before cache becomes stale"
+              tone={bootstrapConfig.isStale ? 'warning' : 'accent'}
+              value={String(bootstrapConfig.config.cacheTtlSeconds)}
+            />
+          </View>
+          {bootstrapConfig.lastError ? (
+            <Text style={styles.bodyText}>
+              Latest refresh error: {bootstrapConfig.lastError}
+            </Text>
+          ) : null}
         </View>
       </Card>
 

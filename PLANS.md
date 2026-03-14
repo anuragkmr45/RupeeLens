@@ -34,6 +34,18 @@ _No active plan. Waiting for the next ticket._
 
 ## Completed Plans
 
+### SET-006 — Feature Flags and Remote Parser Config Foundation
+
+- **Status:** completed
+- **Ticket:** SET-006
+- **Goal:** Implement the Sprint 1 remote-config foundation by shipping a live dev/test bootstrap endpoint, signed config payload verification, cached client config loading, background refresh, and observable kill-switch/feature-flag state without expanding into later parser or publishing tooling work.
+- **Touched files/modules:** `PLANS.md`, `docs/04_API_Contract.yaml`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `packages/shared-types/**`, `packages/contracts/**`, `packages/shared-utils/**`, `server/api/src/lib/env.ts`, `server/api/src/app.ts`, `server/api/src/modules/bootstrap/**`, `client/app.json`, `client/package.json`, `client/src/lib/db/**`, `client/src/lib/bootstrap-config/**`, `client/src/app/**`, `client/App.tsx`, and related tests.
+- **Rationale:** The backlog defines SET-006 as the remote-config and feature-flag foundation needed before parser rollout safety, dedupe tuning, and later bootstrap API hardening. The current repo already reserves `/v1/bootstrap/config` in the OpenAPI contract but had no runtime implementation or client cache/verification layer.
+- **Risks:** Pulling later API-006 publishing and cache-hardening scope into this ticket, choosing a signature model the client runtime cannot verify safely, or making remote config block app startup instead of remaining local-first and failure-tolerant.
+- **Validation commands:** `pnpm install`, `pnpm lint`, `pnpm lint:openapi`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm db:validate`.
+- **Done when:** The API serves a signed bootstrap payload in local dev/test, the client loads cached or safe-default config without blocking on network, background refresh safely verifies content hash and signature, remote flags and parser kill switches are observable in the app, docs/contracts stay aligned, and backlog tracking is synchronized with SET-006 marked `done` only after validations and smoke checks succeed.
+- **Outcome:** Added the signed `/v1/bootstrap/config` endpoint with typed contracts and deterministic version/channel selection, shipped a SQLite-backed client cache and background refresh layer with signature/hash verification, surfaced remote-config state in the client showcase, updated the OpenAPI/README docs, and passed `pnpm install`, `pnpm lint`, `pnpm lint:openapi`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm db:validate`, `PORT=3101 pnpm dev:api` plus a real `curl` smoke check, and `CI=1 EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:3101 pnpm dev:client`.
+
 ### SET-005 — Codex Repo Instructions and Review Workflow
 
 - **Status:** completed

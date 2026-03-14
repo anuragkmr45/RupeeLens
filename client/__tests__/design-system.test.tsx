@@ -1,3 +1,47 @@
+jest.mock('../src/lib/bootstrap-config', () => ({
+  useBootstrapConfig: () => ({
+    config: {
+      cacheTtlSeconds: 300,
+      configVersion: 'dev-2026-03-14',
+      copyOverrides: {
+        configBanner: 'Remote config foundation active (dev)',
+      },
+      featureFlags: {
+        'feature.remote_parser_config': true,
+      },
+      minSupportedVersion: '1.0.0',
+      parserConfig: {
+        globalKillSwitch: false,
+        parserAssignments: {
+          'upi.generic': {
+            enabled: true,
+            templateId: 'upi-generic-v1',
+          },
+        },
+        parserTemplates: {
+          'upi-generic-v1': {
+            amountPattern: 'INR\\s?(\\d+)',
+          },
+        },
+      },
+      rolloutChannel: 'internal',
+      runtimeCompatibility: {
+        compatible: true,
+      },
+      softUpgradeVersion: '1.1.0',
+    },
+    contentHash: 'test-hash',
+    isFeatureEnabled: (flagKey: string) =>
+      flagKey === 'feature.remote_parser_config',
+    isParserEnabled: (parserId: string) => parserId === 'upi.generic',
+    isStale: false,
+    lastError: null,
+    lastRefreshAt: '2026-03-14T00:00:00.000Z',
+    signature: 'test-signature',
+    source: 'cache' as const,
+  }),
+}));
+
 import { fireEvent, render } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
 import { Text, View } from 'react-native';
@@ -99,5 +143,6 @@ describe('design system primitives', () => {
 
     expect(screen.getByText('Quick classify preview')).toBeTruthy();
     expect(screen.getByText('Captured from notification · just now')).toBeTruthy();
+    expect(screen.getByText('Remote Config Foundation')).toBeTruthy();
   });
 });
