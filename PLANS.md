@@ -4,17 +4,31 @@ Use this template before implementing any multi-step, cross-module, or risky cha
 
 ## Active Plan
 
-### SET-002 — Closeout Verification Pass
+### SET-003 — Mobile Design System Tokens and UI Primitives
+
+- **Status:** completed
+- **Ticket:** SET-003
+- **Goal:** Implement the backlog-defined mobile design system foundation with shared runtime tokens, light/dark theme support, and a showcase screen covering all required UI primitives.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `packages/shared-utils/**`, `client/App.tsx`, `client/__tests__/**`, `client/src/app/**`, `client/src/components/**`, `client/src/theme/**`, and supporting client exports/tests.
+- **Rationale:** SET-003 is the first application-building ticket after repo/bootstrap work. The backlog and planning docs consistently scope it to mobile design tokens and base primitives only, which should unblock later feature tickets without pulling in navigation, state, or backend work.
+- **Risks:** Accidentally expanding into feature-screen work, breaking Expo build/tests with a heavier UI architecture than needed, introducing cross-workspace boundary drift, or implementing tokens outside a shared package contrary to backlog acceptance criteria.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** Shared runtime tokens live in one shared package and are consumed by the client, all backlog-listed primitives exist with light/dark theme support and accessible touch targets, a showcase screen demonstrates them, and backlog tracking is synchronized with SET-003 marked `done` only after validations succeed.
+- **Outcome:** Shared runtime design tokens now live in `packages/shared-utils`, the client ships the full SET-003 primitive set with a light/dark showcase screen, client snapshots/token tests were added, and `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed.
+
+## Blocked Plans
+
+### SET-002 — Final Remote Closeout
 
 - **Status:** blocked
 - **Ticket:** SET-002
-- **Goal:** Verify whether the GitHub remote, PR workflow runs, and `main` branch protection are truly active so SET-002 can be closed out truthfully.
+- **Goal:** Verify the live GitHub PR workflow, exact remote check names, and `main` branch protection so SET-002 can be closed out truthfully.
 - **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, and docs only if remote truth differs from the recorded check names or protection mode.
-- **Rationale:** The repo-side CI assets for SET-002 were completed locally, but the original run ended blocked because remote GitHub verification was unavailable. This pass is verification-only and must either confirm remote protection or leave the ticket blocked with a more precise note.
-- **Risks:** Misreporting GitHub state from a partially initialized repo, claiming workflow/protection success without authenticated access, and drifting backlog notes away from the current remote facts.
-- **Validation commands:** `git rev-parse --is-inside-work-tree`, `git remote -v`, `git ls-remote origin`, authenticated GitHub verification commands if available.
+- **Rationale:** Remote verification is now possible through the stored Git credential helper. This pass must confirm the real PR workflow and branch-protection state instead of relying on local YAML alone.
+- **Risks:** Claiming SET-002 `done` from partial GitHub evidence, or missing the repository-plan limitation that blocks branch protection on the current private repo.
+- **Validation commands:** `git remote -v`, `git branch -vv`, `git rev-parse HEAD`, `git ls-remote origin 'refs/pull/*/head'`, authenticated GitHub API reads for repo, pulls, workflow runs, jobs, and `main` protection.
 - **Done when:** Remote GitHub workflow runs and `main` protection are verified directly and the backlog is updated to `done`; otherwise the backlog remains `blocked` with an exact blocker note.
-- **Outcome:** `.git` and `origin` now exist, but local `main` still has no commits, `git ls-remote origin` returns no refs, unauthenticated GitHub access to the repo returns `404`, and this environment has neither `gh` nor a GitHub token. Remote workflow runs and branch protection could not be verified.
+- **Outcome:** Verified private repo `anuragkmr45/RupeeLens`, pushed `main`, two PR refs, active workflow `.github/workflows/pr.yml`, and successful PR run `23081726355` with checks `Scope`, `PR Title`, `OpenAPI`, and `Verify`. `main` branch protection remains blocked because both rules and classic protection APIs return `403` with `Upgrade to GitHub Pro or make this repository public to enable this feature.` for the current private repo.
 
 ### SET-002 — PR Quality Gates and Branch Protection
 

@@ -82,8 +82,8 @@
       "owner": "codex",
       "started_at": "2026-03-13",
       "completed_at": "",
-      "commit_ref": "pending-local-commit",
-      "tracking_notes": "Closeout verification found local `.git` and `origin`, but `main` has no commits, `git ls-remote origin` returns no refs, GitHub web access to the repo returns 404 unauthenticated, and this environment has neither `gh` nor `GH_TOKEN`/`GITHUB_TOKEN`. PR workflow runs and `main` branch protection therefore could not be verified."
+      "commit_ref": "37ae7db9c9c778db6cce116d1cf5dc3e6f993a84",
+      "tracking_notes": "Verified private repo `anuragkmr45/RupeeLens`, pushed `main`, PR run `https://github.com/anuragkmr45/RupeeLens/actions/runs/23081726355`, and exact checks `Scope`, `PR Title`, `OpenAPI`, `Verify`. `main` branch protection could not be activated on the current private repo because both rules and classic protection APIs return `403` with `Upgrade to GitHub Pro or make this repository public to enable this feature.`"
     },
     {
       "id": "SET-003",
@@ -104,12 +104,12 @@
       ],
       "tests": "Snapshot tests for primitives; manual accessibility review.",
       "done": "UI primitives documented and ready for feature teams.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-14",
+      "completed_at": "2026-03-14",
+      "commit_ref": "37ae7db9c9c778db6cce116d1cf5dc3e6f993a84",
+      "tracking_notes": "Validation passed; shared tokens now live in `packages/shared-utils`, the client showcase demonstrates `AppShell`, `Button`, `Card`, `ListItem`, `BottomSheet`, `TextField`, `Chip`, `EmptyState`, `SectionHeader`, and `KPIBlock`, and root lint/typecheck/test/build are green."
     },
     {
       "id": "SET-004",

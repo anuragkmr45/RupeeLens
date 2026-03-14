@@ -1,0 +1,1433 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`design system primitives matches the dark snapshot 1`] = `
+<View
+  style={
+    {
+      "gap": 12,
+    }
+  }
+>
+  <View
+    style={
+      [
+        {
+          "backgroundColor": "#28211C",
+          "borderColor": "#4A3F36",
+          "borderRadius": 24,
+          "borderWidth": 1,
+          "gap": 16,
+          "padding": 20,
+        },
+        {
+          "elevation": 2,
+          "shadowColor": "#120F0B",
+          "shadowOffset": {
+            "height": 4,
+            "width": 0,
+          },
+          "shadowOpacity": 0.08,
+          "shadowRadius": 12,
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        {
+          "paddingBottom": 8,
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "alignItems": "flex-start",
+            "flexDirection": "row",
+            "gap": 16,
+            "justifyContent": "space-between",
+          }
+        }
+      >
+        <View
+          style={
+            {
+              "flex": 1,
+              "gap": 4,
+            }
+          }
+        >
+          <Text
+            style={
+              {
+                "color": "#C8B8A9",
+                "fontFamily": "System",
+                "fontSize": 12,
+                "fontWeight": "700",
+                "letterSpacing": 1.1,
+                "lineHeight": 16,
+                "textTransform": "uppercase",
+              }
+            }
+          >
+            Preview
+          </Text>
+          <Text
+            style={
+              {
+                "color": "#F7F0E7",
+                "fontFamily": "System",
+                "fontSize": 24,
+                "fontWeight": "700",
+                "lineHeight": 30,
+              }
+            }
+          >
+            Primitive Gallery
+          </Text>
+          <Text
+            style={
+              {
+                "color": "#C8B8A9",
+                "fontFamily": "System",
+                "fontSize": 16,
+                "lineHeight": 24,
+              }
+            }
+          >
+            Representative primitive snapshot
+          </Text>
+        </View>
+      </View>
+    </View>
+    <View
+      style={
+        [
+          {
+            "borderRadius": 16,
+            "gap": 4,
+            "minWidth": 150,
+            "padding": 16,
+          },
+          {
+            "backgroundColor": "#2B241F",
+          },
+        ]
+      }
+    >
+      <Text
+        style={
+          {
+            "color": "#C8B8A9",
+            "fontFamily": "System",
+            "fontSize": 12,
+            "fontWeight": "700",
+            "letterSpacing": 0.4,
+            "lineHeight": 16,
+            "textTransform": "uppercase",
+          }
+        }
+      >
+        Total
+      </Text>
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "System",
+              "fontSize": 30,
+              "fontWeight": "800",
+              "lineHeight": 36,
+            },
+            {
+              "color": "#F7F0E7",
+            },
+          ]
+        }
+      >
+        ₹420
+      </Text>
+      <Text
+        style={
+          {
+            "color": "#C8B8A9",
+            "fontFamily": "System",
+            "fontSize": 12,
+            "lineHeight": 16,
+          }
+        }
+      >
+        Shared metric block
+      </Text>
+    </View>
+    <View
+      style={
+        {
+          "gap": 8,
+        }
+      }
+    >
+      <Text
+        style={
+          {
+            "color": "#F7F0E7",
+            "fontFamily": "System",
+            "fontSize": 13,
+            "fontWeight": "600",
+            "lineHeight": 18,
+          }
+        }
+      >
+        Merchant
+      </Text>
+      <TextInput
+        multiline={false}
+        onChangeText={[Function]}
+        placeholderTextColor="#C8B8A9"
+        style={
+          {
+            "backgroundColor": "#221C18",
+            "borderColor": "#4A3F36",
+            "borderRadius": 16,
+            "borderWidth": 1,
+            "color": "#F7F0E7",
+            "fontFamily": "System",
+            "fontSize": 16,
+            "lineHeight": 24,
+            "minHeight": 48,
+            "paddingHorizontal": 16,
+            "paddingVertical": 12,
+            "textAlignVertical": "center",
+          }
+        }
+        value="Third Wave Coffee"
+      />
+      <Text
+        style={
+          {
+            "color": "#C8B8A9",
+            "fontFamily": "System",
+            "fontSize": 12,
+            "lineHeight": 16,
+          }
+        }
+      >
+        Helper text
+      </Text>
+    </View>
+    <View
+      accessibilityRole="button"
+      accessibilityState={
+        {
+          "busy": undefined,
+          "checked": undefined,
+          "disabled": undefined,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      onBlur={[Function]}
+      onClick={[Function]}
+      onFocus={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        [
+          {
+            "alignItems": "center",
+            "borderRadius": 999,
+            "borderWidth": 1,
+            "justifyContent": "center",
+            "minHeight": 48,
+            "paddingHorizontal": 16,
+          },
+          {
+            "backgroundColor": "#663D22",
+            "borderColor": "#FFB885",
+          },
+          false,
+        ]
+      }
+    >
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "System",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "letterSpacing": 0,
+              "lineHeight": 18,
+            },
+            {
+              "color": "#FFB885",
+            },
+          ]
+        }
+      >
+        Coffee
+      </Text>
+    </View>
+    <View
+      style={
+        {
+          "alignItems": "center",
+          "backgroundColor": "#1E1916",
+          "borderColor": "#4A3F36",
+          "borderRadius": 16,
+          "borderWidth": 1,
+          "flexDirection": "row",
+          "gap": 16,
+          "minHeight": 56,
+          "paddingHorizontal": 16,
+          "paddingVertical": 12,
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "flex": 1,
+            "gap": 4,
+          }
+        }
+      >
+        <Text
+          style={
+            {
+              "color": "#F7F0E7",
+              "fontFamily": "System",
+              "fontSize": 16,
+              "fontWeight": "600",
+              "lineHeight": 24,
+            }
+          }
+        >
+          Third Wave Coffee
+        </Text>
+        <Text
+          style={
+            {
+              "color": "#C8B8A9",
+              "fontFamily": "System",
+              "fontSize": 16,
+              "lineHeight": 24,
+            }
+          }
+        >
+          Inbox · just now
+        </Text>
+        <Text
+          style={
+            {
+              "color": "#C8B8A9",
+              "fontFamily": "System",
+              "fontSize": 12,
+              "fontWeight": "500",
+              "lineHeight": 16,
+            }
+          }
+        >
+          Suggested category: Coffee
+        </Text>
+      </View>
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "justifyContent": "center",
+            "minWidth": 48,
+          }
+        }
+      >
+        <Text>
+          ₹420
+        </Text>
+      </View>
+    </View>
+    <View
+      style={
+        {
+          "alignItems": "center",
+          "backgroundColor": "#1E1916",
+          "borderColor": "#4A3F36",
+          "borderRadius": 24,
+          "borderWidth": 1,
+          "gap": 16,
+          "padding": 24,
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "backgroundColor": "#663D22",
+            "borderRadius": 999,
+            "height": 44,
+            "justifyContent": "center",
+            "width": 44,
+          }
+        }
+      >
+        <View
+          style={
+            {
+              "backgroundColor": "#F2A063",
+              "borderRadius": 999,
+              "height": 16,
+              "width": 16,
+            }
+          }
+        />
+      </View>
+      <Text
+        style={
+          {
+            "color": "#F7F0E7",
+            "fontFamily": "System",
+            "fontSize": 24,
+            "fontWeight": "700",
+            "lineHeight": 30,
+            "textAlign": "center",
+          }
+        }
+      >
+        All clear
+      </Text>
+      <Text
+        style={
+          {
+            "color": "#C8B8A9",
+            "fontFamily": "System",
+            "fontSize": 16,
+            "lineHeight": 24,
+            "textAlign": "center",
+          }
+        }
+      >
+        No transactions left to classify.
+      </Text>
+      <View
+        accessibilityRole="button"
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": false,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onBlur={[Function]}
+        onClick={[Function]}
+        onFocus={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          [
+            {
+              "alignItems": "center",
+              "borderRadius": 999,
+              "borderWidth": 1,
+              "justifyContent": "center",
+              "minHeight": 48,
+              "minWidth": 48,
+              "paddingHorizontal": 20,
+            },
+            {
+              "backgroundColor": "#2B241F",
+              "borderColor": "#4A3F36",
+            },
+            false,
+            false,
+          ]
+        }
+      >
+        <Text
+          style={
+            [
+              {
+                "fontFamily": "System",
+                "fontSize": 16,
+                "fontWeight": "600",
+                "letterSpacing": 0,
+                "lineHeight": 24,
+              },
+              {
+                "color": "#F7F0E7",
+              },
+            ]
+          }
+        >
+          Add manual
+        </Text>
+      </View>
+    </View>
+    <View
+      style={
+        {
+          "paddingTop": 12,
+        }
+      }
+    >
+      <View
+        accessibilityRole="button"
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": false,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onBlur={[Function]}
+        onClick={[Function]}
+        onFocus={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          [
+            {
+              "alignItems": "center",
+              "borderRadius": 999,
+              "borderWidth": 1,
+              "justifyContent": "center",
+              "minHeight": 48,
+              "minWidth": 48,
+              "paddingHorizontal": 20,
+            },
+            {
+              "backgroundColor": "transparent",
+              "borderColor": "#4A3F36",
+            },
+            false,
+            false,
+          ]
+        }
+      >
+        <Text
+          style={
+            [
+              {
+                "fontFamily": "System",
+                "fontSize": 16,
+                "fontWeight": "600",
+                "letterSpacing": 0,
+                "lineHeight": 24,
+              },
+              {
+                "color": "#F7F0E7",
+              },
+            ]
+          }
+        >
+          Ghost action
+        </Text>
+      </View>
+    </View>
+  </View>
+  <Modal
+    animationType="none"
+    onRequestClose={[Function]}
+    transparent={true}
+    visible={true}
+  >
+    <View
+      style={
+        {
+          "flex": 1,
+        }
+      }
+    >
+      <View
+        collapsable={false}
+        pointerEvents="none"
+        style={
+          {
+            "backgroundColor": "rgba(0, 0, 0, 0.62)",
+            "bottom": 0,
+            "left": 0,
+            "opacity": 1,
+            "position": "absolute",
+            "right": 0,
+            "top": 0,
+          }
+        }
+      />
+      <View
+        accessibilityRole="button"
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onBlur={[Function]}
+        onClick={[Function]}
+        onFocus={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "bottom": 0,
+            "left": 0,
+            "position": "absolute",
+            "right": 0,
+            "top": 0,
+          }
+        }
+      />
+      <View
+        style={
+          {
+            "flex": 1,
+            "justifyContent": "flex-end",
+          }
+        }
+      >
+        <View
+          collapsable={false}
+          style={
+            {
+              "backgroundColor": "#28211C",
+              "borderColor": "#4A3F36",
+              "borderTopLeftRadius": 32,
+              "borderTopRightRadius": 32,
+              "borderWidth": 1,
+              "elevation": 12,
+              "gap": 16,
+              "paddingBottom": 24,
+              "paddingHorizontal": 20,
+              "paddingTop": 16,
+              "shadowColor": "#120F0B",
+              "shadowOffset": {
+                "height": -6,
+                "width": 0,
+              },
+              "shadowOpacity": 0.2,
+              "shadowRadius": 24,
+              "transform": [
+                {
+                  "translateY": 0,
+                },
+              ],
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "alignSelf": "center",
+                "backgroundColor": "#6D5B4A",
+                "borderRadius": 999,
+                "height": 4,
+                "marginBottom": 16,
+                "width": 56,
+              }
+            }
+          />
+          <Text
+            style={
+              {
+                "color": "#F7F0E7",
+                "fontFamily": "System",
+                "fontSize": 24,
+                "fontWeight": "700",
+                "lineHeight": 30,
+              }
+            }
+          >
+            Open sheet
+          </Text>
+          <View>
+            <Text>
+              Sheet content
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  </Modal>
+</View>
+`;
+
+exports[`design system primitives matches the light snapshot 1`] = `
+<View
+  style={
+    {
+      "gap": 12,
+    }
+  }
+>
+  <View
+    style={
+      [
+        {
+          "backgroundColor": "#FFFFFF",
+          "borderColor": "#D9C6B2",
+          "borderRadius": 24,
+          "borderWidth": 1,
+          "gap": 16,
+          "padding": 20,
+        },
+        {
+          "elevation": 2,
+          "shadowColor": "#120F0B",
+          "shadowOffset": {
+            "height": 4,
+            "width": 0,
+          },
+          "shadowOpacity": 0.08,
+          "shadowRadius": 12,
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        {
+          "paddingBottom": 8,
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "alignItems": "flex-start",
+            "flexDirection": "row",
+            "gap": 16,
+            "justifyContent": "space-between",
+          }
+        }
+      >
+        <View
+          style={
+            {
+              "flex": 1,
+              "gap": 4,
+            }
+          }
+        >
+          <Text
+            style={
+              {
+                "color": "#6C5F54",
+                "fontFamily": "System",
+                "fontSize": 12,
+                "fontWeight": "700",
+                "letterSpacing": 1.1,
+                "lineHeight": 16,
+                "textTransform": "uppercase",
+              }
+            }
+          >
+            Preview
+          </Text>
+          <Text
+            style={
+              {
+                "color": "#211A14",
+                "fontFamily": "System",
+                "fontSize": 24,
+                "fontWeight": "700",
+                "lineHeight": 30,
+              }
+            }
+          >
+            Primitive Gallery
+          </Text>
+          <Text
+            style={
+              {
+                "color": "#6C5F54",
+                "fontFamily": "System",
+                "fontSize": 16,
+                "lineHeight": 24,
+              }
+            }
+          >
+            Representative primitive snapshot
+          </Text>
+        </View>
+      </View>
+    </View>
+    <View
+      style={
+        [
+          {
+            "borderRadius": 16,
+            "gap": 4,
+            "minWidth": 150,
+            "padding": 16,
+          },
+          {
+            "backgroundColor": "#F2E5D7",
+          },
+        ]
+      }
+    >
+      <Text
+        style={
+          {
+            "color": "#6C5F54",
+            "fontFamily": "System",
+            "fontSize": 12,
+            "fontWeight": "700",
+            "letterSpacing": 0.4,
+            "lineHeight": 16,
+            "textTransform": "uppercase",
+          }
+        }
+      >
+        Total
+      </Text>
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "System",
+              "fontSize": 30,
+              "fontWeight": "800",
+              "lineHeight": 36,
+            },
+            {
+              "color": "#211A14",
+            },
+          ]
+        }
+      >
+        ₹420
+      </Text>
+      <Text
+        style={
+          {
+            "color": "#6C5F54",
+            "fontFamily": "System",
+            "fontSize": 12,
+            "lineHeight": 16,
+          }
+        }
+      >
+        Shared metric block
+      </Text>
+    </View>
+    <View
+      style={
+        {
+          "gap": 8,
+        }
+      }
+    >
+      <Text
+        style={
+          {
+            "color": "#211A14",
+            "fontFamily": "System",
+            "fontSize": 13,
+            "fontWeight": "600",
+            "lineHeight": 18,
+          }
+        }
+      >
+        Merchant
+      </Text>
+      <TextInput
+        multiline={false}
+        onChangeText={[Function]}
+        placeholderTextColor="#6C5F54"
+        style={
+          {
+            "backgroundColor": "#FFFCF8",
+            "borderColor": "#D9C6B2",
+            "borderRadius": 16,
+            "borderWidth": 1,
+            "color": "#211A14",
+            "fontFamily": "System",
+            "fontSize": 16,
+            "lineHeight": 24,
+            "minHeight": 48,
+            "paddingHorizontal": 16,
+            "paddingVertical": 12,
+            "textAlignVertical": "center",
+          }
+        }
+        value="Third Wave Coffee"
+      />
+      <Text
+        style={
+          {
+            "color": "#6C5F54",
+            "fontFamily": "System",
+            "fontSize": 12,
+            "lineHeight": 16,
+          }
+        }
+      >
+        Helper text
+      </Text>
+    </View>
+    <View
+      accessibilityRole="button"
+      accessibilityState={
+        {
+          "busy": undefined,
+          "checked": undefined,
+          "disabled": undefined,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      onBlur={[Function]}
+      onClick={[Function]}
+      onFocus={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        [
+          {
+            "alignItems": "center",
+            "borderRadius": 999,
+            "borderWidth": 1,
+            "justifyContent": "center",
+            "minHeight": 48,
+            "paddingHorizontal": 16,
+          },
+          {
+            "backgroundColor": "#F4D6C1",
+            "borderColor": "#844119",
+          },
+          false,
+        ]
+      }
+    >
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "System",
+              "fontSize": 13,
+              "fontWeight": "600",
+              "letterSpacing": 0,
+              "lineHeight": 18,
+            },
+            {
+              "color": "#844119",
+            },
+          ]
+        }
+      >
+        Coffee
+      </Text>
+    </View>
+    <View
+      style={
+        {
+          "alignItems": "center",
+          "backgroundColor": "#FFF9F2",
+          "borderColor": "#D9C6B2",
+          "borderRadius": 16,
+          "borderWidth": 1,
+          "flexDirection": "row",
+          "gap": 16,
+          "minHeight": 56,
+          "paddingHorizontal": 16,
+          "paddingVertical": 12,
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "flex": 1,
+            "gap": 4,
+          }
+        }
+      >
+        <Text
+          style={
+            {
+              "color": "#211A14",
+              "fontFamily": "System",
+              "fontSize": 16,
+              "fontWeight": "600",
+              "lineHeight": 24,
+            }
+          }
+        >
+          Third Wave Coffee
+        </Text>
+        <Text
+          style={
+            {
+              "color": "#6C5F54",
+              "fontFamily": "System",
+              "fontSize": 16,
+              "lineHeight": 24,
+            }
+          }
+        >
+          Inbox · just now
+        </Text>
+        <Text
+          style={
+            {
+              "color": "#6C5F54",
+              "fontFamily": "System",
+              "fontSize": 12,
+              "fontWeight": "500",
+              "lineHeight": 16,
+            }
+          }
+        >
+          Suggested category: Coffee
+        </Text>
+      </View>
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "justifyContent": "center",
+            "minWidth": 48,
+          }
+        }
+      >
+        <Text>
+          ₹420
+        </Text>
+      </View>
+    </View>
+    <View
+      style={
+        {
+          "alignItems": "center",
+          "backgroundColor": "#FFF9F2",
+          "borderColor": "#D9C6B2",
+          "borderRadius": 24,
+          "borderWidth": 1,
+          "gap": 16,
+          "padding": 24,
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "backgroundColor": "#F4D6C1",
+            "borderRadius": 999,
+            "height": 44,
+            "justifyContent": "center",
+            "width": 44,
+          }
+        }
+      >
+        <View
+          style={
+            {
+              "backgroundColor": "#A55B2A",
+              "borderRadius": 999,
+              "height": 16,
+              "width": 16,
+            }
+          }
+        />
+      </View>
+      <Text
+        style={
+          {
+            "color": "#211A14",
+            "fontFamily": "System",
+            "fontSize": 24,
+            "fontWeight": "700",
+            "lineHeight": 30,
+            "textAlign": "center",
+          }
+        }
+      >
+        All clear
+      </Text>
+      <Text
+        style={
+          {
+            "color": "#6C5F54",
+            "fontFamily": "System",
+            "fontSize": 16,
+            "lineHeight": 24,
+            "textAlign": "center",
+          }
+        }
+      >
+        No transactions left to classify.
+      </Text>
+      <View
+        accessibilityRole="button"
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": false,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onBlur={[Function]}
+        onClick={[Function]}
+        onFocus={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          [
+            {
+              "alignItems": "center",
+              "borderRadius": 999,
+              "borderWidth": 1,
+              "justifyContent": "center",
+              "minHeight": 48,
+              "minWidth": 48,
+              "paddingHorizontal": 20,
+            },
+            {
+              "backgroundColor": "#F2E5D7",
+              "borderColor": "#D9C6B2",
+            },
+            false,
+            false,
+          ]
+        }
+      >
+        <Text
+          style={
+            [
+              {
+                "fontFamily": "System",
+                "fontSize": 16,
+                "fontWeight": "600",
+                "letterSpacing": 0,
+                "lineHeight": 24,
+              },
+              {
+                "color": "#211A14",
+              },
+            ]
+          }
+        >
+          Add manual
+        </Text>
+      </View>
+    </View>
+    <View
+      style={
+        {
+          "paddingTop": 12,
+        }
+      }
+    >
+      <View
+        accessibilityRole="button"
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": false,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onBlur={[Function]}
+        onClick={[Function]}
+        onFocus={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          [
+            {
+              "alignItems": "center",
+              "borderRadius": 999,
+              "borderWidth": 1,
+              "justifyContent": "center",
+              "minHeight": 48,
+              "minWidth": 48,
+              "paddingHorizontal": 20,
+            },
+            {
+              "backgroundColor": "transparent",
+              "borderColor": "#D9C6B2",
+            },
+            false,
+            false,
+          ]
+        }
+      >
+        <Text
+          style={
+            [
+              {
+                "fontFamily": "System",
+                "fontSize": 16,
+                "fontWeight": "600",
+                "letterSpacing": 0,
+                "lineHeight": 24,
+              },
+              {
+                "color": "#211A14",
+              },
+            ]
+          }
+        >
+          Ghost action
+        </Text>
+      </View>
+    </View>
+  </View>
+  <Modal
+    animationType="none"
+    onRequestClose={[Function]}
+    transparent={true}
+    visible={true}
+  >
+    <View
+      style={
+        {
+          "flex": 1,
+        }
+      }
+    >
+      <View
+        collapsable={false}
+        pointerEvents="none"
+        style={
+          {
+            "backgroundColor": "rgba(18, 15, 10, 0.48)",
+            "bottom": 0,
+            "left": 0,
+            "opacity": 1,
+            "position": "absolute",
+            "right": 0,
+            "top": 0,
+          }
+        }
+      />
+      <View
+        accessibilityRole="button"
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onBlur={[Function]}
+        onClick={[Function]}
+        onFocus={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "bottom": 0,
+            "left": 0,
+            "position": "absolute",
+            "right": 0,
+            "top": 0,
+          }
+        }
+      />
+      <View
+        style={
+          {
+            "flex": 1,
+            "justifyContent": "flex-end",
+          }
+        }
+      >
+        <View
+          collapsable={false}
+          style={
+            {
+              "backgroundColor": "#FFFFFF",
+              "borderColor": "#D9C6B2",
+              "borderTopLeftRadius": 32,
+              "borderTopRightRadius": 32,
+              "borderWidth": 1,
+              "elevation": 12,
+              "gap": 16,
+              "paddingBottom": 24,
+              "paddingHorizontal": 20,
+              "paddingTop": 16,
+              "shadowColor": "#120F0B",
+              "shadowOffset": {
+                "height": -6,
+                "width": 0,
+              },
+              "shadowOpacity": 0.2,
+              "shadowRadius": 24,
+              "transform": [
+                {
+                  "translateY": 0,
+                },
+              ],
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "alignSelf": "center",
+                "backgroundColor": "#B89B80",
+                "borderRadius": 999,
+                "height": 4,
+                "marginBottom": 16,
+                "width": 56,
+              }
+            }
+          />
+          <Text
+            style={
+              {
+                "color": "#211A14",
+                "fontFamily": "System",
+                "fontSize": 24,
+                "fontWeight": "700",
+                "lineHeight": 30,
+              }
+            }
+          >
+            Open sheet
+          </Text>
+          <View>
+            <Text>
+              Sheet content
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  </Modal>
+</View>
+`;

@@ -3,12 +3,10 @@ import { render } from '@testing-library/react-native';
 import App from '../App';
 
 describe('App', () => {
-  it('renders the bootstrap copy', () => {
+  it('renders the design system showcase', () => {
     const screen = render(<App />);
 
-    expect(screen.getByText('UPI Spend Tracker')).toBeTruthy();
-    expect(
-      screen.getByText('Client, API, worker, and shared packages are wired.'),
-    ).toBeTruthy();
+    expect(screen.getByText('Design System Showcase')).toBeTruthy();
+    expect(screen.getByText('Current cycle')).toBeTruthy();
   });
 });

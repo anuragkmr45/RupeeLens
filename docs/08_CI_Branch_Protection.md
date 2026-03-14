@@ -2,6 +2,8 @@
 
 This repository automates pull-request quality checks in GitHub Actions, but branch protection itself must be configured in GitHub repository settings by a maintainer with the right permissions.
 
+If GitHub returns `403` with `Upgrade to GitHub Pro or make this repository public to enable this feature.` for this private repository, the ruleset and classic branch-protection settings below cannot be activated until the repository plan or visibility changes.
+
 ## Repo-Automated Checks
 
 `/.github/workflows/pr.yml` runs on every pull request and produces these check names:

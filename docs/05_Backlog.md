@@ -67,7 +67,7 @@ Merged with CI green and bootstrap documented.
 - **Story points:** 3
 - **Goal:** Prevent broken code from merging and standardize release quality.
 - **Dependencies:** SET-001
-- **Tracking:** Status: blocked | Owner: codex | Started At: 2026-03-13 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Closeout verification found local `.git` and `origin`, but `main` has no commits, `git ls-remote origin` returns no refs, GitHub web access to the repo returns 404 unauthenticated, and this environment has neither `gh` nor `GH_TOKEN`/`GITHUB_TOKEN`. PR workflow runs and `main` branch protection therefore could not be verified.
+- **Tracking:** Status: blocked | Owner: codex | Started At: 2026-03-13 | Completed At: | Commit Ref: 37ae7db9c9c778db6cce116d1cf5dc3e6f993a84 | Tracking Notes: Verified private repo `anuragkmr45/RupeeLens`, pushed `main`, PR run `https://github.com/anuragkmr45/RupeeLens/actions/runs/23081726355`, and exact checks `Scope`, `PR Title`, `OpenAPI`, `Verify`. `main` branch protection could not be activated on the current private repo because both rules and classic protection APIs return `403` with `Upgrade to GitHub Pro or make this repository public to enable this feature.`
 
 **Description**  
 Configure GitHub Actions for install, lint, typecheck, unit tests, OpenAPI lint, and changed-package detection. Add branch protection expectations and PR template.
@@ -94,7 +94,7 @@ CI required for main branch; docs updated.
 - **Story points:** 5
 - **Goal:** Ensure consistent UI, dark mode, and future theming without repeated redesign.
 - **Dependencies:** SET-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-14 | Completed At: 2026-03-14 | Commit Ref: 37ae7db9c9c778db6cce116d1cf5dc3e6f993a84 | Tracking Notes: Validation passed; shared tokens now live in `packages/shared-utils`, the client showcase demonstrates AppShell, Button, Card, ListItem, BottomSheet, TextField, Chip, EmptyState, SectionHeader, and KPIBlock, and root lint/typecheck/test/build are green.
 
 **Description**  
 Define spacing, typography, radius, elevation, semantic colors, icon sizes, and motion tokens. Build base components: AppShell, Button, Card, ListItem, BottomSheet, TextField, Chip, EmptyState, SectionHeader, KPIBlock.
