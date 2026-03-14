@@ -14,19 +14,21 @@ This repository contains the Android-first v1 of UPI Spend Tracker. Codex and hu
 - `packages/shared-utils`: helpers with no app-specific side effects
 - `docs/`: canonical product, engineering, API, backlog, and release docs
 
+Full workflow and review guidance lives in `docs/10_Codex_Workflow.md`.
+
 ## Working agreements
 
 1. Read `docs/01_PRD.md` and `docs/02_Engineering_Design.md` before major implementation.
 2. Treat `docs/04_API_Contract.yaml` as the backend contract source-of-truth.
-3. Update docs/contracts/tests in the same PR whenever behavior changes.
+3. Update docs, contracts, and tests in the same PR whenever behavior changes.
 4. Schema changes must include migration updates and `pnpm db:validate`.
 5. Prefer additive changes over hidden breaking changes.
-6. Do not introduce paid third-party product APIs in v1 without explicit approval.
-7. Do not store unnecessary sensitive raw data.
-8. Do not bypass offline-first design by making core screens depend on live APIs.
-9. For risky parser changes, include fixtures and rollback notes.
-10. Explicit user rules can auto-apply; heuristic suggestions cannot auto-save silently.
-11. Keep AGENTS instructions concise; deeper detail belongs in docs.
+6. Keep shared packages pure and side-effect free.
+7. Store money in integer minor units and use UTC at system boundaries.
+8. Do not introduce paid third-party product APIs in v1 without explicit approval.
+9. Do not store unnecessary sensitive raw data or bypass offline-first core flows.
+10. For risky parser changes, include fixtures and rollback notes.
+11. Keep this file concise; deeper process detail belongs in docs.
 
 ## Commands
 
@@ -52,43 +54,22 @@ Run from repository root:
 
 ## Planning rules
 
-For complex work:
-
-- start with a plan using `PLANS.md`
-- list touched files/modules
-- call out schema/API changes explicitly
-- call out rollout/flag needs
-- define “done when” before coding
-
-## Code conventions
-
-- TypeScript everywhere unless native Android layer requires Kotlin/Java
-- Keep functions small and explicit
-- Prefer pure domain functions in shared packages
-- Avoid cross-module DB reach-ins in backend
-- Use dependency injection or module interfaces, not hidden singletons
-- Keep parser logic deterministic and fixture-tested
-- Store money in integer minor units
-- Use UTC at boundaries, render user timezone in UI
+- Plan first for multi-step, risky, cross-module, schema/API, workflow, or doc-governance work.
+- Implement directly only for small, local, low-risk changes when scope is obvious.
+- Use `PLANS.md` for complex work: list touched files/modules, call out schema/API changes explicitly, capture risks, and define “done when” before coding.
+- Use `docs/10_Codex_Workflow.md` for the full planning, tracking, and review checklist.
 
 ## Testing expectations
 
 Before opening or merging a PR:
 
-- run lint
-- run OpenAPI lint when contract docs or CI wiring changes
+- keep `Scope`, `PR Title`, `OpenAPI`, and `Verify` green
+- run `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`
+- run `pnpm lint:openapi` when contract docs or CI wiring changes
 - run `pnpm db:validate` when schema or migration manifests change
-- run typecheck
-- run relevant tests
-- add/adjust tests for changed behavior
-- for parser changes, add fixture coverage
-- for API changes, update contract tests
-
-## CI expectations
-
-- Keep `Scope`, `PR Title`, `OpenAPI`, and `Verify` green for every ticket.
-- Use Conventional Commits style for PR titles: `type(optional-scope): summary`.
-- When repo-side quality gates change, update `README.md` and `docs/08_CI_Branch_Protection.md` in the same change.
+- add or adjust tests for changed behavior
+- add parser fixtures for parser changes
+- update contract tests when API behavior changes
 
 ## PR expectations
 
@@ -96,6 +77,8 @@ Each PR should include:
 
 - ticket ID
 - summary of change
+- workflow/checklist followed from `docs/10_Codex_Workflow.md`
+- diff reviewed for unintended scope creep
 - risk/rollback note
 - test evidence
 - screenshots/video for UI changes

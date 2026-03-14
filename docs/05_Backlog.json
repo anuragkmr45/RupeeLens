@@ -156,12 +156,12 @@
       ],
       "tests": "Run a dry-run with an AI coding agent and confirm instructions are discoverable.",
       "done": "Docs merged and linked from README.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-14",
+      "completed_at": "2026-03-14",
+      "commit_ref": "0c9878197715d361e126a9b7adce358378456537",
+      "tracking_notes": "Workflow docs aligned across AGENTS.md, PLANS.md, README.md, .github/PULL_REQUEST_TEMPLATE.md, and docs/10_Codex_Workflow.md; dry-run discoverability checks passed; pnpm lint, pnpm typecheck, pnpm test, and pnpm build passed."
     },
     {
       "id": "SET-006",

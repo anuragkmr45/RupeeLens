@@ -3,6 +3,12 @@
 - Ticket:
 - Scope:
 
+## Workflow
+
+- Codex workflow/checklist followed (`docs/10_Codex_Workflow.md`):
+- Diff reviewed for unintended scope creep:
+- Docs/contracts updated if needed:
+
 ## Validation
 
 - Test evidence:

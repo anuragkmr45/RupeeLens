@@ -1,20 +1,10 @@
 # PLANS.md
 
-Use this template before implementing any multi-step, cross-module, or risky change.
+Use `PLANS.md` for multi-step, risky, cross-module, schema/API, workflow, or doc-governance work. Keep exactly one ticket under `## Active Plan`; move it to `## Completed Plans` or `## Blocked Plans` only after validation and backlog tracking are updated. Full workflow guidance lives in `docs/10_Codex_Workflow.md`.
 
 ## Active Plan
 
-### SET-004 — Database Migration Framework for Mobile SQLite and Server PostgreSQL
-
-- **Status:** completed
-- **Ticket:** SET-004
-- **Goal:** Implement the backlog-defined migration framework for the app-domain SQLite database and the server PostgreSQL database, with ordered/idempotent migrations, seed strategy, schema tracking, local scripts, and CI validation.
-- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `AGENTS.md`, `README.md`, `docs/09_Database_Migrations.md`, `package.json`, `pnpm-lock.yaml`, `compose.yaml`, `.github/workflows/pr.yml`, `packages/shared-utils/**`, `client/App.tsx`, `client/package.json`, `client/src/lib/db/**`, `client/__tests__/**`, `server/api/package.json`, `server/api/src/db/**`, and supporting tests/scripts.
-- **Rationale:** SET-004 is the foundation ticket that makes schema evolution safe before capture, sync, and domain tickets start writing durable data. The backlog and engineering design consistently require migration-only initialization, idempotence, rollback guidance, and CI validation.
-- **Risks:** Accidentally pulling Room/capture DB work from `CAP-004` into this ticket, overbuilding the schema beyond the foundation entities needed now, destabilizing Expo tests by booting SQLite incorrectly, or adding CI drift between local Postgres scripts and the `Verify` job.
-- **Validation commands:** `pnpm db:server:up`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm db:server:down`.
-- **Done when:** Both the client app-domain DB and the server DB can initialize from empty state using migrations only, reruns remain idempotent, manifest hash validation passes, migration/forward-fix guidance is documented, CI validates migrations through the existing `Verify` job, and backlog tracking is synchronized with SET-004 marked `done` only after validations succeed.
-- **Outcome:** Shared manifest hashing/order helpers now live in `packages/shared-utils`, the client and server each ship an ordered append-only migration runner with idempotent seed handling, root and CI verification now exercise `pnpm db:validate`, migration guidance is documented, and `pnpm db:server:up`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `pnpm ci:verify` all passed before closing the ticket.
+_No active plan. Waiting for the next ticket._
 
 ## Blocked Plans
 
@@ -44,6 +34,30 @@ Use this template before implementing any multi-step, cross-module, or risky cha
 
 ## Completed Plans
 
+### SET-005 — Codex Repo Instructions and Review Workflow
+
+- **Status:** completed
+- **Ticket:** SET-005
+- **Goal:** Finish the repo-level Codex governance docs by keeping `AGENTS.md` concise, turning `PLANS.md` into a copy-ready execution template, adding a dedicated workflow/checklist doc, and linking the review workflow from `README.md` and the PR template.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `AGENTS.md`, `README.md`, `.github/PULL_REQUEST_TEMPLATE.md`, and `docs/10_Codex_Workflow.md`.
+- **Rationale:** The backlog defines SET-005 as a documentation and workflow ticket. The repo already had partial Codex instructions, but the state was fragmented: no dedicated checklist reference existed, the plan template was still generic, and the plan-first versus implement-directly rule was not stated cleanly in one canonical place.
+- **Risks:** Over-expanding a docs ticket into CI/runtime changes, duplicating workflow rules across too many files, or rewriting ticket history in `PLANS.md` instead of adding a reusable execution template that future runs can copy safely.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** `AGENTS.md` stays concise and accurate, `PLANS.md` includes a copy-ready Codex execution template, `README.md` links to the workflow guidance, the PR template references the checklist and diff review, and backlog tracking is synchronized with SET-005 marked `done` only after validations succeed.
+- **Outcome:** Added `docs/10_Codex_Workflow.md` as the canonical planning and review reference, aligned `AGENTS.md`, `PLANS.md`, `README.md`, and `.github/PULL_REQUEST_TEMPLATE.md` to the same plan-first and review language, and passed `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`.
+
+### SET-004 — Database Migration Framework for Mobile SQLite and Server PostgreSQL
+
+- **Status:** completed
+- **Ticket:** SET-004
+- **Goal:** Implement the backlog-defined migration framework for the app-domain SQLite database and the server PostgreSQL database, with ordered/idempotent migrations, seed strategy, schema tracking, local scripts, and CI validation.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `AGENTS.md`, `README.md`, `docs/09_Database_Migrations.md`, `package.json`, `pnpm-lock.yaml`, `compose.yaml`, `.github/workflows/pr.yml`, `packages/shared-utils/**`, `client/App.tsx`, `client/package.json`, `client/src/lib/db/**`, `client/__tests__/**`, `server/api/package.json`, `server/api/src/db/**`, and supporting tests/scripts.
+- **Rationale:** SET-004 is the foundation ticket that makes schema evolution safe before capture, sync, and domain tickets start writing durable data. The backlog and engineering design consistently require migration-only initialization, idempotence, rollback guidance, and CI validation.
+- **Risks:** Accidentally pulling Room/capture DB work from `CAP-004` into this ticket, overbuilding the schema beyond the foundation entities needed now, destabilizing Expo tests by booting SQLite incorrectly, or adding CI drift between local Postgres scripts and the `Verify` job.
+- **Validation commands:** `pnpm db:server:up`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm db:server:down`.
+- **Done when:** Both the client app-domain DB and the server DB can initialize from empty state using migrations only, reruns remain idempotent, manifest hash validation passes, migration/forward-fix guidance is documented, CI validates migrations through the existing `Verify` job, and backlog tracking is synchronized with SET-004 marked `done` only after validations succeed.
+- **Outcome:** Shared manifest hashing/order helpers now live in `packages/shared-utils`, the client and server each ship an ordered append-only migration runner with idempotent seed handling, root and CI verification now exercise `pnpm db:validate`, migration guidance is documented, and `pnpm db:server:up`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `pnpm ci:verify` all passed before closing the ticket.
+
 ### SET-003 — Mobile Design System Tokens and UI Primitives
 
 - **Status:** completed
@@ -67,63 +81,18 @@ Use this template before implementing any multi-step, cross-module, or risky cha
 - **Manual smoke checks:** `pnpm dev:client`, `pnpm dev:api`, `pnpm dev:worker` as short boot checks only.
 - **Outcome:** Canonical folder layout, runnable workspace scripts, updated docs, and synchronized backlog tracking were delivered and validated.
 
-## Title
+## Execution Template
 
-Short, explicit name of the task.
+Create a new entry from this template before editing code or docs for any multi-step, risky, cross-module, schema/API, workflow, or doc-governance task. Mark only one ticket active at a time. After validation, move the entry to `## Completed Plans` or `## Blocked Plans` and record the final outcome.
 
-## Goal
+### TICKET-ID — Short Task Title
 
-What user or system outcome should change?
-
-## Context
-
-Relevant tickets, docs, modules, bugs, or constraints.
-
-## Assumptions
-
-List assumptions being made. Mark anything that should be validated before coding.
-
-## Files / modules likely to change
-
-- `client/...`
-- `server/...`
-- `packages/...`
-- `docs/...`
-
-## API / schema impact
-
-- New endpoint?
-- Schema change?
-- Migration?
-- Backward compatibility concerns?
-
-## Implementation steps
-
-1.
-2.
-3.
-
-## Tests to add or update
-
-- unit
-- integration
-- E2E
-- fixtures
-
-## Rollout / flag plan
-
-- feature flag?
-- config toggle?
-- kill switch?
-- migration ordering?
-
-## Risks
-
-- data loss?
-- parser regressions?
-- performance?
-- privacy/security?
-
-## Done when
-
-Concrete acceptance criteria.
+- **Status:** planned | in_progress | blocked | completed
+- **Ticket:** TICKET-ID
+- **Goal:** One sentence describing the user or system outcome.
+- **Touched files/modules:** List the main files, directories, or modules likely to change.
+- **Rationale:** Why this ticket matters now, tied to backlog/docs.
+- **Risks:** Scope creep, regressions, rollout concerns, privacy/security, or other meaningful risks.
+- **Validation commands:** The exact commands required before the ticket can be marked complete.
+- **Done when:** Concrete acceptance criteria for the ticket.
+- **Outcome:** Fill this in after implementation and validation with the shipped result and final truth.

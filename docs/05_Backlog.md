@@ -148,7 +148,7 @@ Migration workflow documented and validated.
 - **Story points:** 3
 - **Goal:** Make AI-assisted implementation consistent and repo-aware.
 - **Dependencies:** SET-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-14 | Completed At: 2026-03-14 | Commit Ref: 0c9878197715d361e126a9b7adce358378456537 | Tracking Notes: Workflow docs aligned across AGENTS.md, PLANS.md, README.md, .github/PULL_REQUEST_TEMPLATE.md, and docs/10_Codex_Workflow.md; dry-run discoverability checks passed; pnpm lint, pnpm typecheck, pnpm test, and pnpm build passed.
 
 **Description**  
 Author AGENTS.md with repo map, commands, conventions, safety rules, and done criteria. Add PLANS.md execution-plan template and code-review checklist reference.

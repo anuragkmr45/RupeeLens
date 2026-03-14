@@ -96,6 +96,12 @@ PR titles must use Conventional Commits format:
 
 Branch-protection expectations and the exact required check names are documented in `docs/08_CI_Branch_Protection.md`.
 
+## Codex Workflow
+
+Use plan-first for multi-step, risky, cross-module, schema/API, workflow, or doc-governance work. Small, local, low-risk changes with obvious scope can usually be implemented directly.
+
+The reusable execution-plan template lives in `PLANS.md`. The full Codex planning, backlog-tracking, author, and reviewer checklist lives in `docs/10_Codex_Workflow.md`.
+
 ## Current Scope
 
 - Design-system showcase screen only; no feature screens, navigation, or global state yet
