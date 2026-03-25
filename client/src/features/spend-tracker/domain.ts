@@ -44,11 +44,32 @@ export interface ManualEntryInput {
 }
 
 export interface DashboardSummary {
+  budgetRemainingMinor: number;
+  budgetTargetMinor: number;
+  budgetUsedRatio: number;
   classifiedCount: number;
   inboxCount: number;
+  recentActivity: Transaction[];
   topCategoryLabel: string;
+  topItems: TransactionItemSummary[];
   topMerchantLabel: string;
   totalSpendMinor: number;
+}
+
+export interface DashboardSummaryOptions {
+  budgetTargetMinor: number;
+  cycleStartDay: number;
+  now?: string;
+  recentActivityLimit?: number;
+  topItemsLimit?: number;
+}
+
+export interface TransactionItemSummary {
+  amountMinor: number;
+  categoryLabel: string;
+  label: string;
+  merchant: string;
+  transactionId: string;
 }
 
 export const categoryOptions: CategoryOption[] = [
@@ -237,7 +258,7 @@ export function getPendingTransactions(
   transactions: Transaction[],
 ): Transaction[] {
   return sortTransactionsByCapturedAtDesc(transactions)
-    .filter((transaction) => transaction.status === 'uncategorized')
+    .filter((transaction) => transaction.status === 'uncategorized');
 }
 
 export function getTransactionById(
@@ -249,15 +270,25 @@ export function getTransactionById(
 
 export function summarizeDashboard(
   transactions: Transaction[],
+  options: DashboardSummaryOptions,
 ): DashboardSummary {
+  const periodTransactions = getCurrentCycleTransactions(
+    transactions,
+    options.cycleStartDay,
+    options.now,
+  );
   const merchantSpend = new Map<string, number>();
   const categorySpend = new Map<CategoryId, number>();
+  const itemSummaries: TransactionItemSummary[] = [];
+  const budgetTargetMinor = Math.max(options.budgetTargetMinor, 1);
+  const recentActivityLimit = options.recentActivityLimit ?? 3;
+  const topItemsLimit = options.topItemsLimit ?? 3;
 
   let classifiedCount = 0;
   let inboxCount = 0;
   let totalSpendMinor = 0;
 
-  for (const transaction of transactions) {
+  for (const transaction of periodTransactions) {
     totalSpendMinor += transaction.amountMinor;
     merchantSpend.set(
       transaction.merchant,
@@ -276,16 +307,96 @@ export function summarizeDashboard(
         item.categoryId,
         (categorySpend.get(item.categoryId) ?? 0) + item.amountMinor,
       );
+      itemSummaries.push({
+        amountMinor: item.amountMinor,
+        categoryLabel:
+          categoryOptions.find((category) => category.id === item.categoryId)?.label ??
+          'Needs data',
+        label: item.label,
+        merchant: transaction.merchant,
+        transactionId: transaction.id,
+      });
     }
   }
 
   return {
+    budgetRemainingMinor: Math.max(budgetTargetMinor - totalSpendMinor, 0),
+    budgetTargetMinor,
+    budgetUsedRatio: Math.min(totalSpendMinor / budgetTargetMinor, 1),
     classifiedCount,
     inboxCount,
+    recentActivity: sortTransactionsByCapturedAtDesc(periodTransactions).slice(0, recentActivityLimit),
     topCategoryLabel: getTopCategoryLabel(categorySpend),
+    topItems: itemSummaries
+      .sort((left, right) => right.amountMinor - left.amountMinor)
+      .slice(0, topItemsLimit),
     topMerchantLabel: getTopMerchantLabel(merchantSpend),
     totalSpendMinor,
   };
+}
+
+function getCurrentCycleTransactions(
+  transactions: Transaction[],
+  cycleStartDay: number,
+  now?: string,
+): Transaction[] {
+  const sortedTransactions = sortTransactionsByCapturedAtDesc(transactions);
+  const anchorDate = new Date(
+    now ?? sortedTransactions[0]?.capturedAt ?? new Date().toISOString(),
+  );
+  const { cycleEnd, cycleStart } = getCycleWindow(anchorDate, cycleStartDay);
+
+  return sortedTransactions.filter((transaction) => {
+    const capturedAt = new Date(transaction.capturedAt);
+
+    return capturedAt >= cycleStart && capturedAt < cycleEnd;
+  });
+}
+
+function getCycleWindow(
+  anchorDate: Date,
+  cycleStartDay: number,
+): { cycleEnd: Date; cycleStart: Date } {
+  let cycleStart = buildCycleAnchor(
+    anchorDate.getFullYear(),
+    anchorDate.getMonth(),
+    cycleStartDay,
+  );
+
+  if (anchorDate < cycleStart) {
+    cycleStart = buildCycleAnchor(
+      anchorDate.getFullYear(),
+      anchorDate.getMonth() - 1,
+      cycleStartDay,
+    );
+  }
+
+  return {
+    cycleEnd: buildCycleAnchor(
+      cycleStart.getFullYear(),
+      cycleStart.getMonth() + 1,
+      cycleStartDay,
+    ),
+    cycleStart,
+  };
+}
+
+function buildCycleAnchor(
+  year: number,
+  monthIndex: number,
+  cycleStartDay: number,
+): Date {
+  const lastDayOfMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+  return new Date(
+    year,
+    monthIndex,
+    Math.min(cycleStartDay, lastDayOfMonth),
+    0,
+    0,
+    0,
+    0,
+  );
 }
 
 function getTopCategoryLabel(categorySpend: Map<CategoryId, number>): string {

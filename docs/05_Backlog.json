@@ -412,12 +412,12 @@
       ],
       "tests": "Snapshot and interaction tests; verify KPI math with seeded data.",
       "done": "Dashboard is production-ready and performance-budget compliant.",
-      "status": "in_progress",
+      "status": "done",
       "owner": "codex",
       "started_at": "2026-03-25",
-      "completed_at": "",
+      "completed_at": "2026-03-25",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: Home already renders total spend, inbox count, top category, top merchant, and manual-add or inbox actions from local SQLite-backed data. Budget progress, top items, cycle configuration, budget/search shortcuts, and performance validation remain open."
+      "tracking_notes": "Home now renders cycle-aware local summary math, budget progress, top items, recent activity preview, and honest quick-action entrypoints for budgets and search. Actual budget creation, search screens, and deeper performance hardening remain separate follow-up work."
     },
     {
       "id": "UX-003",

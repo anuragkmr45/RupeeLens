@@ -423,7 +423,7 @@ Onboarding meets product, legal, and UX approval.
 - **Story points:** 5
 - **Goal:** Give users immediate clarity on spend and incomplete work.
 - **Dependencies:** SET-003
-- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-25 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: Home already renders total spend, inbox count, top category, top merchant, and manual-add or inbox actions from local SQLite-backed data. Budget progress, top items, cycle configuration, budget/search shortcuts, and performance validation remain open.
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-25 | Completed At: 2026-03-25 | Commit Ref: pending-local-commit | Tracking Notes: Home now renders cycle-aware local summary math, budget progress, top items, recent activity preview, and honest quick-action entrypoints for budgets and search. Actual budget creation, search screens, and deeper performance hardening remain separate follow-up work.
 
 **Description**  
 Create dashboard showing total spend, budget progress, top categories, top merchants, top items, and uncategorized count. Add quick actions for manual add, inbox, budgets, and search.

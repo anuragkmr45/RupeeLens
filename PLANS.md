@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### UX-002 — Build Home Dashboard with Current-Period KPIs and Inbox Summary
+
+- **Status:** completed
+- **Ticket:** UX-002
+- **Goal:** Finish the local Home dashboard with cycle-aware summary math, budget progress, top items, recent activity preview, and honest quick-action entrypoints.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/domain.ts`, `client/src/lib/app-info.ts`, `client/__tests__/app.test.tsx`, `client/__tests__/domain.test.ts`.
+- **Rationale:** `UX-001` is now closed, `SET-002` is still blocked, and `UX-002` is the earliest remaining actionable `in_progress` ticket. The Home screen already shows basic totals, so the next coherent step is finishing the dashboard modules defined in `docs/03_Screen_Spec.md`.
+- **Risks:** Budget progress must stay honest without inventing a full budget engine, current-period math must respect the saved cycle setting, and quick actions for unimplemented screens must remain explicit placeholders rather than fake navigation.
+- **API / schema impact:** No external API changes. Internal dashboard summary logic expands to include current-cycle filtering, budget progress metrics, top items, and recent activity preview data.
+- **Rollout / flag plan:** No flag. This upgrades the default local Home experience.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** Home renders cycle-aware dashboard math from local data, shows budget progress plus top items and recent activity, exposes honest quick-action entrypoints, and includes tests for KPI math plus the updated Home flow.
+- **Outcome:** Extended the Home dashboard with cycle-aware local summary math, budget progress, top-items and recent-activity cards, honest quick-action placeholders for budgets and search, new domain KPI tests, and updated README plus phase-status documentation.
+
 ### UX-001 — Implement Onboarding and Permission Education Flow
 
 - **Status:** completed

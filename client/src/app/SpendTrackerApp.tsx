@@ -114,6 +114,8 @@ const SYNC_MODE_OPTIONS: PreferenceOption<SyncMode>[] = [
   },
 ];
 
+const DASHBOARD_BUDGET_TARGET_MINOR = 500000;
+
 export function SpendTrackerApp() {
   const [isHydrating, setIsHydrating] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
@@ -131,7 +133,10 @@ export function SpendTrackerApp() {
   const [manualReturnScreen, setManualReturnScreen] = useState<TabScreen>('home');
 
   const pendingTransactions = getPendingTransactions(transactions);
-  const summary = summarizeDashboard(transactions);
+  const summary = summarizeDashboard(transactions, {
+    budgetTargetMinor: DASHBOARD_BUDGET_TARGET_MINOR,
+    cycleStartDay: getBudgetCycleStartDay(onboardingPreferences.budgetCycleId),
+  });
   const activeTransaction = activeTransactionId
     ? getTransactionById(transactions, activeTransactionId)
     : null;
@@ -256,6 +261,20 @@ export function SpendTrackerApp() {
     setManualReturnScreen(returnScreen);
     setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
     setScreen('manual');
+  }
+
+  function handleOpenBudgetPlaceholder() {
+    Alert.alert(
+      'Budgets come next',
+      'Home now shows current-cycle budget progress, but budget creation and editing still land in a later ticket.',
+    );
+  }
+
+  function handleOpenSearchPlaceholder() {
+    Alert.alert(
+      'Search comes next',
+      'Search and full-history browsing are still queued behind the current dashboard and Inbox work.',
+    );
   }
 
   function handleToggleSourceAppSelection(sourceAppId: SupportedSourceAppId) {
@@ -390,9 +409,11 @@ export function SpendTrackerApp() {
             nextPendingTransaction={pendingTransactions[0] ?? null}
             notificationAccessState={notificationAccessState}
             onboardingPreferences={onboardingPreferences}
+            onOpenBudgetPlaceholder={handleOpenBudgetPlaceholder}
             onOpenInbox={() => setScreen('inbox')}
             onOpenManualEntry={() => handleOpenManualEntry('home')}
             onOpenNotificationAccess={handleOpenNotificationAccess}
+            onOpenSearchPlaceholder={handleOpenSearchPlaceholder}
             onResetDemoData={handleResetDemoData}
             onSelectTab={(nextScreen) => setScreen(nextScreen)}
             onStartClassification={handleStartClassification}
@@ -664,9 +685,11 @@ function HomeScreen({
   nextPendingTransaction,
   notificationAccessState,
   onboardingPreferences,
+  onOpenBudgetPlaceholder,
   onOpenInbox,
   onOpenManualEntry,
   onOpenNotificationAccess,
+  onOpenSearchPlaceholder,
   onResetDemoData,
   onSelectTab,
   onStartClassification,
@@ -675,9 +698,11 @@ function HomeScreen({
   nextPendingTransaction: Transaction | null;
   notificationAccessState: NotificationAccessState;
   onboardingPreferences: OnboardingPreferences;
+  onOpenBudgetPlaceholder: () => void;
   onOpenInbox: () => void;
   onOpenManualEntry: () => void;
   onOpenNotificationAccess: () => Promise<void>;
+  onOpenSearchPlaceholder: () => void;
   onResetDemoData: () => Promise<void>;
   onSelectTab: (screen: TabScreen) => void;
   onStartClassification: (transactionId: string) => void;
@@ -689,6 +714,11 @@ function HomeScreen({
           .map((sourceAppId) => getSourceAppLabel(sourceAppId))
           .join(', ')
       : 'None selected';
+  const budgetUsedPercent = Math.round(summary.budgetUsedRatio * 100);
+  const budgetOverrunMinor = Math.max(
+    summary.totalSpendMinor - summary.budgetTargetMinor,
+    0,
+  );
 
   return (
     <View style={styles.stack}>
@@ -701,8 +731,9 @@ function HomeScreen({
         <Text style={styles.sectionEyebrow}>Today</Text>
         <Text style={styles.sectionTitle}>Current cycle at a glance</Text>
         <Text style={styles.bodyCopy}>
-          This local-first shell now covers the core review loop: totals on Home, uncategorized
-          work in Inbox, quick classify, and manual spend entry without leaving the device.
+          This local-first shell now covers the core review loop: cycle-aware totals on Home,
+          uncategorized work in Inbox, quick classify, and manual spend entry without leaving the
+          device.
         </Text>
       </SectionCard>
 
@@ -712,6 +743,48 @@ function HomeScreen({
         <MetricCard label="Top category" value={summary.topCategoryLabel} />
         <MetricCard label="Top merchant" value={summary.topMerchantLabel} />
       </View>
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.cardTitle}>Budget progress</Text>
+        <Text style={styles.bodyCopy}>
+          Current period: {getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}. The Home
+          summary uses the saved cycle choice and a local demo target until the real budget engine
+          lands.
+        </Text>
+        <Text style={styles.amountLabel}>
+          {formatCurrency(summary.totalSpendMinor)} of {formatCurrency(summary.budgetTargetMinor)}
+        </Text>
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${Math.max(summary.budgetUsedRatio * 100, 0)}%` },
+            ]}
+          />
+        </View>
+        <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>{budgetUsedPercent}% of the current-cycle target used</Text>
+          <Text style={styles.helperCopy}>
+            {budgetOverrunMinor > 0
+              ? `${formatCurrency(budgetOverrunMinor)} over the current target`
+              : `${formatCurrency(summary.budgetRemainingMinor)} remaining in the current target`}
+          </Text>
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Quick actions</Text>
+        <Text style={styles.bodyCopy}>
+          Manual add and Inbox are live now. Budget creation and search are honest placeholders for
+          the next dashboard passes.
+        </Text>
+        <View style={styles.actionRow}>
+          <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
+          <ActionButton label="Review inbox" onPress={onOpenInbox} tone="secondary" />
+          <ActionButton label="Create budget" onPress={onOpenBudgetPlaceholder} tone="secondary" />
+          <ActionButton label="Search" onPress={onOpenSearchPlaceholder} tone="secondary" />
+        </View>
+      </SectionCard>
 
       <SectionCard accentColor={colors.panelWarm}>
         <Text style={styles.cardTitle}>Next to review</Text>
@@ -744,6 +817,53 @@ function HomeScreen({
               <ActionButton label="Open inbox" onPress={onOpenInbox} tone="secondary" />
             </View>
           </>
+        )}
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.cardTitle}>Top items</Text>
+        {summary.topItems.length > 0 ? (
+          <View style={styles.listStack}>
+            {summary.topItems.map((item) => (
+              <View key={item.transactionId + item.label} style={styles.summaryRow}>
+                <View style={styles.summaryCopy}>
+                  <Text style={styles.summaryPrimary}>{item.label}</Text>
+                  <Text style={styles.summarySecondary}>
+                    {item.merchant} · {item.categoryLabel}
+                  </Text>
+                </View>
+                <Text style={styles.summaryAmount}>{formatCurrency(item.amountMinor)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.bodyCopy}>
+            Classify a few spends in Inbox to unlock item-level patterns for the current cycle.
+          </Text>
+        )}
+      </SectionCard>
+
+      <SectionCard accentColor={colors.successSoft}>
+        <Text style={styles.cardTitle}>Recent activity</Text>
+        {summary.recentActivity.length > 0 ? (
+          <View style={styles.listStack}>
+            {summary.recentActivity.map((transaction) => (
+              <View key={transaction.id} style={styles.summaryRow}>
+                <View style={styles.summaryCopy}>
+                  <Text style={styles.summaryPrimary}>{transaction.merchant}</Text>
+                  <Text style={styles.summarySecondary}>
+                    {transaction.items[0]?.label ?? 'Needs classification'} ·{' '}
+                    {formatCaptureMoment(transaction.capturedAt)}
+                  </Text>
+                </View>
+                <Text style={styles.summaryAmount}>{formatCurrency(transaction.amountMinor)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.bodyCopy}>
+            Add a manual spend or classify Inbox items to build a recent-activity preview.
+          </Text>
         )}
       </SectionCard>
 
@@ -1275,6 +1395,18 @@ function getBudgetCycleLabel(budgetCycleId: BudgetCycleId): string {
   );
 }
 
+function getBudgetCycleStartDay(budgetCycleId: BudgetCycleId): number {
+  switch (budgetCycleId) {
+    case 'salary_cycle':
+      return 26;
+    case 'billing_cycle':
+      return 5;
+    case 'calendar_month':
+    default:
+      return 1;
+  }
+}
+
 function getSyncModeLabel(syncMode: SyncMode): string {
   return SYNC_MODE_OPTIONS.find((option) => option.id === syncMode)?.label ?? 'Local-only for now';
 }
@@ -1463,6 +1595,17 @@ const styles = StyleSheet.create({
   optionStack: {
     gap: 12,
   },
+  progressFill: {
+    backgroundColor: colors.accentStrong,
+    borderRadius: 999,
+    height: '100%',
+  },
+  progressTrack: {
+    backgroundColor: colors.canvas,
+    borderRadius: 999,
+    height: 14,
+    overflow: 'hidden',
+  },
   preferenceCard: {
     borderRadius: 22,
     borderWidth: 1,
@@ -1560,6 +1703,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     maxWidth: 620,
+  },
+  summaryAmount: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  summaryCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  summaryPrimary: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  summaryRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  summarySecondary: {
+    color: colors.inkMuted,
+    fontSize: 13,
+    lineHeight: 18,
   },
   tabButton: {
     alignItems: 'center',

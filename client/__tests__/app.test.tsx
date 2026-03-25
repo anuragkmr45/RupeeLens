@@ -67,6 +67,9 @@ describe('App', () => {
     const screen = render(<App />);
 
     expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
+    expect(screen.getByText('Budget progress')).toBeTruthy();
+    expect(screen.getByText('Top items')).toBeTruthy();
+    expect(screen.getByText('Create budget')).toBeTruthy();
     expect(screen.getByText('1 pending')).toBeTruthy();
     expect(screen.getByText('Notification settings opened')).toBeTruthy();
   });
