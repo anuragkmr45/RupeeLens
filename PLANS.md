@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### UX-003 — Create Inbox for Uncategorized and Partially Classified Transactions
+
+- **Status:** completed
+- **Ticket:** UX-003
+- **Goal:** Continue the local Inbox so users can filter pending work, skip and revisit items later, and review larger local queues without the current static-list limitations.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/domain.ts`, `client/src/features/spend-tracker/persistence.ts`, `client/__tests__/app.test.tsx`, `client/__tests__/domain.test.ts`, `client/__tests__/persistence.test.ts`.
+- **Rationale:** `SET-002` remains blocked, `UX-002` is now done, and `UX-003` is the earliest still-active product ticket. The repo already has an Inbox plus classification loop, so the highest-value continuation is adding the missing filters, skipped-item revisit flow, and a more scalable list path before moving to later tickets.
+- **Risks:** The Inbox scope overlaps with later split/rule flows, so the ticket must stay honest about what is still missing. Adding a new local transaction status must not break dashboard math, persistence reads, or the existing classify/manual flows. Any performance-oriented list change also needs tests that prove behavior did not regress.
+- **API / schema impact:** No external API changes. Internal client domain and SQLite persistence expand to store revisitable skipped transactions and Inbox filter-compatible data.
+- **Rollout / flag plan:** No flag. This upgrades the default local Inbox experience.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** Inbox supports local filters for source app, merchant, amount, and age; skipped items can be revisited later; classification and delete actions update instantly; and the Inbox list path is upgraded toward larger local queues without regressing the current flows.
+- **Outcome:** Added local Inbox filters for status, merchant, source app, amount, and age; introduced revisitable skipped transactions plus delete actions; switched the Inbox onto a FlatList-based rendering path; expanded domain and persistence coverage for the new review states; and kept the ticket open in backlog tracking because partial/conflict views, split/create-rule actions, and explicit 1,000-item performance validation still remain.
+
 ### UX-002 — Build Home Dashboard with Current-Period KPIs and Inbox Summary
 
 - **Status:** completed

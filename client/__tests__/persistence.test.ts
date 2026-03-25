@@ -99,7 +99,7 @@ describe('spend-tracker persistence', () => {
           id: 'txn_blue_tokai',
           merchant: 'Blue Tokai Roasters',
           sourceApp: 'Google Pay',
-          status: 'uncategorized',
+          status: 'skipped',
         },
       ])
       .mockResolvedValueOnce([
@@ -147,7 +147,7 @@ describe('spend-tracker persistence', () => {
           items: [],
           merchant: 'Blue Tokai Roasters',
           sourceApp: 'Google Pay',
-          status: 'uncategorized',
+          status: 'skipped',
         },
       ],
     });
@@ -224,7 +224,7 @@ describe('spend-tracker persistence', () => {
           ],
           merchant: 'Corner Store',
           sourceApp: 'Manual entry',
-          status: 'classified',
+          status: 'skipped',
         },
       ],
     });
@@ -255,7 +255,7 @@ describe('spend-tracker persistence', () => {
       '2026-03-25T10:00:00+05:30',
       'Corner Store',
       'Manual entry',
-      'classified',
+      'skipped',
     );
     expect(database.runAsync).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO transaction_items'),

@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { type ReactNode, useEffect, useState } from 'react';
 import {
   Alert,
+  FlatList,
   Linking,
   Platform,
   Pressable,
@@ -15,18 +16,27 @@ import {
 import {
   buildClassificationDraft,
   categoryOptions,
+  classifyTransaction,
   createManualTransaction,
+  DEFAULT_INBOX_FILTERS,
+  deleteTransaction,
   formatCaptureMoment,
   formatCurrency,
+  getInboxReviewTransactions,
+  getInboxSourceAppOptions,
   getPendingTransactions,
   getTransactionById,
   parseCurrencyInputToMinor,
+  restoreSkippedTransaction,
   seededTransactions,
+  skipTransaction,
   sortTransactionsByCapturedAtDesc,
   summarizeDashboard,
   type CategoryId,
   type ClassificationDraft,
   type DashboardSummary,
+  type InboxFilters,
+  type InboxReviewItem,
   type Transaction,
 } from '../features/spend-tracker/domain';
 import {
@@ -130,9 +140,16 @@ export function SpendTrackerApp() {
   const [draft, setDraft] = useState<ClassificationDraft>(EMPTY_DRAFT);
   const [manualDraft, setManualDraft] =
     useState<ManualEntryDraft>(EMPTY_MANUAL_ENTRY_DRAFT);
+  const [inboxFilters, setInboxFilters] = useState<InboxFilters>(DEFAULT_INBOX_FILTERS);
   const [manualReturnScreen, setManualReturnScreen] = useState<TabScreen>('home');
 
   const pendingTransactions = getPendingTransactions(transactions);
+  const allReviewTransactions = getInboxReviewTransactions(transactions, {
+    ...DEFAULT_INBOX_FILTERS,
+    statusFilter: 'all',
+  });
+  const filteredReviewTransactions = getInboxReviewTransactions(transactions, inboxFilters);
+  const inboxSourceAppOptions = getInboxSourceAppOptions(transactions);
   const summary = summarizeDashboard(transactions, {
     budgetTargetMinor: DASHBOARD_BUDGET_TARGET_MINOR,
     cycleStartDay: getBudgetCycleStartDay(onboardingPreferences.budgetCycleId),
@@ -223,32 +240,19 @@ export function SpendTrackerApp() {
       return;
     }
 
-    const categoryId = draft.categoryId;
-    const itemLabel = draft.itemLabel.trim();
-
-    const nextTransactions = transactions.map((transaction) => {
-      if (transaction.id !== activeTransactionId) {
-        return transaction;
-      }
-
-      return {
-        ...transaction,
-        items: [
-          {
-            amountMinor: transaction.amountMinor,
-            categoryId,
-            id: `${transaction.id}_item_1`,
-            label: itemLabel,
-          },
-        ],
-        status: 'classified' as const,
-      };
-    });
+    const nextTransactions = classifyTransaction(transactions, activeTransactionId, draft);
 
     setTransactions(nextTransactions);
     setActiveTransactionId(null);
     setDraft({ ...EMPTY_DRAFT });
-    setScreen(getPendingTransactions(nextTransactions).length > 0 ? 'inbox' : 'home');
+    setScreen(
+      getInboxReviewTransactions(nextTransactions, {
+        ...DEFAULT_INBOX_FILTERS,
+        statusFilter: 'all',
+      }).length > 0
+        ? 'inbox'
+        : 'home',
+    );
   }
 
   function handleCancelClassification() {
@@ -351,9 +355,39 @@ export function SpendTrackerApp() {
     setScreen(manualReturnScreen);
   }
 
+  function handleUpdateInboxFilters(nextFilters: Partial<InboxFilters>) {
+    setInboxFilters((currentFilters) => ({
+      ...currentFilters,
+      ...nextFilters,
+    }));
+  }
+
+  function handleClearInboxFilters() {
+    setInboxFilters({ ...DEFAULT_INBOX_FILTERS });
+  }
+
+  function handleSkipInboxTransaction(transactionId: string) {
+    setTransactions((currentTransactions) =>
+      skipTransaction(currentTransactions, transactionId),
+    );
+  }
+
+  function handleRestoreSkippedInboxTransaction(transactionId: string) {
+    setTransactions((currentTransactions) =>
+      restoreSkippedTransaction(currentTransactions, transactionId),
+    );
+  }
+
+  function handleDeleteInboxTransaction(transactionId: string) {
+    setTransactions((currentTransactions) =>
+      deleteTransaction(currentTransactions, transactionId),
+    );
+  }
+
   async function handleResetDemoData() {
     setActiveTransactionId(null);
     setDraft({ ...EMPTY_DRAFT });
+    setInboxFilters({ ...DEFAULT_INBOX_FILTERS });
     setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
     setOnboardingPreferences(DEFAULT_ONBOARDING_PREFERENCES);
     setNotificationAccessState('not_started');
@@ -376,97 +410,108 @@ export function SpendTrackerApp() {
       <StatusBar style="dark" />
       <View style={styles.heroGlowPrimary} />
       <View style={styles.heroGlowSecondary} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <View style={styles.screenContent}>
         <View style={styles.header}>
           <Text style={styles.eyebrow}>{APP_COPY.stage}</Text>
           <Text style={styles.title}>{APP_COPY.title}</Text>
           <Text style={styles.subtitle}>{APP_COPY.subtitle}</Text>
         </View>
 
-        {isHydrating ? (
-          <HydrationScreen />
-        ) : null}
-
-        {!isHydrating && screen === 'onboarding' ? (
-          <OnboardingScreen
-            onboardingPreferences={onboardingPreferences}
-            notificationAccessState={notificationAccessState}
-            onContinue={() => {
-              setOnboardingCompleted(true);
-              setScreen('home');
-            }}
-            onClearSourceApps={handleClearSourceApps}
-            onOpenNotificationAccess={handleOpenNotificationAccess}
-            onSelectAllSourceApps={handleSelectAllSourceApps}
-            onSelectBudgetCycle={handleSelectBudgetCycle}
-            onSelectSyncMode={handleSelectSyncMode}
-            onToggleSourceApp={handleToggleSourceAppSelection}
-          />
-        ) : null}
-
-        {!isHydrating && screen === 'home' ? (
-          <HomeScreen
-            nextPendingTransaction={pendingTransactions[0] ?? null}
-            notificationAccessState={notificationAccessState}
-            onboardingPreferences={onboardingPreferences}
-            onOpenBudgetPlaceholder={handleOpenBudgetPlaceholder}
-            onOpenInbox={() => setScreen('inbox')}
-            onOpenManualEntry={() => handleOpenManualEntry('home')}
-            onOpenNotificationAccess={handleOpenNotificationAccess}
-            onOpenSearchPlaceholder={handleOpenSearchPlaceholder}
-            onResetDemoData={handleResetDemoData}
-            onSelectTab={(nextScreen) => setScreen(nextScreen)}
-            onStartClassification={handleStartClassification}
-            summary={summary}
-          />
-        ) : null}
-
         {!isHydrating && screen === 'inbox' ? (
           <InboxScreen
+            allReviewCount={allReviewTransactions.length}
+            filters={inboxFilters}
+            filteredReviewTransactions={filteredReviewTransactions}
+            hasActiveFilters={hasActiveInboxFilters(inboxFilters)}
+            inboxSourceAppOptions={inboxSourceAppOptions}
+            onClearFilters={handleClearInboxFilters}
+            onDeleteTransaction={handleDeleteInboxTransaction}
             onOpenHome={() => setScreen('home')}
             onOpenManualEntry={() => handleOpenManualEntry('inbox')}
+            onRestoreTransaction={handleRestoreSkippedInboxTransaction}
             onSelectTab={(nextScreen) => setScreen(nextScreen)}
+            onSkipTransaction={handleSkipInboxTransaction}
             onStartClassification={handleStartClassification}
-            pendingTransactions={pendingTransactions}
+            onUpdateFilters={handleUpdateInboxFilters}
           />
-        ) : null}
+        ) : (
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            {isHydrating ? (
+              <HydrationScreen />
+            ) : null}
 
-        {!isHydrating && screen === 'classify' && activeTransaction ? (
-          <ClassifyScreen
-            draft={draft}
-            onCancel={handleCancelClassification}
-            onChangeItemLabel={(itemLabel) =>
-              setDraft((currentDraft) => ({ ...currentDraft, itemLabel }))
-            }
-            onSave={handleSaveClassification}
-            onSelectCategory={(categoryId) =>
-              setDraft((currentDraft) => ({ ...currentDraft, categoryId }))
-            }
-            transaction={activeTransaction}
-          />
-        ) : null}
+            {!isHydrating && screen === 'onboarding' ? (
+              <OnboardingScreen
+                onboardingPreferences={onboardingPreferences}
+                notificationAccessState={notificationAccessState}
+                onContinue={() => {
+                  setOnboardingCompleted(true);
+                  setScreen('home');
+                }}
+                onClearSourceApps={handleClearSourceApps}
+                onOpenNotificationAccess={handleOpenNotificationAccess}
+                onSelectAllSourceApps={handleSelectAllSourceApps}
+                onSelectBudgetCycle={handleSelectBudgetCycle}
+                onSelectSyncMode={handleSelectSyncMode}
+                onToggleSourceApp={handleToggleSourceAppSelection}
+              />
+            ) : null}
 
-        {!isHydrating && screen === 'manual' ? (
-          <ManualEntryScreen
-            amountMinor={manualAmountMinor}
-            draft={manualDraft}
-            onCancel={handleCancelManualEntry}
-            onChangeAmount={(amountInput) =>
-              setManualDraft((currentDraft) => ({ ...currentDraft, amountInput }))
-            }
-            onChangeItemLabel={(itemLabel) =>
-              setManualDraft((currentDraft) => ({ ...currentDraft, itemLabel }))
-            }
-            onChangeMerchant={(merchant) =>
-              setManualDraft((currentDraft) => ({ ...currentDraft, merchant }))
-            }
-            onSave={handleSaveManualEntry}
-            onSelectCategory={(categoryId) =>
-              setManualDraft((currentDraft) => ({ ...currentDraft, categoryId }))
-            }
-          />
-        ) : null}
-      </ScrollView>
+            {!isHydrating && screen === 'home' ? (
+              <HomeScreen
+                nextPendingTransaction={pendingTransactions[0] ?? null}
+                notificationAccessState={notificationAccessState}
+                onboardingPreferences={onboardingPreferences}
+                onOpenBudgetPlaceholder={handleOpenBudgetPlaceholder}
+                onOpenInbox={() => setScreen('inbox')}
+                onOpenManualEntry={() => handleOpenManualEntry('home')}
+                onOpenNotificationAccess={handleOpenNotificationAccess}
+                onOpenSearchPlaceholder={handleOpenSearchPlaceholder}
+                onResetDemoData={handleResetDemoData}
+                onSelectTab={(nextScreen) => setScreen(nextScreen)}
+                onStartClassification={handleStartClassification}
+                summary={summary}
+              />
+            ) : null}
+
+            {!isHydrating && screen === 'classify' && activeTransaction ? (
+              <ClassifyScreen
+                draft={draft}
+                onCancel={handleCancelClassification}
+                onChangeItemLabel={(itemLabel) =>
+                  setDraft((currentDraft) => ({ ...currentDraft, itemLabel }))
+                }
+                onSave={handleSaveClassification}
+                onSelectCategory={(categoryId) =>
+                  setDraft((currentDraft) => ({ ...currentDraft, categoryId }))
+                }
+                transaction={activeTransaction}
+              />
+            ) : null}
+
+            {!isHydrating && screen === 'manual' ? (
+              <ManualEntryScreen
+                amountMinor={manualAmountMinor}
+                draft={manualDraft}
+                onCancel={handleCancelManualEntry}
+                onChangeAmount={(amountInput) =>
+                  setManualDraft((currentDraft) => ({ ...currentDraft, amountInput }))
+                }
+                onChangeItemLabel={(itemLabel) =>
+                  setManualDraft((currentDraft) => ({ ...currentDraft, itemLabel }))
+                }
+                onChangeMerchant={(merchant) =>
+                  setManualDraft((currentDraft) => ({ ...currentDraft, merchant }))
+                }
+                onSave={handleSaveManualEntry}
+                onSelectCategory={(categoryId) =>
+                  setManualDraft((currentDraft) => ({ ...currentDraft, categoryId }))
+                }
+              />
+            ) : null}
+          </ScrollView>
+        )}
+      </View>
     </View>
   );
 }
@@ -917,64 +962,231 @@ function HomeScreen({
 }
 
 function InboxScreen({
+  allReviewCount,
+  filteredReviewTransactions,
+  filters,
+  hasActiveFilters,
+  inboxSourceAppOptions,
+  onClearFilters,
+  onDeleteTransaction,
   onOpenHome,
   onOpenManualEntry,
+  onRestoreTransaction,
   onSelectTab,
+  onSkipTransaction,
   onStartClassification,
-  pendingTransactions,
+  onUpdateFilters,
 }: {
+  allReviewCount: number;
+  filteredReviewTransactions: InboxReviewItem[];
+  filters: InboxFilters;
+  hasActiveFilters: boolean;
+  inboxSourceAppOptions: string[];
+  onClearFilters: () => void;
+  onDeleteTransaction: (transactionId: string) => void;
   onOpenHome: () => void;
   onOpenManualEntry: () => void;
+  onRestoreTransaction: (transactionId: string) => void;
   onSelectTab: (screen: TabScreen) => void;
+  onSkipTransaction: (transactionId: string) => void;
   onStartClassification: (transactionId: string) => void;
-  pendingTransactions: Transaction[];
+  onUpdateFilters: (nextFilters: Partial<InboxFilters>) => void;
 }) {
+  const statusHeadline =
+    filteredReviewTransactions.length > 0
+      ? filters.statusFilter === 'skipped'
+        ? 'Revisit what you skipped'
+        : 'Inbox for unresolved spend'
+      : allReviewCount > 0 && hasActiveFilters
+        ? 'No items match these filters'
+        : 'Inbox is empty';
+  const statusBody =
+    filteredReviewTransactions.length > 0
+      ? 'Use filters to narrow the queue, skip noisy items for later, or classify directly into the local dashboard.'
+      : allReviewCount > 0 && hasActiveFilters
+        ? 'Clear or relax the active filters to bring hidden review items back into view.'
+        : 'The current session has no unresolved local transactions left. Future captured payments will show up here, while manual spends save directly as classified records.';
+
   return (
-    <View style={styles.stack}>
-      <View style={styles.tabs}>
-        <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
-        <TabButton isActive={true} label="Inbox" onPress={() => onSelectTab('inbox')} />
-      </View>
-
-      <SectionCard accentColor={colors.panelWarm}>
-        <Text style={styles.sectionEyebrow}>Inbox</Text>
-        <Text style={styles.sectionTitle}>
-          {pendingTransactions.length > 0 ? 'Classify what you skipped' : 'Inbox is empty'}
-        </Text>
-        <Text style={styles.bodyCopy}>
-          {pendingTransactions.length > 0
-            ? 'Every uncategorized payment stays here until the user adds meaning. Changes should show up immediately in the dashboard.'
-            : 'The current session has no uncategorized transactions left. Future captured payments will show up here, while manual spends save directly as classified records.'}
-        </Text>
-        <View style={styles.actionRow}>
-          <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
-          <ActionButton label="Back to home" onPress={onOpenHome} tone="secondary" />
-        </View>
-      </SectionCard>
-
-      {pendingTransactions.length > 0 ? (
-        <View style={styles.listStack}>
-          {pendingTransactions.map((transaction) => (
-            <TransactionCard
-              key={transaction.id}
-              onStartClassification={onStartClassification}
-              transaction={transaction}
-            />
-          ))}
-        </View>
-      ) : (
-        <SectionCard accentColor={colors.successSoft}>
-          <Text style={styles.cardTitle}>All caught up</Text>
+    <FlatList
+      contentContainerStyle={styles.inboxListContent}
+      data={filteredReviewTransactions}
+      ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+      keyExtractor={(item) => item.transaction.id}
+      ListEmptyComponent={
+        <SectionCard accentColor={hasActiveFilters ? colors.panelWarm : colors.successSoft}>
+          <Text style={styles.cardTitle}>
+            {hasActiveFilters ? 'No matching items' : 'All caught up'}
+          </Text>
           <Text style={styles.bodyCopy}>
-            Return to Home to review the updated totals and top-spend signals for this session.
+            {hasActiveFilters
+              ? 'The local Inbox still has saved items, but none match the current filter stack.'
+              : 'Return to Home to review the updated totals and top-spend signals for this session.'}
           </Text>
           <View style={styles.actionRow}>
-            <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
+            {hasActiveFilters ? (
+              <ActionButton label="Clear filters" onPress={onClearFilters} tone="primary" />
+            ) : (
+              <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
+            )}
             <ActionButton label="Back to home" onPress={onOpenHome} tone="secondary" />
           </View>
         </SectionCard>
+      }
+      ListHeaderComponent={
+        <View style={styles.inboxHeaderStack}>
+          <View style={styles.tabs}>
+            <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
+            <TabButton isActive={true} label="Inbox" onPress={() => onSelectTab('inbox')} />
+          </View>
+
+          <SectionCard accentColor={colors.panelWarm}>
+            <Text style={styles.sectionEyebrow}>Inbox</Text>
+            <Text style={styles.sectionTitle}>{statusHeadline}</Text>
+            <Text style={styles.bodyCopy}>{statusBody}</Text>
+            <View style={styles.helperStack}>
+              <Text style={styles.helperCopy}>
+                Showing {filteredReviewTransactions.length} of {allReviewCount} unresolved items
+              </Text>
+              <Text style={styles.helperCopy}>
+                Split flows, conflict handling, and rule creation remain later-ticket work.
+              </Text>
+            </View>
+            <View style={styles.actionRow}>
+              <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
+              <ActionButton label="Back to home" onPress={onOpenHome} tone="secondary" />
+            </View>
+          </SectionCard>
+
+          <SectionCard accentColor={colors.panel}>
+            <Text style={styles.cardTitle}>Filters</Text>
+            <Text style={styles.bodyCopy}>
+              Narrow the local queue by status, merchant, source app, amount, or age without
+              needing network access.
+            </Text>
+
+            <View style={styles.fieldStack}>
+              <Text style={styles.fieldLabel}>Merchant</Text>
+              <TextInput
+                onChangeText={(merchantQuery) => onUpdateFilters({ merchantQuery })}
+                placeholder="Filter by merchant"
+                placeholderTextColor={colors.inkMuted}
+                style={styles.input}
+                value={filters.merchantQuery}
+              />
+            </View>
+
+            <View style={styles.filterStack}>
+              <View style={styles.fieldStack}>
+                <Text style={styles.fieldLabel}>Status</Text>
+                <View style={styles.categoryGrid}>
+                  <CategoryChip
+                    isActive={filters.statusFilter === 'needs_review'}
+                    label="Needs review"
+                    onPress={() => onUpdateFilters({ statusFilter: 'needs_review' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.statusFilter === 'skipped'}
+                    label="Skipped"
+                    onPress={() => onUpdateFilters({ statusFilter: 'skipped' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.statusFilter === 'all'}
+                    label="All open items"
+                    onPress={() => onUpdateFilters({ statusFilter: 'all' })}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.fieldStack}>
+                <Text style={styles.fieldLabel}>Source app</Text>
+                <View style={styles.categoryGrid}>
+                  <CategoryChip
+                    isActive={filters.sourceApp === 'all'}
+                    label="All sources"
+                    onPress={() => onUpdateFilters({ sourceApp: 'all' })}
+                  />
+                  {inboxSourceAppOptions.map((sourceApp) => (
+                    <CategoryChip
+                      isActive={filters.sourceApp === sourceApp}
+                      key={sourceApp}
+                      label={sourceApp}
+                      onPress={() => onUpdateFilters({ sourceApp })}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.fieldStack}>
+                <Text style={styles.fieldLabel}>Amount</Text>
+                <View style={styles.categoryGrid}>
+                  <CategoryChip
+                    isActive={filters.amountFilter === 'all'}
+                    label="Any amount"
+                    onPress={() => onUpdateFilters({ amountFilter: 'all' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.amountFilter === 'under_250'}
+                    label="Under Rs 250"
+                    onPress={() => onUpdateFilters({ amountFilter: 'under_250' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.amountFilter === 'between_250_and_500'}
+                    label="Rs 250 to 500"
+                    onPress={() => onUpdateFilters({ amountFilter: 'between_250_and_500' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.amountFilter === 'over_500'}
+                    label="Over Rs 500"
+                    onPress={() => onUpdateFilters({ amountFilter: 'over_500' })}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.fieldStack}>
+                <Text style={styles.fieldLabel}>Age</Text>
+                <View style={styles.categoryGrid}>
+                  <CategoryChip
+                    isActive={filters.ageFilter === 'all'}
+                    label="Any age"
+                    onPress={() => onUpdateFilters({ ageFilter: 'all' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.ageFilter === 'today'}
+                    label="Today"
+                    onPress={() => onUpdateFilters({ ageFilter: 'today' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.ageFilter === 'last_3_days'}
+                    label="Last 3 days"
+                    onPress={() => onUpdateFilters({ ageFilter: 'last_3_days' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.ageFilter === 'older'}
+                    label="Older"
+                    onPress={() => onUpdateFilters({ ageFilter: 'older' })}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.actionRow}>
+              <ActionButton label="Clear filters" onPress={onClearFilters} tone="secondary" />
+            </View>
+          </SectionCard>
+        </View>
+      }
+      renderItem={({ item }) => (
+        <TransactionCard
+          onDelete={() => onDeleteTransaction(item.transaction.id)}
+          onRestore={() => onRestoreTransaction(item.transaction.id)}
+          onSkip={() => onSkipTransaction(item.transaction.id)}
+          onStartClassification={onStartClassification}
+          reviewItem={item}
+        />
       )}
-    </View>
+      showsVerticalScrollIndicator={false}
+    />
   );
 }
 
@@ -1351,12 +1563,21 @@ function CategoryChip({
 }
 
 function TransactionCard({
+  onDelete,
+  onRestore,
+  onSkip,
   onStartClassification,
-  transaction,
+  reviewItem,
 }: {
+  onDelete: () => void;
+  onRestore: () => void;
+  onSkip: () => void;
   onStartClassification: (transactionId: string) => void;
-  transaction: Transaction;
+  reviewItem: InboxReviewItem;
 }) {
+  const { reviewStatus, transaction } = reviewItem;
+  const hasSavedItemPreview = transaction.items[0]?.label?.trim().length;
+
   return (
     <View style={styles.transactionCard}>
       <View style={styles.transactionHeader}>
@@ -1369,14 +1590,50 @@ function TransactionCard({
         <Text style={styles.transactionAmount}>{formatCurrency(transaction.amountMinor)}</Text>
       </View>
 
-      <Text style={styles.bodyCopy}>No item or category has been saved for this payment yet.</Text>
-
-      <ActionButton
-        accessibilityLabel={`Classify ${transaction.merchant}`}
-        label="Classify"
-        onPress={() => onStartClassification(transaction.id)}
-        tone="primary"
+      <StatusChip
+        label={reviewStatus === 'skipped' ? 'Skipped' : 'Needs review'}
+        tone={reviewStatus === 'skipped' ? 'pending' : 'ready'}
       />
+
+      <Text style={styles.bodyCopy}>
+        {reviewStatus === 'skipped'
+          ? 'This payment was deferred locally. Move it back into needs review or classify it directly when you are ready.'
+          : 'No item or category has been saved for this payment yet. Classify it now, or skip it without losing the original capture.'}
+      </Text>
+
+      {hasSavedItemPreview ? (
+        <Text style={styles.helperCopy}>Saved preview: {transaction.items[0]?.label}</Text>
+      ) : null}
+
+      <View style={styles.actionRow}>
+        <ActionButton
+          accessibilityLabel={`Classify ${transaction.merchant}`}
+          label="Classify"
+          onPress={() => onStartClassification(transaction.id)}
+          tone="primary"
+        />
+        {reviewStatus === 'skipped' ? (
+          <ActionButton
+            accessibilityLabel={`Review ${transaction.merchant} again`}
+            label="Move to needs review"
+            onPress={onRestore}
+            tone="secondary"
+          />
+        ) : (
+          <ActionButton
+            accessibilityLabel={`Skip ${transaction.merchant} for now`}
+            label="Skip for now"
+            onPress={onSkip}
+            tone="secondary"
+          />
+        )}
+        <ActionButton
+          accessibilityLabel={`Delete ${transaction.merchant} locally`}
+          label="Delete locally"
+          onPress={onDelete}
+          tone="secondary"
+        />
+      </View>
     </View>
   );
 }
@@ -1409,6 +1666,16 @@ function getBudgetCycleStartDay(budgetCycleId: BudgetCycleId): number {
 
 function getSyncModeLabel(syncMode: SyncMode): string {
   return SYNC_MODE_OPTIONS.find((option) => option.id === syncMode)?.label ?? 'Local-only for now';
+}
+
+function hasActiveInboxFilters(filters: InboxFilters): boolean {
+  return (
+    filters.ageFilter !== DEFAULT_INBOX_FILTERS.ageFilter ||
+    filters.amountFilter !== DEFAULT_INBOX_FILTERS.amountFilter ||
+    filters.merchantQuery.trim().length > 0 ||
+    filters.sourceApp !== DEFAULT_INBOX_FILTERS.sourceApp ||
+    filters.statusFilter !== DEFAULT_INBOX_FILTERS.statusFilter
+  );
 }
 
 const styles = StyleSheet.create({
@@ -1507,6 +1774,7 @@ const styles = StyleSheet.create({
   },
   header: {
     gap: 12,
+    marginBottom: 20,
   },
   helperCopy: {
     color: colors.inkMuted,
@@ -1557,11 +1825,24 @@ const styles = StyleSheet.create({
   infoStack: {
     gap: 12,
   },
+  inboxHeaderStack: {
+    gap: 16,
+    paddingBottom: 16,
+  },
+  inboxListContent: {
+    paddingBottom: 40,
+  },
   inputStack: {
     gap: 14,
   },
+  filterStack: {
+    gap: 16,
+  },
   listStack: {
     gap: 12,
+  },
+  listSeparator: {
+    height: 12,
   },
   metricCard: {
     backgroundColor: colors.panel,
@@ -1641,11 +1922,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
     flex: 1,
   },
+  screenContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 72,
+  },
   scrollContent: {
     gap: 20,
     paddingBottom: 40,
-    paddingHorizontal: 20,
-    paddingTop: 72,
   },
   sectionAccent: {
     borderRadius: 20,

@@ -44,14 +44,14 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 - Onboarding flow with value proposition, privacy disclosure, settings handoff, source-app preferences, budget-cycle choice, sync preference, and resumable saved progress
 - Local SQLite-backed dashboard with cycle-aware totals, budget progress, top items, recent activity preview, quick actions, and persisted progress
-- Inbox for uncategorized local transactions
+- Inbox for uncategorized local transactions with status, merchant, source-app, amount, and age filters plus revisitable skipped items and local delete actions
 - In-app classify flow with immediate dashboard refresh
 
 **Remaining**
 
 - Real permission-state reflection instead of advisory UI state
 - Native capture bridge, diagnostics surface, and quick-classify notification flow
-- Budget creation flow, search screen, and inbox filters/actions/performance hardening
+- Budget creation flow, search screen, partial/conflict Inbox views, split/create-rule actions, and explicit high-volume Inbox performance validation
 
 ## Sprint 3 — Core UX And Intelligence
 

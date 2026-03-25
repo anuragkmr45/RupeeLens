@@ -132,7 +132,7 @@ describe('App', () => {
     expect(screen.getByText('2 pending')).toBeTruthy();
     fireEvent.press(screen.getByRole('button', { name: 'Inbox' }));
 
-    expect(screen.getByText('Classify what you skipped')).toBeTruthy();
+    expect(screen.getByText('Inbox for unresolved spend')).toBeTruthy();
     expect(screen.getByText('Blue Tokai Roasters')).toBeTruthy();
 
     fireEvent.press(screen.getByRole('button', { name: 'Classify Blue Tokai Roasters' }));
@@ -164,6 +164,49 @@ describe('App', () => {
         }),
       ),
     );
+  });
+
+  it('filters, skips, revisits, and deletes inbox items locally', async () => {
+    const screen = render(<App />);
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+    fireEvent.press(screen.getByRole('button', { name: 'Inbox' }));
+
+    expect(await screen.findByText('Inbox for unresolved spend')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Filter by merchant'), 'blue');
+    expect(screen.getByText('Blue Tokai Roasters')).toBeTruthy();
+    expect(screen.queryByText('Blinkit')).toBeNull();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Filter by merchant'), '');
+    fireEvent.press(screen.getByRole('button', { name: 'Google Pay' }));
+    expect(screen.getByText('Blue Tokai Roasters')).toBeTruthy();
+    expect(screen.queryByText('Blinkit')).toBeNull();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Clear filters' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Skip Blue Tokai Roasters for now' }));
+
+    expect(screen.queryByText('Blue Tokai Roasters')).toBeNull();
+    expect(screen.getByText('Blinkit')).toBeTruthy();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Skipped' }));
+    expect(await screen.findByText('Blue Tokai Roasters')).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Review Blue Tokai Roasters again' }));
+
+    expect(screen.queryByText('Blue Tokai Roasters')).toBeNull();
+    fireEvent.press(screen.getByRole('button', { name: 'Needs review' }));
+    expect(await screen.findByText('Blue Tokai Roasters')).toBeTruthy();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Delete Blue Tokai Roasters locally' }));
+    expect(screen.queryByText('Blue Tokai Roasters')).toBeNull();
+
+    await waitFor(() => {
+      const lastSavedState = mockedSaveStoredSpendTrackerState.mock.calls.at(-1)?.[0];
+      expect(lastSavedState).toBeDefined();
+      expect(
+        lastSavedState?.transactions.find((transaction) => transaction.id === 'txn_blue_tokai'),
+      ).toBeUndefined();
+    });
   });
 
   it('adds a manual spend and persists the updated session', async () => {

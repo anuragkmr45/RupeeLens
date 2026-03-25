@@ -25,7 +25,7 @@ export interface Transaction {
   items: TransactionItem[];
   merchant: string;
   sourceApp: string;
-  status: 'classified' | 'uncategorized';
+  status: TransactionStatus;
 }
 
 export interface ClassificationDraft {
@@ -56,6 +56,25 @@ export interface DashboardSummary {
   totalSpendMinor: number;
 }
 
+export type TransactionStatus = 'classified' | 'skipped' | 'uncategorized';
+
+export type InboxStatusFilter = 'all' | 'needs_review' | 'skipped';
+export type InboxAmountFilter = 'all' | 'under_250' | 'between_250_and_500' | 'over_500';
+export type InboxAgeFilter = 'all' | 'today' | 'last_3_days' | 'older';
+
+export interface InboxFilters {
+  ageFilter: InboxAgeFilter;
+  amountFilter: InboxAmountFilter;
+  merchantQuery: string;
+  sourceApp: string | 'all';
+  statusFilter: InboxStatusFilter;
+}
+
+export interface InboxReviewItem {
+  reviewStatus: Extract<TransactionStatus, 'skipped' | 'uncategorized'>;
+  transaction: Transaction;
+}
+
 export interface DashboardSummaryOptions {
   budgetTargetMinor: number;
   cycleStartDay: number;
@@ -71,6 +90,14 @@ export interface TransactionItemSummary {
   merchant: string;
   transactionId: string;
 }
+
+export const DEFAULT_INBOX_FILTERS: InboxFilters = {
+  ageFilter: 'all',
+  amountFilter: 'all',
+  merchantQuery: '',
+  sourceApp: 'all',
+  statusFilter: 'needs_review',
+};
 
 export const categoryOptions: CategoryOption[] = [
   {
@@ -261,11 +288,90 @@ export function getPendingTransactions(
     .filter((transaction) => transaction.status === 'uncategorized');
 }
 
+export function getInboxReviewTransactions(
+  transactions: Transaction[],
+  filters: InboxFilters,
+  now = new Date().toISOString(),
+): InboxReviewItem[] {
+  return sortTransactionsByCapturedAtDesc(transactions)
+    .filter((transaction) => transaction.status !== 'classified')
+    .filter((transaction) => matchesInboxStatusFilter(transaction, filters.statusFilter))
+    .filter((transaction) => matchesSourceAppFilter(transaction, filters.sourceApp))
+    .filter((transaction) => matchesMerchantFilter(transaction, filters.merchantQuery))
+    .filter((transaction) => matchesAmountFilter(transaction, filters.amountFilter))
+    .filter((transaction) => matchesAgeFilter(transaction, filters.ageFilter, now))
+    .map((transaction) => ({
+      reviewStatus: transaction.status === 'skipped' ? 'skipped' : 'uncategorized',
+      transaction,
+    }));
+}
+
+export function getInboxSourceAppOptions(transactions: Transaction[]): string[] {
+  return [...new Set(
+    transactions
+      .filter((transaction) => transaction.status !== 'classified')
+      .map((transaction) => transaction.sourceApp),
+  )].sort((left, right) => left.localeCompare(right));
+}
+
 export function getTransactionById(
   transactions: Transaction[],
   transactionId: string,
 ): Transaction | null {
   return transactions.find((transaction) => transaction.id === transactionId) ?? null;
+}
+
+export function classifyTransaction(
+  transactions: Transaction[],
+  transactionId: string,
+  classification: ClassificationDraft,
+): Transaction[] {
+  if (!classification.categoryId || !classification.itemLabel.trim()) {
+    return transactions;
+  }
+
+  const categoryId = classification.categoryId;
+  const itemLabel = classification.itemLabel.trim();
+
+  return transactions.map((transaction) => {
+    if (transaction.id !== transactionId) {
+      return transaction;
+    }
+
+    return {
+      ...transaction,
+      items: [
+        {
+          amountMinor: transaction.amountMinor,
+          categoryId,
+          id: `${transaction.id}_item_1`,
+          label: itemLabel,
+        },
+      ],
+      status: 'classified',
+    };
+  });
+}
+
+export function skipTransaction(
+  transactions: Transaction[],
+  transactionId: string,
+): Transaction[] {
+  return updateTransactionStatus(transactions, transactionId, 'skipped');
+}
+
+export function restoreSkippedTransaction(
+  transactions: Transaction[],
+  transactionId: string,
+): Transaction[] {
+  return updateTransactionStatus(transactions, transactionId, 'uncategorized');
+}
+
+export function deleteTransaction(
+  transactions: Transaction[],
+  transactionId: string,
+): Transaction[] {
+  return transactions.filter((transaction) => transaction.id !== transactionId);
 }
 
 export function summarizeDashboard(
@@ -297,6 +403,10 @@ export function summarizeDashboard(
 
     if (transaction.status === 'uncategorized') {
       inboxCount += 1;
+      continue;
+    }
+
+    if (transaction.status === 'skipped') {
       continue;
     }
 
@@ -353,6 +463,84 @@ function getCurrentCycleTransactions(
   });
 }
 
+function matchesInboxStatusFilter(
+  transaction: Transaction,
+  statusFilter: InboxStatusFilter,
+): boolean {
+  if (statusFilter === 'all') {
+    return transaction.status === 'uncategorized' || transaction.status === 'skipped';
+  }
+
+  if (statusFilter === 'needs_review') {
+    return transaction.status === 'uncategorized';
+  }
+
+  return transaction.status === 'skipped';
+}
+
+function matchesSourceAppFilter(
+  transaction: Transaction,
+  sourceAppFilter: InboxFilters['sourceApp'],
+): boolean {
+  return sourceAppFilter === 'all' || transaction.sourceApp === sourceAppFilter;
+}
+
+function matchesMerchantFilter(
+  transaction: Transaction,
+  merchantQuery: string,
+): boolean {
+  const normalizedQuery = merchantQuery.trim().toLowerCase();
+
+  return (
+    normalizedQuery.length === 0 ||
+    transaction.merchant.toLowerCase().includes(normalizedQuery)
+  );
+}
+
+function matchesAmountFilter(
+  transaction: Transaction,
+  amountFilter: InboxAmountFilter,
+): boolean {
+  switch (amountFilter) {
+    case 'under_250':
+      return transaction.amountMinor < 25000;
+    case 'between_250_and_500':
+      return transaction.amountMinor >= 25000 && transaction.amountMinor <= 50000;
+    case 'over_500':
+      return transaction.amountMinor > 50000;
+    case 'all':
+    default:
+      return true;
+  }
+}
+
+function matchesAgeFilter(
+  transaction: Transaction,
+  ageFilter: InboxAgeFilter,
+  now: string,
+): boolean {
+  if (ageFilter === 'all') {
+    return true;
+  }
+
+  const transactionDate = new Date(transaction.capturedAt);
+  const referenceDate = new Date(now);
+  const todayStart = getStartOfDay(referenceDate);
+  const threeDaysAgoStart = new Date(todayStart);
+
+  threeDaysAgoStart.setDate(threeDaysAgoStart.getDate() - 3);
+
+  if (ageFilter === 'today') {
+    return transactionDate >= todayStart;
+  }
+
+  if (ageFilter === 'last_3_days') {
+    return transactionDate >= threeDaysAgoStart && transactionDate < todayStart;
+  }
+
+  return transactionDate < threeDaysAgoStart;
+}
+
 function getCycleWindow(
   anchorDate: Date,
   cycleStartDay: number,
@@ -396,6 +584,20 @@ function buildCycleAnchor(
     0,
     0,
     0,
+  );
+}
+
+function getStartOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+}
+
+function updateTransactionStatus(
+  transactions: Transaction[],
+  transactionId: string,
+  status: Extract<TransactionStatus, 'skipped' | 'uncategorized'>,
+): Transaction[] {
+  return transactions.map((transaction) =>
+    transaction.id === transactionId ? { ...transaction, status } : transaction,
   );
 }
 
