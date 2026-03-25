@@ -476,7 +476,7 @@ Inbox accepted by product for daily-use flow.
 - **Story points:** 8
 - **Goal:** Provide the fastest full-screen classification path when notification reply is not enough.
 - **Dependencies:** UX-003, INT-003
-- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-25 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: full-screen quick classify and manual add already exist in the local shell. Bottom-sheet UX, save-as-rule behavior, suggestion chips, and captured-spend integration remain open.
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-25 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: full-screen quick classify and manual add now share item/category form primitives, quick classify exposes explicit suggestion chips plus skip and split-later controls, and the UI includes a save-as-rule intent toggle. Bottom-sheet UX, durable rule creation via INT-003, and captured-spend integration remain open.
 
 **Description**  
 Create bottom sheet with item name, category chips, amount preview, merchant preview, save-as-rule toggle, and save/skip controls. Add manual transaction entry using same form primitives.

@@ -17,6 +17,7 @@ import {
   buildClassificationDraft,
   categoryOptions,
   classifyTransaction,
+  getClassificationSuggestions,
   createManualTransaction,
   DEFAULT_INBOX_FILTERS,
   deleteTransaction,
@@ -26,6 +27,7 @@ import {
   getInboxSourceAppOptions,
   getPendingTransactions,
   getTransactionById,
+  isClassificationReady,
   parseCurrencyInputToMinor,
   restoreSkippedTransaction,
   seededTransactions,
@@ -34,6 +36,7 @@ import {
   summarizeDashboard,
   type CategoryId,
   type ClassificationDraft,
+  type ClassificationSuggestion,
   type DashboardSummary,
   type InboxFilters,
   type InboxReviewItem,
@@ -59,6 +62,7 @@ type TabScreen = 'home' | 'inbox';
 const EMPTY_DRAFT: ClassificationDraft = {
   categoryId: null,
   itemLabel: '',
+  saveAsRule: false,
 };
 
 interface ManualEntryDraft {
@@ -157,6 +161,13 @@ export function SpendTrackerApp() {
   const activeTransaction = activeTransactionId
     ? getTransactionById(transactions, activeTransactionId)
     : null;
+  const activeTransactionSuggestions = activeTransaction
+    ? getClassificationSuggestions(transactions, activeTransaction.merchant, activeTransaction.id)
+    : [];
+  const manualEntrySuggestions = getClassificationSuggestions(
+    transactions,
+    manualDraft.merchant,
+  );
   const manualAmountMinor = parseCurrencyInputToMinor(manualDraft.amountInput);
 
   useEffect(() => {
@@ -236,7 +247,7 @@ export function SpendTrackerApp() {
   }
 
   function handleSaveClassification() {
-    if (!activeTransactionId || !draft.categoryId || !draft.itemLabel.trim()) {
+    if (!activeTransactionId || !isClassificationReady(draft)) {
       return;
     }
 
@@ -261,6 +272,34 @@ export function SpendTrackerApp() {
     setScreen('inbox');
   }
 
+  function handleToggleSaveAsRule() {
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      saveAsRule: !currentDraft.saveAsRule,
+    }));
+  }
+
+  function handleApplyClassificationSuggestion(suggestion: ClassificationSuggestion) {
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      categoryId: suggestion.categoryId,
+      itemLabel: suggestion.itemLabel,
+    }));
+  }
+
+  function handleSkipFromClassification() {
+    if (!activeTransactionId) {
+      return;
+    }
+
+    setTransactions((currentTransactions) =>
+      skipTransaction(currentTransactions, activeTransactionId),
+    );
+    setActiveTransactionId(null);
+    setDraft({ ...EMPTY_DRAFT });
+    setScreen('inbox');
+  }
+
   function handleOpenManualEntry(returnScreen: TabScreen) {
     setManualReturnScreen(returnScreen);
     setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
@@ -278,6 +317,13 @@ export function SpendTrackerApp() {
     Alert.alert(
       'Search comes next',
       'Search and full-history browsing are still queued behind the current dashboard and Inbox work.',
+    );
+  }
+
+  function handleOpenSplitPlaceholder() {
+    Alert.alert(
+      'Split comes next',
+      'Split-items remains a separate follow-up ticket. This pass only prepares the faster quick-classify flow.',
     );
   }
 
@@ -325,12 +371,20 @@ export function SpendTrackerApp() {
   }
 
   function handleSaveManualEntry() {
+    const categoryId = manualDraft.categoryId;
+    const itemLabel = manualDraft.itemLabel.trim();
+    const merchant = manualDraft.merchant.trim();
+
     if (
       !manualAmountMinor ||
       manualAmountMinor <= 0 ||
-      !manualDraft.categoryId ||
-      !manualDraft.itemLabel.trim() ||
-      !manualDraft.merchant.trim()
+      !categoryId ||
+      !isClassificationReady({
+        categoryId,
+        itemLabel,
+        saveAsRule: false,
+      }) ||
+      !merchant
     ) {
       return;
     }
@@ -338,9 +392,9 @@ export function SpendTrackerApp() {
     const nextTransactions = sortTransactionsByCapturedAtDesc([
       createManualTransaction({
         amountMinor: manualAmountMinor,
-        categoryId: manualDraft.categoryId,
-        itemLabel: manualDraft.itemLabel,
-        merchant: manualDraft.merchant,
+        categoryId,
+        itemLabel,
+        merchant,
       }),
       ...transactions,
     ]);
@@ -353,6 +407,14 @@ export function SpendTrackerApp() {
   function handleCancelManualEntry() {
     setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
     setScreen(manualReturnScreen);
+  }
+
+  function handleApplyManualSuggestion(suggestion: ClassificationSuggestion) {
+    setManualDraft((currentDraft) => ({
+      ...currentDraft,
+      categoryId: suggestion.categoryId,
+      itemLabel: suggestion.itemLabel,
+    }));
   }
 
   function handleUpdateInboxFilters(nextFilters: Partial<InboxFilters>) {
@@ -477,14 +539,19 @@ export function SpendTrackerApp() {
             {!isHydrating && screen === 'classify' && activeTransaction ? (
               <ClassifyScreen
                 draft={draft}
+                onApplySuggestion={handleApplyClassificationSuggestion}
                 onCancel={handleCancelClassification}
                 onChangeItemLabel={(itemLabel) =>
                   setDraft((currentDraft) => ({ ...currentDraft, itemLabel }))
                 }
+                onOpenSplitPlaceholder={handleOpenSplitPlaceholder}
                 onSave={handleSaveClassification}
                 onSelectCategory={(categoryId) =>
                   setDraft((currentDraft) => ({ ...currentDraft, categoryId }))
                 }
+                onSkip={handleSkipFromClassification}
+                onToggleSaveAsRule={handleToggleSaveAsRule}
+                suggestions={activeTransactionSuggestions}
                 transaction={activeTransaction}
               />
             ) : null}
@@ -493,6 +560,7 @@ export function SpendTrackerApp() {
               <ManualEntryScreen
                 amountMinor={manualAmountMinor}
                 draft={manualDraft}
+                onApplySuggestion={handleApplyManualSuggestion}
                 onCancel={handleCancelManualEntry}
                 onChangeAmount={(amountInput) =>
                   setManualDraft((currentDraft) => ({ ...currentDraft, amountInput }))
@@ -507,6 +575,7 @@ export function SpendTrackerApp() {
                 onSelectCategory={(categoryId) =>
                   setManualDraft((currentDraft) => ({ ...currentDraft, categoryId }))
                 }
+                suggestions={manualEntrySuggestions}
               />
             ) : null}
           </ScrollView>
@@ -1192,20 +1261,30 @@ function InboxScreen({
 
 function ClassifyScreen({
   draft,
+  onApplySuggestion,
   onCancel,
   onChangeItemLabel,
+  onOpenSplitPlaceholder,
   onSave,
   onSelectCategory,
+  onSkip,
+  onToggleSaveAsRule,
+  suggestions,
   transaction,
 }: {
   draft: ClassificationDraft;
+  onApplySuggestion: (suggestion: ClassificationSuggestion) => void;
   onCancel: () => void;
   onChangeItemLabel: (itemLabel: string) => void;
+  onOpenSplitPlaceholder: () => void;
   onSave: () => void;
   onSelectCategory: (categoryId: CategoryId) => void;
+  onSkip: () => void;
+  onToggleSaveAsRule: () => void;
+  suggestions: ClassificationSuggestion[];
   transaction: Transaction;
 }) {
-  const saveDisabled = !draft.categoryId || !draft.itemLabel.trim();
+  const saveDisabled = !isClassificationReady(draft);
 
   return (
     <View style={styles.stack}>
@@ -1213,8 +1292,8 @@ function ClassifyScreen({
         <Text style={styles.sectionEyebrow}>Quick classify</Text>
         <Text style={styles.sectionTitle}>Turn this payment into a usable spend</Text>
         <Text style={styles.bodyCopy}>
-          This stand-in app flow mirrors the real v1 job: add a label, pick a category, and save the
-          spend without leaving the local session.
+          This pass keeps the classify flow fast: tap a suggestion for the common case, review the
+          fields, and save without leaving the local session.
         </Text>
       </SectionCard>
 
@@ -1226,37 +1305,29 @@ function ClassifyScreen({
         </Text>
       </SectionCard>
 
-      <SectionCard accentColor={colors.panel}>
-        <Text style={styles.fieldLabel}>Item label</Text>
-        <TextInput
-          onChangeText={onChangeItemLabel}
-          placeholder="What did you buy?"
-          placeholderTextColor={colors.inkMuted}
-          style={styles.input}
-          value={draft.itemLabel}
-        />
-
-        <Text style={styles.fieldLabel}>Category</Text>
-        <View style={styles.categoryGrid}>
-          {categoryOptions.map((category) => (
-            <CategoryChip
-              isActive={draft.categoryId === category.id}
-              key={category.id}
-              label={category.label}
-              onPress={() => onSelectCategory(category.id)}
-            />
-          ))}
-        </View>
-      </SectionCard>
+      <ClassificationFieldsCard
+        categoryId={draft.categoryId}
+        description="Suggestions stay explicit and editable. Tap one to fill both the item label and category in one move."
+        emptyStateCopy="Suggestions will appear here when the merchant or local history gives us a confident starting point."
+        itemLabel={draft.itemLabel}
+        onApplySuggestion={onApplySuggestion}
+        onChangeItemLabel={onChangeItemLabel}
+        onSelectCategory={onSelectCategory}
+        suggestions={suggestions}
+        title="Suggested values"
+      />
 
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Save behavior</Text>
         <Text style={styles.bodyCopy}>
           Saving removes the payment from Inbox, recalculates Home immediately, and writes the
-          updated transaction back into local SQLite tables.
+          updated transaction back into local SQLite tables. Split remains a later follow-up flow.
         </Text>
+        <RuleIntentToggle isActive={draft.saveAsRule} onPress={onToggleSaveAsRule} />
         <View style={styles.actionRow}>
           <ActionButton label="Back to inbox" onPress={onCancel} tone="secondary" />
+          <ActionButton label="Skip for now" onPress={onSkip} tone="secondary" />
+          <ActionButton label="Split later" onPress={onOpenSplitPlaceholder} tone="secondary" />
           <ActionButton
             disabled={saveDisabled}
             label="Save classification"
@@ -1272,27 +1343,34 @@ function ClassifyScreen({
 function ManualEntryScreen({
   amountMinor,
   draft,
+  onApplySuggestion,
   onCancel,
   onChangeAmount,
   onChangeItemLabel,
   onChangeMerchant,
   onSave,
   onSelectCategory,
+  suggestions,
 }: {
   amountMinor: number | null;
   draft: ManualEntryDraft;
+  onApplySuggestion: (suggestion: ClassificationSuggestion) => void;
   onCancel: () => void;
   onChangeAmount: (amountInput: string) => void;
   onChangeItemLabel: (itemLabel: string) => void;
   onChangeMerchant: (merchant: string) => void;
   onSave: () => void;
   onSelectCategory: (categoryId: CategoryId) => void;
+  suggestions: ClassificationSuggestion[];
 }) {
   const saveDisabled =
     !amountMinor ||
     amountMinor <= 0 ||
-    !draft.categoryId ||
-    !draft.itemLabel.trim() ||
+    !isClassificationReady({
+      categoryId: draft.categoryId,
+      itemLabel: draft.itemLabel,
+      saveAsRule: false,
+    }) ||
     !draft.merchant.trim();
 
   return (
@@ -1333,32 +1411,20 @@ function ManualEntryScreen({
             />
           </View>
 
-          <View style={styles.fieldStack}>
-            <Text style={styles.fieldLabel}>Item label</Text>
-            <TextInput
-              onChangeText={onChangeItemLabel}
-              placeholder="What did you buy?"
-              placeholderTextColor={colors.inkMuted}
-              style={styles.input}
-              value={draft.itemLabel}
-            />
-          </View>
         </View>
       </SectionCard>
 
-      <SectionCard accentColor={colors.panel}>
-        <Text style={styles.fieldLabel}>Category</Text>
-        <View style={styles.categoryGrid}>
-          {categoryOptions.map((category) => (
-            <CategoryChip
-              isActive={draft.categoryId === category.id}
-              key={category.id}
-              label={category.label}
-              onPress={() => onSelectCategory(category.id)}
-            />
-          ))}
-        </View>
-      </SectionCard>
+      <ClassificationFieldsCard
+        categoryId={draft.categoryId}
+        description="Manual add now reuses the same item-label and category primitives as quick classify."
+        emptyStateCopy="Start with the merchant name to unlock local suggestions, or type the item manually."
+        itemLabel={draft.itemLabel}
+        onApplySuggestion={onApplySuggestion}
+        onChangeItemLabel={onChangeItemLabel}
+        onSelectCategory={onSelectCategory}
+        suggestions={suggestions}
+        title="Classify this spend"
+      />
 
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Preview</Text>
@@ -1366,8 +1432,8 @@ function ManualEntryScreen({
           {amountMinor && amountMinor > 0 ? formatCurrency(amountMinor) : 'Enter a valid amount'}
         </Text>
         <Text style={styles.bodyCopy}>
-          Saving creates a classified local transaction immediately, updates Home totals, and keeps
-          Inbox focused on uncategorized captures.
+          Saving creates a classified local transaction immediately, updates Home totals, and uses
+          the same item-label and category validation rules as captured spends.
         </Text>
         <View style={styles.actionRow}>
           <ActionButton label="Back" onPress={onCancel} tone="secondary" />
@@ -1380,6 +1446,126 @@ function ManualEntryScreen({
         </View>
       </SectionCard>
     </View>
+  );
+}
+
+function ClassificationFieldsCard({
+  categoryId,
+  description,
+  emptyStateCopy,
+  itemLabel,
+  onApplySuggestion,
+  onChangeItemLabel,
+  onSelectCategory,
+  suggestions,
+  title,
+}: {
+  categoryId: CategoryId | null;
+  description: string;
+  emptyStateCopy: string;
+  itemLabel: string;
+  onApplySuggestion: (suggestion: ClassificationSuggestion) => void;
+  onChangeItemLabel: (itemLabel: string) => void;
+  onSelectCategory: (categoryId: CategoryId) => void;
+  suggestions: ClassificationSuggestion[];
+  title: string;
+}) {
+  return (
+    <SectionCard accentColor={colors.panel}>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <Text style={styles.bodyCopy}>{description}</Text>
+
+      <View style={styles.fieldStack}>
+        <Text style={styles.fieldLabel}>Suggestions</Text>
+        {suggestions.length > 0 ? (
+          <View style={styles.suggestionStack}>
+            {suggestions.map((suggestion) => (
+              <SuggestionCard
+                key={suggestion.id}
+                onPress={() => onApplySuggestion(suggestion)}
+                suggestion={suggestion}
+              />
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.helperCopy}>{emptyStateCopy}</Text>
+        )}
+      </View>
+
+      <View style={styles.fieldStack}>
+        <Text style={styles.fieldLabel}>Item label</Text>
+        <TextInput
+          onChangeText={onChangeItemLabel}
+          placeholder="What did you buy?"
+          placeholderTextColor={colors.inkMuted}
+          style={styles.input}
+          value={itemLabel}
+        />
+      </View>
+
+      <View style={styles.fieldStack}>
+        <Text style={styles.fieldLabel}>Category</Text>
+        <View style={styles.categoryGrid}>
+          {categoryOptions.map((category) => (
+            <CategoryChip
+              isActive={categoryId === category.id}
+              key={category.id}
+              label={category.label}
+              onPress={() => onSelectCategory(category.id)}
+            />
+          ))}
+        </View>
+      </View>
+    </SectionCard>
+  );
+}
+
+function SuggestionCard({
+  onPress,
+  suggestion,
+}: {
+  onPress: () => void;
+  suggestion: ClassificationSuggestion;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={`${suggestion.itemLabel} suggestion`}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={styles.suggestionCard}
+    >
+      <Text style={styles.suggestionTitle}>{suggestion.itemLabel}</Text>
+      <Text style={styles.suggestionMeta}>
+        {getCategoryLabel(suggestion.categoryId)} · {suggestion.reason}
+      </Text>
+    </Pressable>
+  );
+}
+
+function RuleIntentToggle({
+  isActive,
+  onPress,
+}: {
+  isActive: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel="Save as rule later"
+      accessibilityRole="button"
+      onPress={onPress}
+      style={styles.ruleToggle}
+    >
+      <View style={[styles.ruleToggleIndicator, isActive ? styles.ruleToggleIndicatorActive : null]}>
+        {isActive ? <View style={styles.ruleToggleIndicatorDot} /> : null}
+      </View>
+      <View style={styles.ruleToggleCopy}>
+        <Text style={styles.fieldLabel}>Save as rule later</Text>
+        <Text style={styles.helperCopy}>
+          This only records user intent in the current UI. Reusable rules still depend on INT-003.
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -1668,6 +1854,13 @@ function getSyncModeLabel(syncMode: SyncMode): string {
   return SYNC_MODE_OPTIONS.find((option) => option.id === syncMode)?.label ?? 'Local-only for now';
 }
 
+function getCategoryLabel(categoryId: CategoryId): string {
+  return (
+    categoryOptions.find((category) => category.id === categoryId)?.label ??
+    'Needs category'
+  );
+}
+
 function hasActiveInboxFilters(filters: InboxFilters): boolean {
   return (
     filters.ageFilter !== DEFAULT_INBOX_FILTERS.ageFilter ||
@@ -1918,6 +2111,40 @@ const styles = StyleSheet.create({
   preferenceLabelIdle: {
     color: colors.ink,
   },
+  ruleToggle: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.panel,
+    borderColor: colors.edgeStrong,
+    borderRadius: 22,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  ruleToggleCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  ruleToggleIndicator: {
+    alignItems: 'center',
+    borderColor: colors.edgeStrong,
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 24,
+    justifyContent: 'center',
+    marginTop: 2,
+    width: 24,
+  },
+  ruleToggleIndicatorActive: {
+    borderColor: colors.accentStrong,
+  },
+  ruleToggleIndicatorDot: {
+    backgroundColor: colors.accentStrong,
+    borderRadius: 999,
+    height: 12,
+    width: 12,
+  },
   screen: {
     backgroundColor: colors.canvas,
     flex: 1,
@@ -1987,6 +2214,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     maxWidth: 620,
+  },
+  suggestionCard: {
+    backgroundColor: colors.panel,
+    borderColor: colors.edgeStrong,
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  suggestionMeta: {
+    color: colors.inkMuted,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  suggestionStack: {
+    gap: 10,
+  },
+  suggestionTitle: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
   },
   summaryAmount: {
     color: colors.ink,

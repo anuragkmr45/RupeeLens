@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### UX-004 — Build Quick-Classify Bottom Sheet and Manual Add Flow
+
+- **Status:** completed
+- **Ticket:** UX-004
+- **Goal:** Continue quick classify and manual entry so the classification path is faster, suggestion-led, and built from shared form primitives even before the real rule engine lands.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/domain.ts`, `client/src/lib/app-info.ts`, `client/__tests__/app.test.tsx`, `client/__tests__/domain.test.ts`.
+- **Rationale:** `SET-002` remains blocked, `UX-003` is still open but now depends on later partial/conflict and split/rule follow-up, and `UX-004` already has a real partial implementation in the client. The highest-value next step is to reuse the classify/manual form primitives, surface explicit suggestion chips, and add honest save/skip controls without pretending that the missing rule engine or native capture integration already exists.
+- **Risks:** Suggestion chips must stay advisory and explicit, not behave like silent heuristics. A save-as-rule toggle cannot imply durable rule creation while `INT-003` is still open. Shared form primitives must not regress the existing manual-add or Inbox classify flows.
+- **API / schema impact:** No external API changes. Internal client domain expands to provide explicit classify suggestions and shared local form helpers.
+- **Rollout / flag plan:** No flag. This upgrades the default local classify/manual-entry flow.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** Quick classify exposes suggestion-led item/category selection plus explicit save/skip controls, manual add reuses the same form primitives and validation behavior, and tests cover the faster local flow without overstating rule-engine or capture readiness.
+- **Outcome:** Added shared classify/manual item-category form primitives, explicit suggestion chips from local history plus merchant heuristics, quick-classify skip and split-later controls, and an honest save-as-rule intent toggle. The ticket stays open in backlog tracking because the real bottom-sheet UX, durable rule creation via `INT-003`, and captured-spend integration are still missing.
+
 ### UX-003 — Create Inbox for Uncategorized and Partially Classified Transactions
 
 - **Status:** completed

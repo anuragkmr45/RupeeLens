@@ -2,8 +2,10 @@ import {
   classifyTransaction,
   DEFAULT_INBOX_FILTERS,
   deleteTransaction,
+  getClassificationSuggestions,
   getInboxReviewTransactions,
   getPendingTransactions,
+  isClassificationReady,
   restoreSkippedTransaction,
   seededTransactions,
   skipTransaction,
@@ -148,6 +150,7 @@ describe('spend-tracker dashboard summary', () => {
     const classifiedTransactions = classifyTransaction(seededTransactions, 'txn_blue_tokai', {
       categoryId: 'food_drink',
       itemLabel: ' Cold brew ',
+      saveAsRule: false,
     });
 
     expect(
@@ -180,5 +183,62 @@ describe('spend-tracker dashboard summary', () => {
     expect(deleteTransaction(restoredTransactions, 'txn_blue_tokai')).toHaveLength(
       restoredTransactions.length - 1,
     );
+  });
+
+  it('builds explicit classify suggestions from local history and merchant heuristics', () => {
+    const transactions: Transaction[] = [
+      {
+        amountMinor: 19000,
+        capturedAt: '2026-03-22T09:00:00+05:30',
+        id: 'txn_history_blue_tokai',
+        items: [
+          {
+            amountMinor: 19000,
+            categoryId: 'food_drink',
+            id: 'txn_history_blue_tokai_item_1',
+            label: 'Cold brew',
+          },
+        ],
+        merchant: 'Blue Tokai Roasters',
+        sourceApp: 'Google Pay',
+        status: 'classified',
+      },
+      {
+        amountMinor: 18000,
+        capturedAt: '2026-03-25T09:12:00+05:30',
+        id: 'txn_blue_tokai',
+        items: [],
+        merchant: 'Blue Tokai Roasters',
+        sourceApp: 'Google Pay',
+        status: 'uncategorized',
+      },
+    ];
+
+    expect(
+      getClassificationSuggestions(transactions, 'Blue Tokai Roasters', 'txn_blue_tokai'),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          categoryId: 'food_drink',
+          itemLabel: 'Cold brew',
+          reason: 'Used before for this merchant',
+        }),
+        expect.objectContaining({
+          categoryId: 'food_drink',
+          itemLabel: 'Coffee run',
+        }),
+      ]),
+    );
+
+    expect(
+      getClassificationSuggestions(seededTransactions, 'Blinkit').map((suggestion) => suggestion.itemLabel),
+    ).toContain('Groceries');
+    expect(
+      isClassificationReady({
+        categoryId: 'food_drink',
+        itemLabel: ' Coffee run ',
+        saveAsRule: true,
+      }),
+    ).toBe(true);
   });
 });

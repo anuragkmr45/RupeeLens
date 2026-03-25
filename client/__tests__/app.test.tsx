@@ -209,6 +209,40 @@ describe('App', () => {
     });
   });
 
+  it('uses explicit quick-classify suggestions and rule-intent toggle', async () => {
+    const screen = render(<App />);
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+    fireEvent.press(screen.getByRole('button', { name: 'Inbox' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Classify Blue Tokai Roasters' }));
+
+    expect(await screen.findByText('Suggested values')).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Coffee run suggestion' }));
+    expect(screen.getByDisplayValue('Coffee run')).toBeTruthy();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Save as rule later' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Save classification' }));
+
+    await waitFor(() =>
+      expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          transactions: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'txn_blue_tokai',
+              items: [
+                expect.objectContaining({
+                  categoryId: 'food_drink',
+                  label: 'Coffee run',
+                }),
+              ],
+              status: 'classified',
+            }),
+          ]),
+        }),
+      ),
+    );
+  });
+
   it('adds a manual spend and persists the updated session', async () => {
     const screen = render(<App />);
 

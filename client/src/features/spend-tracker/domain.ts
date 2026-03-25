@@ -31,6 +31,7 @@ export interface Transaction {
 export interface ClassificationDraft {
   categoryId: CategoryId | null;
   itemLabel: string;
+  saveAsRule: boolean;
 }
 
 export interface ManualEntryInput {
@@ -73,6 +74,13 @@ export interface InboxFilters {
 export interface InboxReviewItem {
   reviewStatus: Extract<TransactionStatus, 'skipped' | 'uncategorized'>;
   transaction: Transaction;
+}
+
+export interface ClassificationSuggestion {
+  categoryId: CategoryId;
+  id: string;
+  itemLabel: string;
+  reason: string;
 }
 
 export interface DashboardSummaryOptions {
@@ -204,6 +212,7 @@ export function buildClassificationDraft(
   return {
     categoryId: firstItem?.categoryId ?? null,
     itemLabel: firstItem?.label ?? '',
+    saveAsRule: false,
   };
 }
 
@@ -321,17 +330,74 @@ export function getTransactionById(
   return transactions.find((transaction) => transaction.id === transactionId) ?? null;
 }
 
+export function getClassificationSuggestions(
+  transactions: Transaction[],
+  merchant: string,
+  currentTransactionId?: string,
+): ClassificationSuggestion[] {
+  const suggestions = new Map<string, ClassificationSuggestion>();
+  const normalizedMerchant = merchant.trim().toLowerCase();
+
+  for (const transaction of transactions) {
+    if (
+      transaction.id === currentTransactionId ||
+      transaction.status !== 'classified' ||
+      transaction.items.length === 0
+    ) {
+      continue;
+    }
+
+    const normalizedTransactionMerchant = transaction.merchant.trim().toLowerCase();
+
+    if (
+      normalizedMerchant.length === 0 ||
+      normalizedTransactionMerchant !== normalizedMerchant
+    ) {
+      continue;
+    }
+
+    const firstItem = transaction.items[0];
+
+    if (!firstItem) {
+      continue;
+    }
+
+    const suggestionKey = `${firstItem.categoryId}:${firstItem.label.toLowerCase()}`;
+
+    suggestions.set(suggestionKey, {
+      categoryId: firstItem.categoryId,
+      id: `history_${transaction.id}`,
+      itemLabel: firstItem.label,
+      reason: 'Used before for this merchant',
+    });
+  }
+
+  for (const suggestion of getMerchantKeywordSuggestions(normalizedMerchant)) {
+    const suggestionKey = `${suggestion.categoryId}:${suggestion.itemLabel.toLowerCase()}`;
+
+    if (!suggestions.has(suggestionKey)) {
+      suggestions.set(suggestionKey, suggestion);
+    }
+  }
+
+  return [...suggestions.values()].slice(0, 3);
+}
+
+export function isClassificationReady(classification: ClassificationDraft): boolean {
+  return Boolean(classification.categoryId) && classification.itemLabel.trim().length > 0;
+}
+
 export function classifyTransaction(
   transactions: Transaction[],
   transactionId: string,
   classification: ClassificationDraft,
 ): Transaction[] {
-  if (!classification.categoryId || !classification.itemLabel.trim()) {
-    return transactions;
-  }
-
   const categoryId = classification.categoryId;
   const itemLabel = classification.itemLabel.trim();
+
+  if (!categoryId || itemLabel.length === 0) {
+    return transactions;
+  }
 
   return transactions.map((transaction) => {
     if (transaction.id !== transactionId) {
@@ -476,6 +542,54 @@ function matchesInboxStatusFilter(
   }
 
   return transaction.status === 'skipped';
+}
+
+function getMerchantKeywordSuggestions(
+  normalizedMerchant: string,
+): ClassificationSuggestion[] {
+  const merchantSuggestionTemplates = [
+    {
+      categoryId: 'food_drink' as const,
+      itemLabel: 'Coffee run',
+      keywords: ['cafe', 'chai', 'coffee', 'tokai'],
+      reason: 'Merchant looks like food or drink',
+    },
+    {
+      categoryId: 'groceries' as const,
+      itemLabel: 'Groceries',
+      keywords: ['basket', 'blinkit', 'fresh', 'grocery', 'mart'],
+      reason: 'Merchant looks like groceries',
+    },
+    {
+      categoryId: 'transport' as const,
+      itemLabel: 'Commute',
+      keywords: ['fuel', 'metro', 'ola', 'rapido', 'uber'],
+      reason: 'Merchant looks like transport',
+    },
+    {
+      categoryId: 'bills' as const,
+      itemLabel: 'Monthly bill',
+      keywords: ['bill', 'broadband', 'electric', 'utility'],
+      reason: 'Merchant looks like a bill or utility',
+    },
+    {
+      categoryId: 'shopping' as const,
+      itemLabel: 'Shopping',
+      keywords: ['amazon', 'mall', 'shop', 'store'],
+      reason: 'Merchant looks like shopping',
+    },
+  ];
+
+  return merchantSuggestionTemplates
+    .filter((template) =>
+      template.keywords.some((keyword) => normalizedMerchant.includes(keyword)),
+    )
+    .map((template, index) => ({
+      categoryId: template.categoryId,
+      id: `heuristic_${template.categoryId}_${index}`,
+      itemLabel: template.itemLabel,
+      reason: template.reason,
+    }));
 }
 
 function matchesSourceAppFilter(

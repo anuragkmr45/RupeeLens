@@ -468,7 +468,7 @@
       "started_at": "2026-03-25",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: full-screen quick classify and manual add already exist in the local shell. Bottom-sheet UX, save-as-rule behavior, suggestion chips, and captured-spend integration remain open."
+      "tracking_notes": "Repo truth: full-screen quick classify and manual add now share item/category form primitives, quick classify exposes explicit suggestion chips plus skip and split-later controls, and the UI includes a save-as-rule intent toggle. Bottom-sheet UX, durable rule creation via INT-003, and captured-spend integration remain open."
     },
     {
       "id": "UX-005",

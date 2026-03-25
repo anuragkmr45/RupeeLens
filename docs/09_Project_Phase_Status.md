@@ -58,14 +58,14 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 **Done in repo**
 
 - Manual add flow
-- Full-screen quick classify flow
+- Full-screen quick classify flow with explicit suggestion chips, shared form primitives, and a save-as-rule intent toggle
 - Hardcoded default category options inside the client shell
 
 **Remaining**
 
-- Bottom-sheet quick classify and save-as-rule behavior
+- Bottom-sheet quick classify behavior and durable rule creation via `INT-003`
 - Split-items flow
-- Timeline, detail, search/filter, and settings/privacy/export screens
+- Timeline, detail, search/filter, settings/privacy/export screens, and captured-spend classify integration
 - Category CRUD, merchant normalization, and rule engine
 
 ## Sprint 4 — Budgets And Sync Foundation
