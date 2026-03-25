@@ -18,6 +18,9 @@ Android-first v1 scaffold for a consumer UPI spend tracker. SET-001 establishes 
 
 - Node.js 22 LTS compatible runtime (`>=22 <25`)
 - `pnpm` 10.x
+- Android Studio with an emulator, or a connected Android device with USB debugging enabled
+- Android SDK available locally, with `ANDROID_HOME` pointing to it when your install is not in the default path
+- Xcode plus an iOS Simulator when running the iOS shell locally
 
 ## Bootstrap
 
@@ -48,11 +51,35 @@ pnpm build
 
 ```bash
 pnpm dev:client
+pnpm dev:android
+pnpm dev:ios
 pnpm dev:api
 pnpm dev:worker
 ```
 
-`pnpm dev:client` starts the Expo placeholder app. `pnpm dev:api` boots the API on port `3000` by default with `GET /health`. `pnpm dev:worker` starts the worker and emits an initial heartbeat log.
+`pnpm dev:client` starts the Expo Metro server. `pnpm dev:android` builds and installs the Android development build on an emulator or connected device. `pnpm dev:ios` builds and launches the iOS shell in Simulator. `pnpm dev:api` boots the API on port `3000` by default with `GET /health`. `pnpm dev:worker` starts the worker and emits an initial heartbeat log.
+
+If `pnpm dev:android` cannot find your SDK, export `ANDROID_HOME` and ensure `adb` is on your shell `PATH`.
+If `pnpm dev:ios` cannot launch, verify Xcode, Command Line Tools, CocoaPods, and at least one iOS Simulator runtime are installed.
+
+## Expo Go vs Dev Build
+
+This client targets Expo SDK 55 and checked-in Android native code. Use development builds for local device testing instead of Expo Go.
+
+- `pnpm dev:client` starts Metro
+- `pnpm dev:android` compiles and launches the Android development build
+- `pnpm dev:ios` compiles and launches the iOS shell development build
+
+Expo Go may show an SDK compatibility error for this project even when the store app is up to date. That is expected during Expo Go rollout gaps and is not the supported workflow for this repo.
+
+## Platform Scope
+
+Android remains the primary platform and the only platform planned for notification capture in v1.
+
+- Android: development builds plus Android-native capture work
+- iOS: app-shell development and UI verification only
+
+The iOS shell is supported for development, but iOS payment notification capture and parity with Android native flows remain out of scope for v1.
 
 ## Pull Request Workflow
 

@@ -3,8 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "main": "index.ts",
+  "expo": {
+    "doctor": {
+      "appConfigFieldsNotSyncedCheck": {
+        "enabled": false
+      }
+    }
+  },
   "scripts": {
+    "android": "expo run:android",
     "build": "expo export --platform android --output-dir dist",
+    "ios": "expo run:ios",
     "lint": "eslint .",
     "start": "expo start --clear",
     "test": "jest --runInBand --watchman=false",
@@ -12,18 +21,20 @@
   },
   "dependencies": {
     "expo": "~55.0.6",
+    "expo-dev-client": "~55.0.18",
     "expo-status-bar": "~55.0.4",
+    "expo-system-ui": "~55.0.10",
     "react": "19.2.0",
     "react-native": "0.83.2"
   },
   "devDependencies": {
-    "@upi-spend-tracker/eslint-config": "workspace:*",
-    "@upi-spend-tracker/tsconfig": "workspace:*",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.2.14",
+    "@upi-spend-tracker/eslint-config": "workspace:*",
+    "@upi-spend-tracker/tsconfig": "workspace:*",
     "jest": "^29.7.0",
-    "jest-expo": "~55.0.4",
+    "jest-expo": "~55.0.11",
     "react-test-renderer": "19.2.0"
   }
 }

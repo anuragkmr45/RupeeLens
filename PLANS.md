@@ -4,6 +4,42 @@ Use this template before implementing any multi-step, cross-module, or risky cha
 
 ## Active Plan
 
+### SET-005 — Android Dev Build Toolchain Compatibility
+
+- **Status:** completed
+- **Ticket:** SET-005
+- **Goal:** Restore local Android dev-build installation by fixing the Gradle/toolchain mismatch that blocks `expo run:android` after the Android SDK and Java setup is present.
+- **Touched files/modules:** `PLANS.md`, `client/android/gradle/wrapper/gradle-wrapper.properties`.
+- **Rationale:** After local Android SDK setup, the build moved past missing-tool errors and failed in Gradle with `JvmVendorSpec IBM_SEMERU`, indicating a Gradle 9 compatibility break with the React Native/Foojay toolchain plugin path currently present in the installed stack.
+- **Risks:** Pinning the wrapper to Gradle `8.14.x` could diverge from future upstream template defaults, but leaving Gradle 9 in place blocks all local Android development on this machine.
+- **Validation commands:** `cd client/android && ./gradlew -version`, `cd client/android && ./gradlew app:assembleDebug -x lint -x test --configure-on-demand --build-cache`, `adb install -r client/android/app/build/outputs/apk/debug/app-debug.apk`, `adb shell pm list packages | rg com.upispendtracker.client`.
+- **Done when:** The wrapper uses a Gradle version compatible with the current React Native/Foojay toolchain plugin path, the debug APK builds, and the Android development client package is installable on the connected device.
+- **Outcome:** Pinned the Android Gradle wrapper from `9.0.0` to `8.14.3`, matching the supported upper bound for the pre-`1.0.0` Foojay resolver path used by the current React Native Gradle plugin and clearing the `IBM_SEMERU` build failure.
+
+### SET-004 — iOS Shell Support for Expo Client
+
+- **Status:** completed
+- **Ticket:** SET-004
+- **Goal:** Add the minimum Expo config and workflow needed to launch the client shell on iOS without expanding scope into iOS-native capture or feature parity.
+- **Touched files/modules:** `PLANS.md`, `README.md`, `package.json`, `client/app.json`, `client/package.json`.
+- **Rationale:** The Expo client could not open on iOS because `ios.bundleIdentifier` was missing from app config. The repo needed explicit iOS shell wiring so local UI development can run on Simulator while keeping Android-native capture as the only v1 platform-specific path.
+- **Risks:** iOS documentation could overstate platform support, local launch may still be blocked by machine prerequisites like Xcode or CocoaPods, and future native iOS work could require revisiting the decision not to commit `client/ios`.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/client exec expo config --type public`, `pnpm --filter @upi-spend-tracker/client exec expo install --check`, `cd client && npx expo-doctor`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm dev:ios`.
+- **Done when:** Expo public config includes `ios.bundleIdentifier`, root/client iOS scripts exist, docs describe iOS shell support accurately, and validation passes or any remaining machine-specific blocker is documented exactly.
+- **Outcome:** Added `ios.bundleIdentifier` as `com.upispendtracker.client`, added client/root iOS run scripts, updated README to describe iOS shell development and Android-only native capture scope, and preserved iOS support as shell-only rather than parity with Android capture behavior.
+
+### SET-003 — Expo SDK 55 Android Dev Build Alignment
+
+- **Status:** completed
+- **Ticket:** SET-003
+- **Goal:** Align the Expo client with SDK 55 expectations, remove stale generated Android wiring, and document Android development builds as the supported local runtime instead of Expo Go.
+- **Touched files/modules:** `PLANS.md`, `README.md`, `package.json`, `pnpm-lock.yaml`, `client/package.json`, `client/android/**`.
+- **Rationale:** The client already targeted Expo SDK 55, but local running was blocked by Expo Go compatibility messaging and stale Android manifest output. The repo needed Expo-managed package alignment plus a regenerated Android baseline so local Android runs match the intended Android-first architecture.
+- **Risks:** Regenerating `client/android` could unintentionally drop custom native changes, dev workflow docs could drift from actual scripts, and Expo-managed dependency changes could expose hidden monorepo/tooling mismatches.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/client exec expo install --check`, `pnpm --filter @upi-spend-tracker/client exec expo config --type public`, `npx expo-doctor`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm dev:android`.
+- **Done when:** Expo-managed dependencies are aligned for SDK 55, the stale notification listener service is no longer present in the Android manifest, Android dev-build scripts/docs are in place, and validation passes or any remaining environment blocker is documented exactly.
+- **Outcome:** Added `expo-dev-client` and `expo-system-ui`, updated `jest-expo` to the SDK 55-compatible range, regenerated `client/android` to remove the stale `CaptureNotificationListenerService` entry, added a root Android dev-build script, disabled the intentional Expo Doctor app-config sync warning for this checked-in native project, and updated the README to make Android development builds the supported local flow. `pnpm dev:android` now reaches Expo's Android launcher step but is blocked in this environment because `ANDROID_HOME`/`adb` are not configured.
+
 ### SET-002 — Closeout Verification Pass
 
 - **Status:** blocked
