@@ -33,6 +33,16 @@ export interface ClassificationDraft {
   itemLabel: string;
 }
 
+export interface ManualEntryInput {
+  amountMinor: number;
+  capturedAt?: string;
+  categoryId: CategoryId;
+  itemLabel: string;
+  merchant: string;
+  sourceApp?: string;
+  transactionId?: string;
+}
+
 export interface DashboardSummary {
   classifiedCount: number;
   inboxCount: number;
@@ -173,15 +183,61 @@ export function formatCurrency(amountMinor: number): string {
   return `Rs ${formattedAmount}`;
 }
 
+export function parseCurrencyInputToMinor(value: string): number | null {
+  const normalizedValue = value.replace(/,/g, '').trim();
+
+  if (!/^\d+(\.\d{1,2})?$/.test(normalizedValue)) {
+    return null;
+  }
+
+  const [wholePart, fractionalPart = ''] = normalizedValue.split('.');
+  return Number(wholePart) * 100 + Number(fractionalPart.padEnd(2, '0'));
+}
+
+export function createManualTransaction({
+  amountMinor,
+  capturedAt = new Date().toISOString(),
+  categoryId,
+  itemLabel,
+  merchant,
+  sourceApp = 'Manual entry',
+  transactionId = `txn_manual_${Date.now()}`,
+}: ManualEntryInput): Transaction {
+  const normalizedMerchant = merchant.trim();
+  const normalizedItemLabel = itemLabel.trim();
+
+  return {
+    amountMinor,
+    capturedAt,
+    id: transactionId,
+    items: [
+      {
+        amountMinor,
+        categoryId,
+        id: `${transactionId}_item_1`,
+        label: normalizedItemLabel,
+      },
+    ],
+    merchant: normalizedMerchant,
+    sourceApp,
+    status: 'classified',
+  };
+}
+
+export function sortTransactionsByCapturedAtDesc(
+  transactions: Transaction[],
+): Transaction[] {
+  return [...transactions].sort(
+    (left, right) =>
+      new Date(right.capturedAt).getTime() - new Date(left.capturedAt).getTime(),
+  );
+}
+
 export function getPendingTransactions(
   transactions: Transaction[],
 ): Transaction[] {
-  return transactions
+  return sortTransactionsByCapturedAtDesc(transactions)
     .filter((transaction) => transaction.status === 'uncategorized')
-    .sort(
-      (left, right) =>
-        new Date(right.capturedAt).getTime() - new Date(left.capturedAt).getTime(),
-    );
 }
 
 export function getTransactionById(

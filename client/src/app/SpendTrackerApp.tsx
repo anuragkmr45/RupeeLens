@@ -15,11 +15,14 @@ import {
 import {
   buildClassificationDraft,
   categoryOptions,
+  createManualTransaction,
   formatCaptureMoment,
   formatCurrency,
   getPendingTransactions,
   getTransactionById,
+  parseCurrencyInputToMinor,
   seededTransactions,
+  sortTransactionsByCapturedAtDesc,
   summarizeDashboard,
   type CategoryId,
   type ClassificationDraft,
@@ -35,11 +38,26 @@ import {
 import { APP_COPY } from '../lib/app-info';
 import { colors } from '../theme/colors';
 
-type Screen = 'classify' | 'home' | 'inbox' | 'onboarding';
+type Screen = 'classify' | 'home' | 'inbox' | 'manual' | 'onboarding';
+type TabScreen = 'home' | 'inbox';
 
 const EMPTY_DRAFT: ClassificationDraft = {
   categoryId: null,
   itemLabel: '',
+};
+
+interface ManualEntryDraft {
+  amountInput: string;
+  categoryId: CategoryId | null;
+  itemLabel: string;
+  merchant: string;
+}
+
+const EMPTY_MANUAL_ENTRY_DRAFT: ManualEntryDraft = {
+  amountInput: '',
+  categoryId: null,
+  itemLabel: '',
+  merchant: '',
 };
 
 export function SpendTrackerApp() {
@@ -51,12 +69,16 @@ export function SpendTrackerApp() {
   const [transactions, setTransactions] = useState<Transaction[]>(seededTransactions);
   const [activeTransactionId, setActiveTransactionId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ClassificationDraft>(EMPTY_DRAFT);
+  const [manualDraft, setManualDraft] =
+    useState<ManualEntryDraft>(EMPTY_MANUAL_ENTRY_DRAFT);
+  const [manualReturnScreen, setManualReturnScreen] = useState<TabScreen>('home');
 
   const pendingTransactions = getPendingTransactions(transactions);
   const summary = summarizeDashboard(transactions);
   const activeTransaction = activeTransactionId
     ? getTransactionById(transactions, activeTransactionId)
     : null;
+  const manualAmountMinor = parseCurrencyInputToMinor(manualDraft.amountInput);
 
   useEffect(() => {
     let isMounted = true;
@@ -165,9 +187,47 @@ export function SpendTrackerApp() {
     setScreen('inbox');
   }
 
+  function handleOpenManualEntry(returnScreen: TabScreen) {
+    setManualReturnScreen(returnScreen);
+    setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
+    setScreen('manual');
+  }
+
+  function handleSaveManualEntry() {
+    if (
+      !manualAmountMinor ||
+      manualAmountMinor <= 0 ||
+      !manualDraft.categoryId ||
+      !manualDraft.itemLabel.trim() ||
+      !manualDraft.merchant.trim()
+    ) {
+      return;
+    }
+
+    const nextTransactions = sortTransactionsByCapturedAtDesc([
+      createManualTransaction({
+        amountMinor: manualAmountMinor,
+        categoryId: manualDraft.categoryId,
+        itemLabel: manualDraft.itemLabel,
+        merchant: manualDraft.merchant,
+      }),
+      ...transactions,
+    ]);
+
+    setTransactions(nextTransactions);
+    setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
+    setScreen('home');
+  }
+
+  function handleCancelManualEntry() {
+    setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
+    setScreen(manualReturnScreen);
+  }
+
   async function handleResetDemoData() {
     setActiveTransactionId(null);
     setDraft({ ...EMPTY_DRAFT });
+    setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
     setNotificationAccessState('not_started');
     setOnboardingCompleted(false);
     setTransactions(seededTransactions);
@@ -215,9 +275,10 @@ export function SpendTrackerApp() {
             nextPendingTransaction={pendingTransactions[0] ?? null}
             notificationAccessState={notificationAccessState}
             onOpenInbox={() => setScreen('inbox')}
+            onOpenManualEntry={() => handleOpenManualEntry('home')}
             onOpenNotificationAccess={handleOpenNotificationAccess}
             onResetDemoData={handleResetDemoData}
-            onSelectTab={setScreen}
+            onSelectTab={(nextScreen) => setScreen(nextScreen)}
             onStartClassification={handleStartClassification}
             summary={summary}
           />
@@ -226,7 +287,8 @@ export function SpendTrackerApp() {
         {!isHydrating && screen === 'inbox' ? (
           <InboxScreen
             onOpenHome={() => setScreen('home')}
-            onSelectTab={setScreen}
+            onOpenManualEntry={() => handleOpenManualEntry('inbox')}
+            onSelectTab={(nextScreen) => setScreen(nextScreen)}
             onStartClassification={handleStartClassification}
             pendingTransactions={pendingTransactions}
           />
@@ -246,6 +308,27 @@ export function SpendTrackerApp() {
             transaction={activeTransaction}
           />
         ) : null}
+
+        {!isHydrating && screen === 'manual' ? (
+          <ManualEntryScreen
+            amountMinor={manualAmountMinor}
+            draft={manualDraft}
+            onCancel={handleCancelManualEntry}
+            onChangeAmount={(amountInput) =>
+              setManualDraft((currentDraft) => ({ ...currentDraft, amountInput }))
+            }
+            onChangeItemLabel={(itemLabel) =>
+              setManualDraft((currentDraft) => ({ ...currentDraft, itemLabel }))
+            }
+            onChangeMerchant={(merchant) =>
+              setManualDraft((currentDraft) => ({ ...currentDraft, merchant }))
+            }
+            onSave={handleSaveManualEntry}
+            onSelectCategory={(categoryId) =>
+              setManualDraft((currentDraft) => ({ ...currentDraft, categoryId }))
+            }
+          />
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -257,7 +340,7 @@ function HydrationScreen() {
       <Text style={styles.sectionEyebrow}>Local session</Text>
       <Text style={styles.cardTitle}>Restoring saved state on this device</Text>
       <Text style={styles.bodyCopy}>
-        Reading the last onboarding and classification state from local SQLite-backed storage.
+        Reading the last onboarding state plus saved transactions from local SQLite tables.
       </Text>
     </SectionCard>
   );
@@ -340,6 +423,7 @@ function HomeScreen({
   nextPendingTransaction,
   notificationAccessState,
   onOpenInbox,
+  onOpenManualEntry,
   onOpenNotificationAccess,
   onResetDemoData,
   onSelectTab,
@@ -349,9 +433,10 @@ function HomeScreen({
   nextPendingTransaction: Transaction | null;
   notificationAccessState: NotificationAccessState;
   onOpenInbox: () => void;
+  onOpenManualEntry: () => void;
   onOpenNotificationAccess: () => Promise<void>;
   onResetDemoData: () => Promise<void>;
-  onSelectTab: (screen: Screen) => void;
+  onSelectTab: (screen: TabScreen) => void;
   onStartClassification: (transactionId: string) => void;
   summary: DashboardSummary;
 }) {
@@ -366,8 +451,8 @@ function HomeScreen({
         <Text style={styles.sectionEyebrow}>Today</Text>
         <Text style={styles.sectionTitle}>Current cycle at a glance</Text>
         <Text style={styles.bodyCopy}>
-          This seeded local session now covers the core review loop: totals on Home, uncategorized
-          work in Inbox, and a quick classify path inside the app.
+          This local-first shell now covers the core review loop: totals on Home, uncategorized
+          work in Inbox, quick classify, and manual spend entry without leaving the device.
         </Text>
       </SectionCard>
 
@@ -394,16 +479,20 @@ function HomeScreen({
                 onPress={() => onStartClassification(nextPendingTransaction.id)}
                 tone="primary"
               />
+              <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
               <ActionButton label="Open inbox" onPress={onOpenInbox} tone="secondary" />
             </View>
           </>
         ) : (
           <>
             <Text style={styles.bodyCopy}>
-              You are caught up for this session. New uncategorized spends will appear here once the
-              capture pipeline and local persistence land.
+              You are caught up for this session. Add a manual spend now, or wait for native capture
+              import to bring new uncategorized payments into Inbox later.
             </Text>
-            <ActionButton label="Open inbox" onPress={onOpenInbox} tone="secondary" />
+            <View style={styles.actionRow}>
+              <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
+              <ActionButton label="Open inbox" onPress={onOpenInbox} tone="secondary" />
+            </View>
           </>
         )}
       </SectionCard>
@@ -411,8 +500,9 @@ function HomeScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Local loop status</Text>
         <Text style={styles.bodyCopy}>
-          {summary.classifiedCount} transactions already carry user meaning. Changes now persist on
-          this device and survive app restarts until the demo state is reset.
+          {summary.classifiedCount} transactions already carry user meaning. Classified spends and
+          manual entries now persist in local SQLite tables and survive app restarts until the demo
+          state is reset.
         </Text>
         <StatusChip
           label={
@@ -429,9 +519,9 @@ function HomeScreen({
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Scope right now</Text>
         <Text style={styles.bodyCopy}>
-          Android system settings can already be opened from the app, and the demo persists locally
-          with SQLite-backed storage. Real permission checks, native capture import, and full local
-          domain tables remain separate implementation steps.
+          Android system settings can already be opened from the app, and Home plus Inbox now read
+          from local SQLite-backed spend tables. Real permission checks and native capture import
+          remain separate implementation steps.
         </Text>
         <View style={styles.actionRow}>
           <ActionButton
@@ -439,6 +529,7 @@ function HomeScreen({
             onPress={onOpenNotificationAccess}
             tone="secondary"
           />
+          <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
           <ActionButton label="Reset demo data" onPress={onResetDemoData} tone="secondary" />
         </View>
       </SectionCard>
@@ -448,12 +539,14 @@ function HomeScreen({
 
 function InboxScreen({
   onOpenHome,
+  onOpenManualEntry,
   onSelectTab,
   onStartClassification,
   pendingTransactions,
 }: {
   onOpenHome: () => void;
-  onSelectTab: (screen: Screen) => void;
+  onOpenManualEntry: () => void;
+  onSelectTab: (screen: TabScreen) => void;
   onStartClassification: (transactionId: string) => void;
   pendingTransactions: Transaction[];
 }) {
@@ -472,8 +565,12 @@ function InboxScreen({
         <Text style={styles.bodyCopy}>
           {pendingTransactions.length > 0
             ? 'Every uncategorized payment stays here until the user adds meaning. Changes should show up immediately in the dashboard.'
-            : 'The current session has no uncategorized transactions left. Future captured or manually added spends will show up here.'}
+            : 'The current session has no uncategorized transactions left. Future captured payments will show up here, while manual spends save directly as classified records.'}
         </Text>
+        <View style={styles.actionRow}>
+          <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
+          <ActionButton label="Back to home" onPress={onOpenHome} tone="secondary" />
+        </View>
       </SectionCard>
 
       {pendingTransactions.length > 0 ? (
@@ -492,7 +589,10 @@ function InboxScreen({
           <Text style={styles.bodyCopy}>
             Return to Home to review the updated totals and top-spend signals for this session.
           </Text>
-          <ActionButton label="Back to home" onPress={onOpenHome} tone="secondary" />
+          <View style={styles.actionRow}>
+            <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
+            <ActionButton label="Back to home" onPress={onOpenHome} tone="secondary" />
+          </View>
         </SectionCard>
       )}
     </View>
@@ -561,14 +661,128 @@ function ClassifyScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Save behavior</Text>
         <Text style={styles.bodyCopy}>
-          Saving removes the payment from Inbox and recalculates Home immediately. Persistence still
-          belongs to a later local DB ticket.
+          Saving removes the payment from Inbox, recalculates Home immediately, and writes the
+          updated transaction back into local SQLite tables.
         </Text>
         <View style={styles.actionRow}>
           <ActionButton label="Back to inbox" onPress={onCancel} tone="secondary" />
           <ActionButton
             disabled={saveDisabled}
             label="Save classification"
+            onPress={onSave}
+            tone="primary"
+          />
+        </View>
+      </SectionCard>
+    </View>
+  );
+}
+
+function ManualEntryScreen({
+  amountMinor,
+  draft,
+  onCancel,
+  onChangeAmount,
+  onChangeItemLabel,
+  onChangeMerchant,
+  onSave,
+  onSelectCategory,
+}: {
+  amountMinor: number | null;
+  draft: ManualEntryDraft;
+  onCancel: () => void;
+  onChangeAmount: (amountInput: string) => void;
+  onChangeItemLabel: (itemLabel: string) => void;
+  onChangeMerchant: (merchant: string) => void;
+  onSave: () => void;
+  onSelectCategory: (categoryId: CategoryId) => void;
+}) {
+  const saveDisabled =
+    !amountMinor ||
+    amountMinor <= 0 ||
+    !draft.categoryId ||
+    !draft.itemLabel.trim() ||
+    !draft.merchant.trim();
+
+  return (
+    <View style={styles.stack}>
+      <SectionCard accentColor={colors.accentSoft}>
+        <Text style={styles.sectionEyebrow}>Manual add</Text>
+        <Text style={styles.sectionTitle}>Capture a spend even without a notification</Text>
+        <Text style={styles.bodyCopy}>
+          This is the fallback path for denied notification access, missed captures, or cashless
+          spends the user wants logged immediately.
+        </Text>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.cardTitle}>Spend details</Text>
+        <View style={styles.inputStack}>
+          <View style={styles.fieldStack}>
+            <Text style={styles.fieldLabel}>Amount</Text>
+            <TextInput
+              keyboardType="decimal-pad"
+              onChangeText={onChangeAmount}
+              placeholder="180 or 180.50"
+              placeholderTextColor={colors.inkMuted}
+              style={styles.input}
+              value={draft.amountInput}
+            />
+          </View>
+
+          <View style={styles.fieldStack}>
+            <Text style={styles.fieldLabel}>Merchant</Text>
+            <TextInput
+              autoCapitalize="words"
+              onChangeText={onChangeMerchant}
+              placeholder="Where did you spend?"
+              placeholderTextColor={colors.inkMuted}
+              style={styles.input}
+              value={draft.merchant}
+            />
+          </View>
+
+          <View style={styles.fieldStack}>
+            <Text style={styles.fieldLabel}>Item label</Text>
+            <TextInput
+              onChangeText={onChangeItemLabel}
+              placeholder="What did you buy?"
+              placeholderTextColor={colors.inkMuted}
+              style={styles.input}
+              value={draft.itemLabel}
+            />
+          </View>
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.fieldLabel}>Category</Text>
+        <View style={styles.categoryGrid}>
+          {categoryOptions.map((category) => (
+            <CategoryChip
+              isActive={draft.categoryId === category.id}
+              key={category.id}
+              label={category.label}
+              onPress={() => onSelectCategory(category.id)}
+            />
+          ))}
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.successSoft}>
+        <Text style={styles.cardTitle}>Preview</Text>
+        <Text style={styles.amountLabel}>
+          {amountMinor && amountMinor > 0 ? formatCurrency(amountMinor) : 'Enter a valid amount'}
+        </Text>
+        <Text style={styles.bodyCopy}>
+          Saving creates a classified local transaction immediately, updates Home totals, and keeps
+          Inbox focused on uncategorized captures.
+        </Text>
+        <View style={styles.actionRow}>
+          <ActionButton label="Back" onPress={onCancel} tone="secondary" />
+          <ActionButton
+            disabled={saveDisabled}
+            label="Save manual spend"
             onPress={onSave}
             tone="primary"
           />
@@ -851,6 +1065,15 @@ const styles = StyleSheet.create({
   header: {
     gap: 12,
   },
+  fieldLabel: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  fieldStack: {
+    gap: 8,
+  },
   input: {
     backgroundColor: colors.panel,
     borderColor: colors.edgeStrong,
@@ -882,6 +1105,9 @@ const styles = StyleSheet.create({
   },
   infoStack: {
     gap: 12,
+  },
+  inputStack: {
+    gap: 14,
   },
   listStack: {
     gap: 12,
@@ -1051,11 +1277,5 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: '800',
     lineHeight: 42,
-  },
-  fieldLabel: {
-    color: colors.ink,
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 20,
   },
 });

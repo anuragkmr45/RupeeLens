@@ -4,6 +4,20 @@ Use this template before implementing any multi-step, cross-module, or risky cha
 
 ## Active Plan
 
+### UX-002 / UX-004 — Local SQLite Tables and Manual Add
+
+- **Status:** completed
+- **Ticket:** UX-002 / UX-004 local-first follow-through
+- **Goal:** Replace the temporary blob-style persistence with normalized local SQLite tables and add the first manual spend entry flow so the shell better matches the offline-first product direction.
+- **Touched files/modules:** `PLANS.md`, `README.md`, `client/__tests__/app.test.tsx`, `client/__tests__/persistence.test.ts`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/domain.ts`, `client/src/features/spend-tracker/persistence.ts`, `client/src/lib/app-info.ts`.
+- **Rationale:** The shell already had onboarding, Home, Inbox, and classification, but it was still persisting one JSON blob and had no manual-add fallback. The next coherent step was to move the current state into real local tables and let users add a spend without waiting for Android capture import.
+- **Risks:** The new storage layer must not lose already-saved demo data, manual entry must stay explicit that it creates a classified local spend rather than an Inbox item, and tests need to cover both the user flow and the table-mapping behavior so the app does not drift from the intended local-first design.
+- **API / schema impact:** None outside the client. Internal mobile SQLite tables now store settings, transactions, and transaction items instead of a single blob.
+- **Rollout / flag plan:** No flag. This upgrades the existing local shell by default and includes a one-time migration path for the legacy blob state.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/client exec expo config --type public`, `pnpm --filter @upi-spend-tracker/client lint`, `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test`, `pnpm --filter @upi-spend-tracker/client build`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** The client reads and writes settings plus spend records through local SQLite tables, previously saved blob state migrates forward, Home/Inbox can launch a manual spend flow, and docs/tests describe the new scope accurately.
+- **Outcome:** Replaced the blob-only storage internals with SQLite tables for settings, transactions, and items; added legacy-state migration; introduced a manual spend screen reachable from Home and Inbox; kept Home totals and Inbox behavior in sync with the local store; and added client tests for both the manual user path and storage mapping behavior.
+
 ### UX-001 / UX-003 — Persisted Local Session
 
 - **Status:** completed
