@@ -8,8 +8,25 @@ import {
 } from './domain';
 
 export type NotificationAccessState = 'not_started' | 'settings_opened';
+export type SupportedSourceAppId =
+  | 'bhim'
+  | 'google_pay'
+  | 'paytm'
+  | 'phonepe';
+export type BudgetCycleId =
+  | 'billing_cycle'
+  | 'calendar_month'
+  | 'salary_cycle';
+export type SyncMode = 'local_only' | 'sync_later';
+
+export interface OnboardingPreferences {
+  budgetCycleId: BudgetCycleId;
+  selectedSourceAppIds: SupportedSourceAppId[];
+  syncMode: SyncMode;
+}
 
 export interface PersistedSpendTrackerState {
+  onboardingPreferences: OnboardingPreferences;
   notificationAccessState: NotificationAccessState;
   onboardingCompleted: boolean;
   transactions: Transaction[];
@@ -40,6 +57,12 @@ interface TransactionItemRow {
 
 const DATABASE_NAME = 'spend-tracker.db';
 const LEGACY_STORAGE_KEY = 'spend_tracker_demo_state_v1';
+
+export const DEFAULT_ONBOARDING_PREFERENCES: OnboardingPreferences = {
+  budgetCycleId: 'calendar_month',
+  selectedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+  syncMode: 'local_only',
+};
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
 let schemaPromise: Promise<void> | null = null;
@@ -161,6 +184,21 @@ async function writeStateToDatabase(
     );
     await database.runAsync(
       'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'selected_source_app_ids',
+      JSON.stringify(state.onboardingPreferences.selectedSourceAppIds),
+    );
+    await database.runAsync(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'budget_cycle_id',
+      state.onboardingPreferences.budgetCycleId,
+    );
+    await database.runAsync(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'sync_mode',
+      state.onboardingPreferences.syncMode,
+    );
+    await database.runAsync(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
       'onboarding_completed',
       state.onboardingCompleted ? 'true' : 'false',
     );
@@ -244,6 +282,9 @@ async function readStateFromDatabase(
 
   const settings = new Map(settingRows.map((row) => [row.key, row.value]));
   const storedNotificationAccessState = settings.get('notification_access_state');
+  const storedSourceAppIds = parseSourceAppIds(settings.get('selected_source_app_ids'));
+  const storedBudgetCycleId = settings.get('budget_cycle_id');
+  const storedSyncMode = settings.get('sync_mode');
   const itemsByTransactionId = new Map<string, Transaction['items']>();
 
   for (const row of itemRows) {
@@ -276,6 +317,18 @@ async function readStateFromDatabase(
   );
 
   return {
+    onboardingPreferences: {
+      budgetCycleId: isBudgetCycleId(storedBudgetCycleId)
+        ? storedBudgetCycleId
+        : DEFAULT_ONBOARDING_PREFERENCES.budgetCycleId,
+      selectedSourceAppIds:
+        storedSourceAppIds !== null
+          ? storedSourceAppIds
+          : DEFAULT_ONBOARDING_PREFERENCES.selectedSourceAppIds,
+      syncMode: isSyncMode(storedSyncMode)
+        ? storedSyncMode
+        : DEFAULT_ONBOARDING_PREFERENCES.syncMode,
+    },
     notificationAccessState: isNotificationAccessState(storedNotificationAccessState)
       ? storedNotificationAccessState
       : 'not_started',
@@ -293,7 +346,21 @@ async function readLegacyState(): Promise<PersistedSpendTrackerState | null> {
     }
 
     const parsedValue: unknown = JSON.parse(storedValue);
-    return isPersistedSpendTrackerState(parsedValue) ? parsedValue : null;
+
+    if (!isPersistedSpendTrackerState(parsedValue)) {
+      return null;
+    }
+
+    const candidate = parsedValue as Partial<PersistedSpendTrackerState>;
+
+    return {
+      onboardingPreferences: normalizeOnboardingPreferences(
+        candidate.onboardingPreferences,
+      ),
+      notificationAccessState: candidate.notificationAccessState as NotificationAccessState,
+      onboardingCompleted: candidate.onboardingCompleted as boolean,
+      transactions: candidate.transactions as Transaction[],
+    };
   } catch {
     return null;
   }
@@ -311,7 +378,26 @@ function isPersistedSpendTrackerState(
   return (
     typeof candidate.onboardingCompleted === 'boolean' &&
     isNotificationAccessState(candidate.notificationAccessState) &&
+    (candidate.onboardingPreferences === undefined ||
+      isOnboardingPreferences(candidate.onboardingPreferences)) &&
     isTransactionList(candidate.transactions)
+  );
+}
+
+function isOnboardingPreferences(
+  value: unknown,
+): value is OnboardingPreferences {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<OnboardingPreferences>;
+
+  return (
+    isBudgetCycleId(candidate.budgetCycleId) &&
+    isSyncMode(candidate.syncMode) &&
+    Array.isArray(candidate.selectedSourceAppIds) &&
+    candidate.selectedSourceAppIds.every((sourceAppId) => isSupportedSourceAppId(sourceAppId))
   );
 }
 
@@ -319,6 +405,65 @@ function isNotificationAccessState(
   value: unknown,
 ): value is NotificationAccessState {
   return value === 'not_started' || value === 'settings_opened';
+}
+
+function isSupportedSourceAppId(
+  value: unknown,
+): value is SupportedSourceAppId {
+  return (
+    value === 'bhim' ||
+    value === 'google_pay' ||
+    value === 'paytm' ||
+    value === 'phonepe'
+  );
+}
+
+function isBudgetCycleId(value: unknown): value is BudgetCycleId {
+  return (
+    value === 'billing_cycle' ||
+    value === 'calendar_month' ||
+    value === 'salary_cycle'
+  );
+}
+
+function isSyncMode(value: unknown): value is SyncMode {
+  return value === 'local_only' || value === 'sync_later';
+}
+
+function normalizeOnboardingPreferences(
+  value: unknown,
+): OnboardingPreferences {
+  if (!isOnboardingPreferences(value)) {
+    return { ...DEFAULT_ONBOARDING_PREFERENCES };
+  }
+
+  return {
+    budgetCycleId: value.budgetCycleId,
+    selectedSourceAppIds: [...value.selectedSourceAppIds],
+    syncMode: value.syncMode,
+  };
+}
+
+function parseSourceAppIds(
+  value: string | undefined,
+): SupportedSourceAppId[] | null {
+  if (value === undefined) {
+    return null;
+  }
+
+  try {
+    const parsedValue: unknown = JSON.parse(value);
+
+    if (!Array.isArray(parsedValue)) {
+      return null;
+    }
+
+    return parsedValue.filter((sourceAppId): sourceAppId is SupportedSourceAppId =>
+      isSupportedSourceAppId(sourceAppId),
+    );
+  } catch {
+    return null;
+  }
 }
 
 function isTransactionList(value: unknown): value is Transaction[] {

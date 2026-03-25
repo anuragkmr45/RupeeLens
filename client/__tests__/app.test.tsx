@@ -3,11 +3,17 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import App from '../App';
 import { seededTransactions } from '../src/features/spend-tracker/domain';
 import {
+  DEFAULT_ONBOARDING_PREFERENCES,
   loadStoredSpendTrackerState,
   saveStoredSpendTrackerState,
 } from '../src/features/spend-tracker/persistence';
 
 jest.mock('../src/features/spend-tracker/persistence', () => ({
+  DEFAULT_ONBOARDING_PREFERENCES: {
+    budgetCycleId: 'calendar_month',
+    selectedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    syncMode: 'local_only',
+  },
   clearStoredSpendTrackerState: jest.fn().mockResolvedValue(undefined),
   loadStoredSpendTrackerState: jest.fn().mockResolvedValue(null),
   saveStoredSpendTrackerState: jest.fn().mockResolvedValue(undefined),
@@ -30,11 +36,14 @@ describe('App', () => {
 
     expect(screen.getByText('UPI Spend Tracker')).toBeTruthy();
     expect(screen.getByText('Restoring saved state on this device')).toBeTruthy();
+    expect(await screen.findByText('Source apps')).toBeTruthy();
+    expect(screen.getByText('Budget cycle')).toBeTruthy();
     expect(await screen.findByText('Continue in local-only mode')).toBeTruthy();
   });
 
   it('hydrates a previously completed local session', async () => {
     mockedLoadStoredSpendTrackerState.mockResolvedValue({
+      onboardingPreferences: DEFAULT_ONBOARDING_PREFERENCES,
       notificationAccessState: 'settings_opened',
       onboardingCompleted: true,
       transactions: seededTransactions.map((transaction) =>
@@ -60,6 +69,54 @@ describe('App', () => {
     expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
     expect(screen.getByText('1 pending')).toBeTruthy();
     expect(screen.getByText('Notification settings opened')).toBeTruthy();
+  });
+
+  it('resumes a partially completed onboarding flow with saved choices', async () => {
+    mockedLoadStoredSpendTrackerState.mockResolvedValue({
+      onboardingPreferences: {
+        budgetCycleId: 'salary_cycle',
+        selectedSourceAppIds: ['bhim'],
+        syncMode: 'sync_later',
+      },
+      notificationAccessState: 'settings_opened',
+      onboardingCompleted: false,
+      transactions: seededTransactions,
+    });
+
+    const screen = render(<App />);
+
+    expect(await screen.findByText('Source apps')).toBeTruthy();
+    expect(screen.getByText('Settings opened')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'BHIM' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Salary cycle' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Prepare for sync later' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Finish setup' })).toBeTruthy();
+  });
+
+  it('persists onboarding preferences before onboarding is completed', async () => {
+    const screen = render(<App />);
+
+    expect(await screen.findByText('Source apps')).toBeTruthy();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Deselect all' }));
+    fireEvent.press(screen.getByRole('button', { name: 'BHIM' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Salary cycle' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Prepare for sync later' }));
+
+    await waitFor(() =>
+      expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          onboardingCompleted: false,
+          onboardingPreferences: {
+            budgetCycleId: 'salary_cycle',
+            selectedSourceAppIds: ['bhim'],
+            syncMode: 'sync_later',
+          },
+          notificationAccessState: 'not_started',
+          transactions: seededTransactions,
+        }),
+      ),
+    );
   });
 
   it('classifies an inbox item and persists the updated session', async () => {
@@ -88,6 +145,7 @@ describe('App', () => {
         expect.objectContaining({
           notificationAccessState: 'not_started',
           onboardingCompleted: true,
+          onboardingPreferences: DEFAULT_ONBOARDING_PREFERENCES,
           transactions: expect.arrayContaining([
             expect.objectContaining({
               id: 'txn_blue_tokai',
@@ -130,6 +188,7 @@ describe('App', () => {
       expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
         expect.objectContaining({
           onboardingCompleted: true,
+          onboardingPreferences: DEFAULT_ONBOARDING_PREFERENCES,
           transactions: expect.arrayContaining([
             expect.objectContaining({
               merchant: 'Corner Store',

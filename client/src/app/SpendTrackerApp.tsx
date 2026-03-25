@@ -31,9 +31,14 @@ import {
 } from '../features/spend-tracker/domain';
 import {
   clearStoredSpendTrackerState,
+  DEFAULT_ONBOARDING_PREFERENCES,
   loadStoredSpendTrackerState,
   saveStoredSpendTrackerState,
+  type BudgetCycleId,
   type NotificationAccessState,
+  type OnboardingPreferences,
+  type SupportedSourceAppId,
+  type SyncMode,
 } from '../features/spend-tracker/persistence';
 import { APP_COPY } from '../lib/app-info';
 import { colors } from '../theme/colors';
@@ -60,10 +65,62 @@ const EMPTY_MANUAL_ENTRY_DRAFT: ManualEntryDraft = {
   merchant: '',
 };
 
+interface SourceAppOption {
+  id: SupportedSourceAppId;
+  label: string;
+}
+
+interface PreferenceOption<T extends string> {
+  description: string;
+  id: T;
+  label: string;
+}
+
+const SOURCE_APP_OPTIONS: SourceAppOption[] = [
+  { id: 'google_pay', label: 'Google Pay' },
+  { id: 'phonepe', label: 'PhonePe' },
+  { id: 'paytm', label: 'Paytm' },
+  { id: 'bhim', label: 'BHIM' },
+];
+
+const BUDGET_CYCLE_OPTIONS: PreferenceOption<BudgetCycleId>[] = [
+  {
+    description: 'Track spend from the 1st to the last day of each month.',
+    id: 'calendar_month',
+    label: 'Calendar month',
+  },
+  {
+    description: 'Use a salary-style cycle that resets on the 26th.',
+    id: 'salary_cycle',
+    label: 'Salary cycle',
+  },
+  {
+    description: 'Use a billing-style cycle that resets on the 5th.',
+    id: 'billing_cycle',
+    label: 'Billing cycle',
+  },
+];
+
+const SYNC_MODE_OPTIONS: PreferenceOption<SyncMode>[] = [
+  {
+    description: 'Keep everything on this device. No account or pairing required.',
+    id: 'local_only',
+    label: 'Local-only for now',
+  },
+  {
+    description: 'Save the preference now. The app still runs local-first until sync ships.',
+    id: 'sync_later',
+    label: 'Prepare for sync later',
+  },
+];
+
 export function SpendTrackerApp() {
   const [isHydrating, setIsHydrating] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [screen, setScreen] = useState<Screen>('onboarding');
+  const [onboardingPreferences, setOnboardingPreferences] = useState<OnboardingPreferences>(
+    DEFAULT_ONBOARDING_PREFERENCES,
+  );
   const [notificationAccessState, setNotificationAccessState] =
     useState<NotificationAccessState>('not_started');
   const [transactions, setTransactions] = useState<Transaction[]>(seededTransactions);
@@ -91,6 +148,7 @@ export function SpendTrackerApp() {
       }
 
       if (storedState) {
+        setOnboardingPreferences(storedState.onboardingPreferences);
         setNotificationAccessState(storedState.notificationAccessState);
         setOnboardingCompleted(storedState.onboardingCompleted);
         setTransactions(storedState.transactions);
@@ -113,11 +171,18 @@ export function SpendTrackerApp() {
     }
 
     void saveStoredSpendTrackerState({
+      onboardingPreferences,
       notificationAccessState,
       onboardingCompleted,
       transactions,
     });
-  }, [isHydrating, notificationAccessState, onboardingCompleted, transactions]);
+  }, [
+    isHydrating,
+    notificationAccessState,
+    onboardingCompleted,
+    onboardingPreferences,
+    transactions,
+  ]);
 
   async function handleOpenNotificationAccess() {
     try {
@@ -193,6 +258,49 @@ export function SpendTrackerApp() {
     setScreen('manual');
   }
 
+  function handleToggleSourceAppSelection(sourceAppId: SupportedSourceAppId) {
+    setOnboardingPreferences((currentPreferences) => {
+      const nextSelection = currentPreferences.selectedSourceAppIds.includes(sourceAppId)
+        ? currentPreferences.selectedSourceAppIds.filter((id) => id !== sourceAppId)
+        : [...currentPreferences.selectedSourceAppIds, sourceAppId];
+
+      return {
+        ...currentPreferences,
+        selectedSourceAppIds: SOURCE_APP_OPTIONS
+          .map((option) => option.id)
+          .filter((id) => nextSelection.includes(id)),
+      };
+    });
+  }
+
+  function handleSelectAllSourceApps() {
+    setOnboardingPreferences((currentPreferences) => ({
+      ...currentPreferences,
+      selectedSourceAppIds: SOURCE_APP_OPTIONS.map((option) => option.id),
+    }));
+  }
+
+  function handleClearSourceApps() {
+    setOnboardingPreferences((currentPreferences) => ({
+      ...currentPreferences,
+      selectedSourceAppIds: [],
+    }));
+  }
+
+  function handleSelectBudgetCycle(budgetCycleId: BudgetCycleId) {
+    setOnboardingPreferences((currentPreferences) => ({
+      ...currentPreferences,
+      budgetCycleId,
+    }));
+  }
+
+  function handleSelectSyncMode(syncMode: SyncMode) {
+    setOnboardingPreferences((currentPreferences) => ({
+      ...currentPreferences,
+      syncMode,
+    }));
+  }
+
   function handleSaveManualEntry() {
     if (
       !manualAmountMinor ||
@@ -228,6 +336,7 @@ export function SpendTrackerApp() {
     setActiveTransactionId(null);
     setDraft({ ...EMPTY_DRAFT });
     setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
+    setOnboardingPreferences(DEFAULT_ONBOARDING_PREFERENCES);
     setNotificationAccessState('not_started');
     setOnboardingCompleted(false);
     setTransactions(seededTransactions);
@@ -261,12 +370,18 @@ export function SpendTrackerApp() {
 
         {!isHydrating && screen === 'onboarding' ? (
           <OnboardingScreen
+            onboardingPreferences={onboardingPreferences}
             notificationAccessState={notificationAccessState}
             onContinue={() => {
               setOnboardingCompleted(true);
               setScreen('home');
             }}
+            onClearSourceApps={handleClearSourceApps}
             onOpenNotificationAccess={handleOpenNotificationAccess}
+            onSelectAllSourceApps={handleSelectAllSourceApps}
+            onSelectBudgetCycle={handleSelectBudgetCycle}
+            onSelectSyncMode={handleSelectSyncMode}
+            onToggleSourceApp={handleToggleSourceAppSelection}
           />
         ) : null}
 
@@ -274,6 +389,7 @@ export function SpendTrackerApp() {
           <HomeScreen
             nextPendingTransaction={pendingTransactions[0] ?? null}
             notificationAccessState={notificationAccessState}
+            onboardingPreferences={onboardingPreferences}
             onOpenInbox={() => setScreen('inbox')}
             onOpenManualEntry={() => handleOpenManualEntry('home')}
             onOpenNotificationAccess={handleOpenNotificationAccess}
@@ -340,22 +456,55 @@ function HydrationScreen() {
       <Text style={styles.sectionEyebrow}>Local session</Text>
       <Text style={styles.cardTitle}>Restoring saved state on this device</Text>
       <Text style={styles.bodyCopy}>
-        Reading the last onboarding state plus saved transactions from local SQLite tables.
+        Reading the last onboarding choices, notification setup state, and saved transactions from
+        local SQLite tables.
       </Text>
     </SectionCard>
   );
 }
 
 function OnboardingScreen({
+  onboardingPreferences,
   notificationAccessState,
   onContinue,
+  onClearSourceApps,
   onOpenNotificationAccess,
+  onSelectAllSourceApps,
+  onSelectBudgetCycle,
+  onSelectSyncMode,
+  onToggleSourceApp,
 }: {
+  onboardingPreferences: OnboardingPreferences;
   notificationAccessState: NotificationAccessState;
   onContinue: () => void;
+  onClearSourceApps: () => void;
   onOpenNotificationAccess: () => Promise<void>;
+  onSelectAllSourceApps: () => void;
+  onSelectBudgetCycle: (budgetCycleId: BudgetCycleId) => void;
+  onSelectSyncMode: (syncMode: SyncMode) => void;
+  onToggleSourceApp: (sourceAppId: SupportedSourceAppId) => void;
 }) {
   const isAndroid = Platform.OS === 'android';
+  const selectedSourceAppsSummary =
+    onboardingPreferences.selectedSourceAppIds.length > 0
+      ? onboardingPreferences.selectedSourceAppIds
+          .map((sourceAppId) => getSourceAppLabel(sourceAppId))
+          .join(', ')
+      : 'No source apps selected yet';
+  const selectedBudgetCycleLabel = getBudgetCycleLabel(
+    onboardingPreferences.budgetCycleId,
+  );
+  const selectedSyncModeLabel = getSyncModeLabel(onboardingPreferences.syncMode);
+  const completionCount = [
+    notificationAccessState === 'settings_opened',
+    onboardingPreferences.selectedSourceAppIds.length > 0,
+    true,
+    true,
+  ].filter(Boolean).length;
+  const finishLabel =
+    onboardingPreferences.syncMode === 'local_only'
+      ? 'Continue in local-only mode'
+      : 'Finish setup';
 
   return (
     <View style={styles.stack}>
@@ -363,17 +512,12 @@ function OnboardingScreen({
         <Text style={styles.sectionEyebrow}>Onboarding</Text>
         <Text style={styles.sectionTitle}>Capture each UPI payment while it is fresh.</Text>
         <Text style={styles.bodyCopy}>
-          Start with notification access on Android, then review spends from a local-first inbox.
+          Start with notification access on Android, choose your source apps and budget cycle, then
+          keep the first review loop local-first.
         </Text>
         <StatusChip
-          label={
-            notificationAccessState === 'settings_opened'
-              ? 'Settings opened'
-              : 'Not set up'
-          }
-          tone={
-            notificationAccessState === 'settings_opened' ? 'ready' : 'pending'
-          }
+          label={`${completionCount} of 4 setup choices saved`}
+          tone={completionCount >= 3 ? 'ready' : 'pending'}
         />
       </SectionCard>
 
@@ -389,30 +533,127 @@ function OnboardingScreen({
         <SectionCard accentColor={colors.successSoft}>
           <Text style={styles.cardTitle}>Privacy posture</Text>
           <Text style={styles.bodyCopy}>
-            This shell stays local-only. Sync, exports, and background capture still arrive in later
-            tickets.
+            Raw notification review, classification, and manual add stay on-device today. Sync and
+            native capture still arrive in later tickets.
           </Text>
         </SectionCard>
       </View>
 
       <SectionCard accentColor={colors.panel}>
-        <Text style={styles.cardTitle}>Setup right now</Text>
+        <Text style={styles.cardTitle}>Notification access</Text>
         <Text style={styles.bodyCopy}>
           {isAndroid
-            ? 'Open Android notification access, enable the app, then return here to continue with the first dashboard shell.'
+            ? 'Notification access is needed before Android can hand UPI payment alerts to the app. Open the system screen, review the permission, then return here to finish setup.'
             : 'Open iOS app settings, then return here. iOS remains shell-only and does not support notification capture in v1.'}
         </Text>
+        <StatusChip
+          label={
+            notificationAccessState === 'settings_opened'
+              ? 'Settings opened'
+              : 'Still needs review'
+          }
+          tone={notificationAccessState === 'settings_opened' ? 'ready' : 'pending'}
+        />
         <View style={styles.actionRow}>
           <ActionButton
             label={isAndroid ? 'Open notification access' : 'Open app settings'}
             onPress={onOpenNotificationAccess}
             tone="primary"
           />
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.cardTitle}>Source apps</Text>
+        <Text style={styles.bodyCopy}>
+          Choose which payment apps to prepare for capture later. These are saved as local
+          onboarding preferences today and do not yet control Android-native filtering.
+        </Text>
+        <StatusChip
+          label={
+            onboardingPreferences.selectedSourceAppIds.length > 0
+              ? `${onboardingPreferences.selectedSourceAppIds.length} apps selected`
+              : 'No apps selected'
+          }
+          tone={
+            onboardingPreferences.selectedSourceAppIds.length > 0 ? 'ready' : 'pending'
+          }
+        />
+        <View style={styles.actionRow}>
           <ActionButton
-            label="Continue in local-only mode"
-            onPress={onContinue}
+            label="Select all supported apps"
+            onPress={onSelectAllSourceApps}
             tone="secondary"
           />
+          <ActionButton label="Deselect all" onPress={onClearSourceApps} tone="secondary" />
+        </View>
+        <View style={styles.categoryGrid}>
+          {SOURCE_APP_OPTIONS.map((sourceApp) => (
+            <CategoryChip
+              isActive={onboardingPreferences.selectedSourceAppIds.includes(sourceApp.id)}
+              key={sourceApp.id}
+              label={sourceApp.label}
+              onPress={() => onToggleSourceApp(sourceApp.id)}
+            />
+          ))}
+        </View>
+        <Text style={styles.helperCopy}>{selectedSourceAppsSummary}</Text>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Budget cycle</Text>
+        <Text style={styles.bodyCopy}>
+          Pick the cycle that should anchor Home totals and future budget tracking.
+        </Text>
+        <View style={styles.optionStack}>
+          {BUDGET_CYCLE_OPTIONS.map((option) => (
+            <PreferenceCard
+              description={option.description}
+              isActive={onboardingPreferences.budgetCycleId === option.id}
+              key={option.id}
+              label={option.label}
+              onPress={() => onSelectBudgetCycle(option.id)}
+            />
+          ))}
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.successSoft}>
+        <Text style={styles.cardTitle}>Sync preference</Text>
+        <Text style={styles.bodyCopy}>
+          Both paths stay local today. This choice simply records whether the user wants to stay
+          device-only or prepare for sync once pairing ships.
+        </Text>
+        <View style={styles.optionStack}>
+          {SYNC_MODE_OPTIONS.map((option) => (
+            <PreferenceCard
+              description={option.description}
+              isActive={onboardingPreferences.syncMode === option.id}
+              key={option.id}
+              label={option.label}
+              onPress={() => onSelectSyncMode(option.id)}
+            />
+          ))}
+        </View>
+        {onboardingPreferences.syncMode === 'sync_later' ? (
+          <View style={styles.actionRow}>
+            <ActionButton
+              label="Skip sync for now"
+              onPress={() => onSelectSyncMode('local_only')}
+              tone="secondary"
+            />
+          </View>
+        ) : null}
+      </SectionCard>
+
+      <SectionCard accentColor={colors.heroGlowSecondary}>
+        <Text style={styles.cardTitle}>Finish setup</Text>
+        <Text style={styles.bodyCopy}>
+          Source apps: {selectedSourceAppsSummary}. Budget cycle: {selectedBudgetCycleLabel}. Sync
+          mode: {selectedSyncModeLabel}.
+        </Text>
+        <View style={styles.actionRow}>
+          <ActionButton label={finishLabel} onPress={onContinue} tone="primary" />
         </View>
       </SectionCard>
     </View>
@@ -422,6 +663,7 @@ function OnboardingScreen({
 function HomeScreen({
   nextPendingTransaction,
   notificationAccessState,
+  onboardingPreferences,
   onOpenInbox,
   onOpenManualEntry,
   onOpenNotificationAccess,
@@ -432,6 +674,7 @@ function HomeScreen({
 }: {
   nextPendingTransaction: Transaction | null;
   notificationAccessState: NotificationAccessState;
+  onboardingPreferences: OnboardingPreferences;
   onOpenInbox: () => void;
   onOpenManualEntry: () => void;
   onOpenNotificationAccess: () => Promise<void>;
@@ -440,6 +683,13 @@ function HomeScreen({
   onStartClassification: (transactionId: string) => void;
   summary: DashboardSummary;
 }) {
+  const selectedSourceAppsSummary =
+    onboardingPreferences.selectedSourceAppIds.length > 0
+      ? onboardingPreferences.selectedSourceAppIds
+          .map((sourceAppId) => getSourceAppLabel(sourceAppId))
+          .join(', ')
+      : 'None selected';
+
   return (
     <View style={styles.stack}>
       <View style={styles.tabs}>
@@ -504,6 +754,15 @@ function HomeScreen({
           manual entries now persist in local SQLite tables and survive app restarts until the demo
           state is reset.
         </Text>
+        <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>Source apps: {selectedSourceAppsSummary}</Text>
+          <Text style={styles.helperCopy}>
+            Budget cycle: {getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}
+          </Text>
+          <Text style={styles.helperCopy}>
+            Sync mode: {getSyncModeLabel(onboardingPreferences.syncMode)}
+          </Text>
+        </View>
         <StatusChip
           label={
             notificationAccessState === 'settings_opened'
@@ -822,6 +1081,40 @@ function MetricCard({
   );
 }
 
+function PreferenceCard({
+  description,
+  isActive,
+  label,
+  onPress,
+}: {
+  description: string;
+  isActive: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={[
+        styles.preferenceCard,
+        isActive ? styles.preferenceCardActive : styles.preferenceCardIdle,
+      ]}
+    >
+      <Text
+        style={[
+          styles.preferenceLabel,
+          isActive ? styles.preferenceLabelActive : styles.preferenceLabelIdle,
+        ]}
+      >
+        {label}
+      </Text>
+      <Text style={styles.preferenceDescription}>{description}</Text>
+    </Pressable>
+  );
+}
+
 function StatusChip({
   label,
   tone,
@@ -968,6 +1261,24 @@ function TransactionCard({
   );
 }
 
+function getSourceAppLabel(sourceAppId: SupportedSourceAppId): string {
+  return (
+    SOURCE_APP_OPTIONS.find((sourceApp) => sourceApp.id === sourceAppId)?.label ??
+    'Unsupported app'
+  );
+}
+
+function getBudgetCycleLabel(budgetCycleId: BudgetCycleId): string {
+  return (
+    BUDGET_CYCLE_OPTIONS.find((option) => option.id === budgetCycleId)?.label ??
+    'Calendar month'
+  );
+}
+
+function getSyncModeLabel(syncMode: SyncMode): string {
+  return SYNC_MODE_OPTIONS.find((option) => option.id === syncMode)?.label ?? 'Local-only for now';
+}
+
 const styles = StyleSheet.create({
   actionRow: {
     gap: 12,
@@ -1065,6 +1376,14 @@ const styles = StyleSheet.create({
   header: {
     gap: 12,
   },
+  helperCopy: {
+    color: colors.inkMuted,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  helperStack: {
+    gap: 4,
+  },
   fieldLabel: {
     color: colors.ink,
     fontSize: 14,
@@ -1140,6 +1459,40 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     lineHeight: 26,
+  },
+  optionStack: {
+    gap: 12,
+  },
+  preferenceCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  preferenceCardActive: {
+    backgroundColor: colors.panel,
+    borderColor: colors.accentStrong,
+  },
+  preferenceCardIdle: {
+    backgroundColor: colors.canvas,
+    borderColor: colors.edgeStrong,
+  },
+  preferenceDescription: {
+    color: colors.inkMuted,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  preferenceLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+  preferenceLabelActive: {
+    color: colors.accentText,
+  },
+  preferenceLabelIdle: {
+    color: colors.ink,
   },
   screen: {
     backgroundColor: colors.canvas,

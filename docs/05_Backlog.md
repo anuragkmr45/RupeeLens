@@ -396,7 +396,7 @@ Let users classify spends quickly and review them later.
 - **Story points:** 5
 - **Goal:** Explain value, privacy, and setup clearly so users can complete Android capture onboarding.
 - **Dependencies:** SET-003, CAP-001
-- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-25 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the mobile shell includes onboarding copy, Android settings handoff, local-only continuation, and persisted completion state in local SQLite. Allowlisted app selection, budget-cycle choice, sync-mode choice, and real permission-state checks remain open.
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-25 | Completed At: 2026-03-25 | Commit Ref: pending-local-commit | Tracking Notes: Onboarding now covers value and privacy education, notification settings handoff, local source-app selection, budget-cycle choice, sync preference, and resumable saved progress in SQLite-backed settings. Real permission-state checks remain open under later capture or diagnostics tickets.
 
 **Description**  
 Build onboarding with value proposition, privacy disclosure, notification access setup, allowlisted app selection, budget-cycle selection, and local-only vs sync mode choice.

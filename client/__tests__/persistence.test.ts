@@ -78,6 +78,9 @@ describe('spend-tracker persistence', () => {
       .mockResolvedValueOnce({ count: 2 });
     database.getAllAsync
       .mockResolvedValueOnce([
+        { key: 'selected_source_app_ids', value: '["google_pay","phonepe"]' },
+        { key: 'budget_cycle_id', value: 'salary_cycle' },
+        { key: 'sync_mode', value: 'sync_later' },
         { key: 'notification_access_state', value: 'settings_opened' },
         { key: 'onboarding_completed', value: 'true' },
       ])
@@ -113,6 +116,11 @@ describe('spend-tracker persistence', () => {
     const { loadStoredSpendTrackerState } = loadPersistenceModule();
 
     await expect(loadStoredSpendTrackerState()).resolves.toEqual({
+      onboardingPreferences: {
+        budgetCycleId: 'salary_cycle',
+        selectedSourceAppIds: ['google_pay', 'phonepe'],
+        syncMode: 'sync_later',
+      },
       notificationAccessState: 'settings_opened',
       onboardingCompleted: true,
       transactions: [
@@ -166,6 +174,11 @@ describe('spend-tracker persistence', () => {
     const { loadStoredSpendTrackerState } = loadPersistenceModule();
 
     await expect(loadStoredSpendTrackerState()).resolves.toEqual({
+      onboardingPreferences: {
+        budgetCycleId: 'calendar_month',
+        selectedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+        syncMode: 'local_only',
+      },
       notificationAccessState: 'not_started',
       onboardingCompleted: true,
       transactions: seededTransactions,
@@ -189,6 +202,11 @@ describe('spend-tracker persistence', () => {
     const { saveStoredSpendTrackerState } = loadPersistenceModule();
 
     await saveStoredSpendTrackerState({
+      onboardingPreferences: {
+        budgetCycleId: 'billing_cycle',
+        selectedSourceAppIds: ['bhim', 'paytm'],
+        syncMode: 'local_only',
+      },
       notificationAccessState: 'settings_opened',
       onboardingCompleted: true,
       transactions: [
@@ -215,6 +233,21 @@ describe('spend-tracker persistence', () => {
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM transaction_items');
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM transactions');
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM settings');
+    expect(database.runAsync).toHaveBeenCalledWith(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'selected_source_app_ids',
+      '["bhim","paytm"]',
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'budget_cycle_id',
+      'billing_cycle',
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'sync_mode',
+      'local_only',
+    );
     expect(database.runAsync).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO transactions'),
       'txn_manual_store',

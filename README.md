@@ -1,6 +1,6 @@
 # UPI Spend Tracker
 
-Android-first v1 scaffold for a consumer UPI spend tracker. The repo now includes an Expo mobile shell with onboarding, a local SQLite-backed dashboard, interactive Inbox/classify and manual-add flows, a Fastify health API, a stub worker heartbeat, shared TypeScript packages, and synchronized backlog tracking.
+Android-first v1 scaffold for a consumer UPI spend tracker. The repo now includes an Expo mobile shell with resumable onboarding, a local SQLite-backed dashboard, interactive Inbox/classify and manual-add flows, a Fastify health API, a stub worker heartbeat, shared TypeScript packages, and synchronized backlog tracking.
 
 ## Repository Layout
 
@@ -110,7 +110,7 @@ Within a continuing Codex thread for this repo, a user message of `next` means r
 
 ## Current Scope
 
-- Android-first onboarding plus a local SQLite-backed dashboard, Inbox, quick classify flow, and manual spend entry
+- Android-first onboarding now includes notification education, source-app selection, budget-cycle choice, sync preference, and a local SQLite-backed dashboard, Inbox, quick classify flow, and manual spend entry
 - Notification access setup can hand off to system settings, but real permission state and native capture ingestion are not implemented yet
 - Onboarding, classified spends, and manual entries persist on device through local SQLite tables, but migrations, sync, and native capture import are still pending
 - Health endpoint only; no business APIs, auth, DB, or sync implementation yet

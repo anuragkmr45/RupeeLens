@@ -42,7 +42,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 **Done in repo**
 
-- Onboarding shell with value proposition, settings handoff, and local-only continuation
+- Onboarding flow with value proposition, privacy disclosure, settings handoff, source-app preferences, budget-cycle choice, sync preference, and resumable saved progress
 - Local SQLite-backed dashboard with seeded data and persisted progress
 - Inbox for uncategorized local transactions
 - In-app classify flow with immediate dashboard refresh
@@ -51,7 +51,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 - Real permission-state reflection instead of advisory UI state
 - Native capture bridge, diagnostics surface, and quick-classify notification flow
-- Budget-cycle configuration, budget progress, search entrypoints, and inbox filters/actions/performance hardening
+- Budget progress, search entrypoints, and inbox filters/actions/performance hardening
 
 ## Sprint 3 — Core UX And Intelligence
 

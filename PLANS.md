@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### UX-001 — Implement Onboarding and Permission Education Flow
+
+- **Status:** completed
+- **Ticket:** UX-001
+- **Goal:** Finish the onboarding flow so it covers value, privacy, notification setup, source-app allowlist selection, budget-cycle choice, sync-mode choice, and resumable local state.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/persistence.ts`, `client/src/lib/app-info.ts`, `client/__tests__/app.test.tsx`, `client/__tests__/persistence.test.ts`.
+- **Rationale:** `SET-002` is still blocked by remote GitHub verification, and `UX-001` is the earliest actionable `in_progress` ticket. The client already has onboarding copy, settings handoff, and persisted completion state, so the highest-leverage next step is to finish the remaining onboarding sections defined in `docs/03_Screen_Spec.md`.
+- **Risks:** Onboarding choices must persist without breaking existing saved sessions, allowlist and sync preferences must remain explicit local preferences rather than fake native behavior, and the ticket should not silently absorb real permission-state detection or capture work that belongs elsewhere.
+- **API / schema impact:** No external API changes. Internal client persistence adds stored onboarding preferences alongside existing notification access state and local transactions.
+- **Rollout / flag plan:** No flag. This upgrades the default local onboarding flow.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** The client onboarding flow includes value/privacy/setup guidance, allowlisted source-app selection, budget-cycle selection, sync-mode choice, resumable saved progress, and test coverage for fresh install plus partial-resume behavior.
+- **Outcome:** Expanded onboarding to cover source-app preferences, budget-cycle choice, and sync preference; persisted those choices alongside notification access and transactions in local SQLite settings; added resume-path coverage for partially completed onboarding; and aligned README plus phase-status docs with the completed UX-001 scope.
+
 ### TRACK-002 — Master Orchestrator Adoption
 
 - **Status:** completed

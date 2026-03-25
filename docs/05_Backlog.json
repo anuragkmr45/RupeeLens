@@ -387,12 +387,12 @@
       ],
       "tests": "User-flow tests across fresh install, partial completion, and denied permissions.",
       "done": "Onboarding meets product, legal, and UX approval.",
-      "status": "in_progress",
+      "status": "done",
       "owner": "codex",
       "started_at": "2026-03-25",
-      "completed_at": "",
+      "completed_at": "2026-03-25",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: the mobile shell includes onboarding copy, Android settings handoff, local-only continuation, and persisted completion state in local SQLite. Allowlisted app selection, budget-cycle choice, sync-mode choice, and real permission-state checks remain open."
+      "tracking_notes": "Onboarding now covers value and privacy education, notification settings handoff, local source-app selection, budget-cycle choice, sync preference, and resumable saved progress in SQLite-backed settings. Real permission-state checks remain open under later capture or diagnostics tickets."
     },
     {
       "id": "UX-002",
