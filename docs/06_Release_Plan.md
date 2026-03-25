@@ -29,7 +29,7 @@ Goals:
 - CI/CD
 - migrations
 - design system primitives
-- Codex workflow docs
+- Codex workflow docs (`docs/10_Codex_Workflow.md`)
 
 Exit:
 - new developer can clone and run the repo

@@ -9,6 +9,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Repo truth is ahead of the backlog for several mobile and setup areas.
 - Backlog tracking now reflects tickets that are genuinely `done`, `blocked`, or `in_progress` based on the current repository, while unfinished acceptance criteria stay explicitly open.
 - `PLANS.md` now uses local `TRACK-*`, `APP-*`, and `ENV-*` identifiers for local execution history so it no longer collides with canonical backlog ticket IDs.
+- Codex workflow orchestration is now documented in `docs/10_Codex_Workflow.md`; migration framework guidance lives in `docs/11_Database_Migrations.md` while `SET-004` remains open.
 
 ## Sprint 0 — Foundations
 
@@ -17,6 +18,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Monorepo bootstrap, shared packages, root scripts, and runnable client/API/worker scaffolds
 - Pull-request workflow, PR template, and CI/branch-protection documentation
 - Repo-level `AGENTS.md` and `PLANS.md`, now linked from the README
+- Codex workflow docs for same-thread single-ticket delivery runs
 - Expo SDK 55 dev-build workflow plus Android/iOS shell support
 
 **Remaining**

@@ -2,7 +2,27 @@
 
 Use this template before implementing any multi-step, cross-module, or risky change.
 
+Protocol notes:
+
+- Keep exactly one active execution entry per run.
+- Product delivery work should map to canonical backlog IDs in `docs/05_Backlog.*`.
+- Workflow-only, environment-only, or tracking-only passes should use local `TRACK-*`, `ENV-*`, or `APP-*` identifiers instead of reusing canonical backlog ticket IDs.
+
 ## Active Plan
+
+### TRACK-002 — Master Orchestrator Adoption
+
+- **Status:** completed
+- **Ticket:** TRACK-002
+- **Goal:** Codify the repo-truth delivery loop for future same-thread `next` runs and fill the missing workflow/migration guidance docs without consuming a canonical backlog ticket.
+- **Touched files/modules:** `PLANS.md`, `README.md`, `AGENTS.md`, `docs/06_Release_Plan.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `docs/11_Database_Migrations.md`.
+- **Rationale:** The repo already had backlog reconciliation and a phase-status audit, but it did not yet document the operational run-loop that should govern future single-ticket delivery passes. The workflow also referenced missing source-of-truth docs for migrations and Codex orchestration.
+- **Risks:** Drifting the workflow doc away from actual repo conventions, implying that migration infrastructure exists before `SET-004`, and accidentally treating this adoption pass like a canonical product ticket.
+- **API / schema impact:** None. Documentation and tracking only.
+- **Rollout / flag plan:** No flag. This is an execution-workflow adoption pass for contributors and coding agents.
+- **Validation commands:** `rg -n "09_Database_Migrations|10_Codex_Workflow|11_Database_Migrations|next" README.md AGENTS.md PLANS.md docs`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** The workflow and migration docs exist, contributor guidance links them, the phase-status and release docs reference the workflow truthfully, no repo doc points at a nonexistent `docs/09_Database_Migrations.md`, and the future same-thread `next` contract is documented clearly.
+- **Outcome:** Added `docs/10_Codex_Workflow.md` and `docs/11_Database_Migrations.md`, linked them from contributor-facing guidance, documented the single-ticket-per-run protocol plus `next` behavior, and recorded `UX-001` as the default next actionable ticket unless repo truth changes first.
 
 ### TRACK-001 — Project Audit and Tracking Reconciliation
 

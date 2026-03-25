@@ -47,10 +47,13 @@ Run from repository root:
 For complex work:
 
 - start with a plan using `PLANS.md`
+- follow `docs/10_Codex_Workflow.md` for the audit -> choose one ticket -> implement -> validate -> stop loop
 - list touched files/modules
 - call out schema/API changes explicitly
 - call out rollout/flag needs
 - define “done when” before coding
+
+In a continuing Codex thread for this repo, a user message of `next` means rerun that workflow once.
 
 ## Code conventions
 

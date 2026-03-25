@@ -103,6 +103,10 @@ Branch-protection expectations and the exact required check names are documented
 - `AGENTS.md`: repo conventions, safety rules, and quality expectations for contributors and coding agents
 - `PLANS.md`: execution-plan template plus implementation-history log
 - `docs/09_Project_Phase_Status.md`: repo-truth audit of what is done and what remains by sprint
+- `docs/10_Codex_Workflow.md`: single-ticket delivery loop for audit, selection, implementation, validation, and truthful tracking updates
+- `docs/11_Database_Migrations.md`: current migration-status guidance until `SET-004` lands the formal framework
+
+Within a continuing Codex thread for this repo, a user message of `next` means rerun the single-ticket workflow documented in `docs/10_Codex_Workflow.md`.
 
 ## Current Scope
 
