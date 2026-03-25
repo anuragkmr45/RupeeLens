@@ -156,12 +156,12 @@
       ],
       "tests": "Run a dry-run with an AI coding agent and confirm instructions are discoverable.",
       "done": "Docs merged and linked from README.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-25",
+      "completed_at": "2026-03-25",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "AGENTS.md and PLANS.md exist at the repo root, contributor expectations are documented, and README now links directly to both files plus the project phase-status audit."
     },
     {
       "id": "SET-006",
@@ -387,12 +387,12 @@
       ],
       "tests": "User-flow tests across fresh install, partial completion, and denied permissions.",
       "done": "Onboarding meets product, legal, and UX approval.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-25",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: the mobile shell includes onboarding copy, Android settings handoff, local-only continuation, and persisted completion state in local SQLite. Allowlisted app selection, budget-cycle choice, sync-mode choice, and real permission-state checks remain open."
     },
     {
       "id": "UX-002",
@@ -412,12 +412,12 @@
       ],
       "tests": "Snapshot and interaction tests; verify KPI math with seeded data.",
       "done": "Dashboard is production-ready and performance-budget compliant.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-25",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: Home already renders total spend, inbox count, top category, top merchant, and manual-add or inbox actions from local SQLite-backed data. Budget progress, top items, cycle configuration, budget/search shortcuts, and performance validation remain open."
     },
     {
       "id": "UX-003",
@@ -438,12 +438,12 @@
       ],
       "tests": "Seeded-data performance test and classification action tests.",
       "done": "Inbox accepted by product for daily-use flow.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-25",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: Inbox lists uncategorized local transactions and supports in-app classification with immediate dashboard updates. Filters, partial/conflict views, skip/delete/rule actions, and scale validation remain open."
     },
     {
       "id": "UX-004",
@@ -463,12 +463,12 @@
       ],
       "tests": "Usability walkthrough and form validation tests.",
       "done": "Quick-classify flow ready for beta.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-25",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: full-screen quick classify and manual add already exist in the local shell. Bottom-sheet UX, save-as-rule behavior, suggestion chips, and captured-spend integration remain open."
     },
     {
       "id": "UX-005",
@@ -765,12 +765,12 @@
       ],
       "tests": "Module bootstrap tests and smoke route tests.",
       "done": "Backend skeleton ready for feature modules.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-25",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: Fastify API and worker runtimes are split, shared packages exist, GET /health is typed, and the worker heartbeat runs. Feature modules beyond health, repository layers, and broader backend boundaries remain open."
     },
     {
       "id": "API-002",

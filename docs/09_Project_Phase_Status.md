@@ -1,0 +1,114 @@
+# Project Phase Status
+
+Date: 2026-03-25  
+Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`, and live source under `client/`, `server/`, and `packages/`
+
+## Summary
+
+- Canonical project phases remain the backlog sprints in `docs/05_Backlog.*`.
+- Repo truth is ahead of the backlog for several mobile and setup areas.
+- Backlog tracking now reflects tickets that are genuinely `done`, `blocked`, or `in_progress` based on the current repository, while unfinished acceptance criteria stay explicitly open.
+- `PLANS.md` now uses local `TRACK-*`, `APP-*`, and `ENV-*` identifiers for local execution history so it no longer collides with canonical backlog ticket IDs.
+
+## Sprint 0 — Foundations
+
+**Done in repo**
+
+- Monorepo bootstrap, shared packages, root scripts, and runnable client/API/worker scaffolds
+- Pull-request workflow, PR template, and CI/branch-protection documentation
+- Repo-level `AGENTS.md` and `PLANS.md`, now linked from the README
+- Expo SDK 55 dev-build workflow plus Android/iOS shell support
+
+**Remaining**
+
+- Remote GitHub verification to truly close branch-protection setup
+- Canonical design-system tokens and reusable UI primitives package
+- Real migration framework for mobile SQLite and server PostgreSQL
+
+## Sprint 1 — Capture Foundation
+
+**Done in repo**
+
+- Only the UI-level onboarding handoff that can open Android notification settings
+
+**Remaining**
+
+- Remote parser config and feature-flag infrastructure
+- Notification listener service, allowlist controls, parser registry, dedupe, and native capture DB
+
+## Sprint 2 — First Usable App
+
+**Done in repo**
+
+- Onboarding shell with value proposition, settings handoff, and local-only continuation
+- Local SQLite-backed dashboard with seeded data and persisted progress
+- Inbox for uncategorized local transactions
+- In-app classify flow with immediate dashboard refresh
+
+**Remaining**
+
+- Real permission-state reflection instead of advisory UI state
+- Native capture bridge, diagnostics surface, and quick-classify notification flow
+- Budget-cycle configuration, budget progress, search entrypoints, and inbox filters/actions/performance hardening
+
+## Sprint 3 — Core UX And Intelligence
+
+**Done in repo**
+
+- Manual add flow
+- Full-screen quick classify flow
+- Hardcoded default category options inside the client shell
+
+**Remaining**
+
+- Bottom-sheet quick classify and save-as-rule behavior
+- Split-items flow
+- Timeline, detail, search/filter, and settings/privacy/export screens
+- Category CRUD, merchant normalization, and rule engine
+
+## Sprint 4 — Budgets And Sync Foundation
+
+**Done in repo**
+
+- Groundwork only: local SQLite transaction tables on mobile plus backend/process skeletons
+
+**Remaining**
+
+- Suggestions, budgets, rollups, CSV export, backup/restore
+- Guest session, pairing, and sync APIs
+- Backend modular-monolith feature modules beyond the health route
+
+## Sprint 5 — APIs And Reports
+
+**Done in repo**
+
+- Typed health contract plus `GET /health`
+- Worker heartbeat stub
+
+**Remaining**
+
+- Domain APIs, report APIs, remote config API, background jobs, and mobile outbox/conflict queue
+- Broader QA harnesses, parser fixtures, and release-quality matrix work
+
+## Sprint 6 — Hardening
+
+**Done in repo**
+
+- Baseline lint, typecheck, test, build, and CI documentation
+
+**Remaining**
+
+- Privacy/security baseline
+- Low-network and performance optimization
+- OTA/runtime-version and rollback playbook
+- Analytics, crash reporting, and operational dashboards
+
+## Sprint 7 — Beta And Release
+
+**Done in repo**
+
+- Nothing yet beyond planning artifacts
+
+**Remaining**
+
+- Closed beta, release candidate, Play Store package, policy declarations, support docs, and launch operations

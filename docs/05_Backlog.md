@@ -148,7 +148,7 @@ Migration workflow documented and validated.
 - **Story points:** 3
 - **Goal:** Make AI-assisted implementation consistent and repo-aware.
 - **Dependencies:** SET-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-25 | Completed At: 2026-03-25 | Commit Ref: pending-local-commit | Tracking Notes: AGENTS.md and PLANS.md exist at the repo root, contributor expectations are documented, and README now links directly to both files plus the project phase-status audit.
 
 **Description**  
 Author AGENTS.md with repo map, commands, conventions, safety rules, and done criteria. Add PLANS.md execution-plan template and code-review checklist reference.
@@ -396,7 +396,7 @@ Let users classify spends quickly and review them later.
 - **Story points:** 5
 - **Goal:** Explain value, privacy, and setup clearly so users can complete Android capture onboarding.
 - **Dependencies:** SET-003, CAP-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-25 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the mobile shell includes onboarding copy, Android settings handoff, local-only continuation, and persisted completion state in local SQLite. Allowlisted app selection, budget-cycle choice, sync-mode choice, and real permission-state checks remain open.
 
 **Description**  
 Build onboarding with value proposition, privacy disclosure, notification access setup, allowlisted app selection, budget-cycle selection, and local-only vs sync mode choice.
@@ -423,7 +423,7 @@ Onboarding meets product, legal, and UX approval.
 - **Story points:** 5
 - **Goal:** Give users immediate clarity on spend and incomplete work.
 - **Dependencies:** SET-003
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-25 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: Home already renders total spend, inbox count, top category, top merchant, and manual-add or inbox actions from local SQLite-backed data. Budget progress, top items, cycle configuration, budget/search shortcuts, and performance validation remain open.
 
 **Description**  
 Create dashboard showing total spend, budget progress, top categories, top merchants, top items, and uncategorized count. Add quick actions for manual add, inbox, budgets, and search.
@@ -449,7 +449,7 @@ Dashboard is production-ready and performance-budget compliant.
 - **Story points:** 8
 - **Goal:** Make skipped or ambiguous transactions easy to recover later.
 - **Dependencies:** CAP-006, UX-002
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-25 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: Inbox lists uncategorized local transactions and supports in-app classification with immediate dashboard updates. Filters, partial/conflict views, skip/delete/rule actions, and scale validation remain open.
 
 **Description**  
 Build list and filter views for uncategorized payments, partially split transactions, and conflict items. Support swipe or tap actions for classify, split, skip, delete, and create rule.
@@ -476,7 +476,7 @@ Inbox accepted by product for daily-use flow.
 - **Story points:** 8
 - **Goal:** Provide the fastest full-screen classification path when notification reply is not enough.
 - **Dependencies:** UX-003, INT-003
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-25 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: full-screen quick classify and manual add already exist in the local shell. Bottom-sheet UX, save-as-rule behavior, suggestion chips, and captured-spend integration remain open.
 
 **Description**  
 Create bottom sheet with item name, category chips, amount preview, merchant preview, save-as-rule toggle, and save/skip controls. Add manual transaction entry using same form primitives.
@@ -798,7 +798,7 @@ Provide scalable APIs, sync, reporting, and device pairing.
 - **Story points:** 8
 - **Goal:** Create a scalable but understandable backend foundation for v1.
 - **Dependencies:** SET-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-25 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: Fastify API and worker runtimes are split, shared packages exist, GET /health is typed, and the worker heartbeat runs. Feature modules beyond health, repository layers, and broader backend boundaries remain open.
 
 **Description**  
 Set up Fastify or Express-compatible architecture, shared domain modules, dependency boundaries, config loading, structured logging, and worker entrypoint sharing the same modules.

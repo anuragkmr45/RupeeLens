@@ -98,6 +98,12 @@ PR titles must use Conventional Commits format:
 
 Branch-protection expectations and the exact required check names are documented in `docs/08_CI_Branch_Protection.md`.
 
+## Contributor Guidance
+
+- `AGENTS.md`: repo conventions, safety rules, and quality expectations for contributors and coding agents
+- `PLANS.md`: execution-plan template plus implementation-history log
+- `docs/09_Project_Phase_Status.md`: repo-truth audit of what is done and what remains by sprint
+
 ## Current Scope
 
 - Android-first onboarding plus a local SQLite-backed dashboard, Inbox, quick classify flow, and manual spend entry
