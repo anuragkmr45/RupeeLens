@@ -58,12 +58,12 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 **Done in repo**
 
 - Manual add flow
-- Full-screen quick classify flow with explicit suggestion chips, shared form primitives, and a save-as-rule intent toggle
+- Bottom-sheet quick classify flow with explicit suggestion chips, shared form primitives, save/skip controls, and a save-as-rule intent toggle
 - Hardcoded default category options inside the client shell
 
 **Remaining**
 
-- Bottom-sheet quick classify behavior and durable rule creation via `INT-003`
+- Durable rule creation via `INT-003`
 - Split-items flow
 - Timeline, detail, search/filter, settings/privacy/export screens, and captured-spend classify integration
 - Category CRUD, merchant normalization, and rule engine

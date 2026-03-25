@@ -216,6 +216,7 @@ describe('App', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Inbox' }));
     fireEvent.press(screen.getByRole('button', { name: 'Classify Blue Tokai Roasters' }));
 
+    expect(await screen.findByText('Quick classify sheet')).toBeTruthy();
     expect(await screen.findByText('Suggested values')).toBeTruthy();
     fireEvent.press(screen.getByRole('button', { name: 'Coffee run suggestion' }));
     expect(screen.getByDisplayValue('Coffee run')).toBeTruthy();

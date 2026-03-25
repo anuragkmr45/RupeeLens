@@ -496,6 +496,24 @@ export function SpendTrackerApp() {
             onStartClassification={handleStartClassification}
             onUpdateFilters={handleUpdateInboxFilters}
           />
+        ) : !isHydrating && screen === 'classify' && activeTransaction ? (
+          <ClassifyScreen
+            draft={draft}
+            onApplySuggestion={handleApplyClassificationSuggestion}
+            onCancel={handleCancelClassification}
+            onChangeItemLabel={(itemLabel) =>
+              setDraft((currentDraft) => ({ ...currentDraft, itemLabel }))
+            }
+            onOpenSplitPlaceholder={handleOpenSplitPlaceholder}
+            onSave={handleSaveClassification}
+            onSelectCategory={(categoryId) =>
+              setDraft((currentDraft) => ({ ...currentDraft, categoryId }))
+            }
+            onSkip={handleSkipFromClassification}
+            onToggleSaveAsRule={handleToggleSaveAsRule}
+            suggestions={activeTransactionSuggestions}
+            transaction={activeTransaction}
+          />
         ) : (
           <ScrollView contentContainerStyle={styles.scrollContent}>
             {isHydrating ? (
@@ -533,26 +551,6 @@ export function SpendTrackerApp() {
                 onSelectTab={(nextScreen) => setScreen(nextScreen)}
                 onStartClassification={handleStartClassification}
                 summary={summary}
-              />
-            ) : null}
-
-            {!isHydrating && screen === 'classify' && activeTransaction ? (
-              <ClassifyScreen
-                draft={draft}
-                onApplySuggestion={handleApplyClassificationSuggestion}
-                onCancel={handleCancelClassification}
-                onChangeItemLabel={(itemLabel) =>
-                  setDraft((currentDraft) => ({ ...currentDraft, itemLabel }))
-                }
-                onOpenSplitPlaceholder={handleOpenSplitPlaceholder}
-                onSave={handleSaveClassification}
-                onSelectCategory={(categoryId) =>
-                  setDraft((currentDraft) => ({ ...currentDraft, categoryId }))
-                }
-                onSkip={handleSkipFromClassification}
-                onToggleSaveAsRule={handleToggleSaveAsRule}
-                suggestions={activeTransactionSuggestions}
-                transaction={activeTransaction}
               />
             ) : null}
 
@@ -1287,55 +1285,71 @@ function ClassifyScreen({
   const saveDisabled = !isClassificationReady(draft);
 
   return (
-    <View style={styles.stack}>
-      <SectionCard accentColor={colors.accentSoft}>
-        <Text style={styles.sectionEyebrow}>Quick classify</Text>
-        <Text style={styles.sectionTitle}>Turn this payment into a usable spend</Text>
-        <Text style={styles.bodyCopy}>
-          This pass keeps the classify flow fast: tap a suggestion for the common case, review the
-          fields, and save without leaving the local session.
-        </Text>
-      </SectionCard>
-
-      <SectionCard accentColor={colors.panelWarm}>
-        <Text style={styles.cardTitle}>{transaction.merchant}</Text>
-        <Text style={styles.amountLabel}>{formatCurrency(transaction.amountMinor)}</Text>
-        <Text style={styles.bodyCopy}>
-          {transaction.sourceApp} captured at {formatCaptureMoment(transaction.capturedAt)}
-        </Text>
-      </SectionCard>
-
-      <ClassificationFieldsCard
-        categoryId={draft.categoryId}
-        description="Suggestions stay explicit and editable. Tap one to fill both the item label and category in one move."
-        emptyStateCopy="Suggestions will appear here when the merchant or local history gives us a confident starting point."
-        itemLabel={draft.itemLabel}
-        onApplySuggestion={onApplySuggestion}
-        onChangeItemLabel={onChangeItemLabel}
-        onSelectCategory={onSelectCategory}
-        suggestions={suggestions}
-        title="Suggested values"
+    <View style={styles.sheetScene}>
+      <Pressable
+        accessibilityLabel="Close quick classify"
+        accessibilityRole="button"
+        onPress={onCancel}
+        style={styles.sheetBackdrop}
       />
 
-      <SectionCard accentColor={colors.successSoft}>
-        <Text style={styles.cardTitle}>Save behavior</Text>
-        <Text style={styles.bodyCopy}>
-          Saving removes the payment from Inbox, recalculates Home immediately, and writes the
-          updated transaction back into local SQLite tables. Split remains a later follow-up flow.
-        </Text>
-        <RuleIntentToggle isActive={draft.saveAsRule} onPress={onToggleSaveAsRule} />
-        <View style={styles.actionRow}>
-          <ActionButton label="Back to inbox" onPress={onCancel} tone="secondary" />
-          <ActionButton label="Skip for now" onPress={onSkip} tone="secondary" />
-          <ActionButton label="Split later" onPress={onOpenSplitPlaceholder} tone="secondary" />
-          <ActionButton
-            disabled={saveDisabled}
-            label="Save classification"
-            onPress={onSave}
-            tone="primary"
+      <View style={styles.sheetCard}>
+        <View style={styles.sheetHandle} />
+        <ScrollView
+          contentContainerStyle={styles.sheetContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sectionEyebrow}>Quick classify sheet</Text>
+            <Text style={styles.cardTitle}>Turn this payment into a usable spend</Text>
+            <Text style={styles.bodyCopy}>
+              Common cases should take two taps here: choose a suggestion, then save. The full edit
+              path still stays available inside the sheet.
+            </Text>
+          </View>
+
+          <SectionCard accentColor={colors.panelWarm}>
+            <Text style={styles.cardTitle}>{transaction.merchant}</Text>
+            <Text style={styles.amountLabel}>{formatCurrency(transaction.amountMinor)}</Text>
+            <Text style={styles.bodyCopy}>
+              {transaction.sourceApp} captured at {formatCaptureMoment(transaction.capturedAt)}
+            </Text>
+          </SectionCard>
+
+          <ClassificationFieldsCard
+            categoryId={draft.categoryId}
+            description="Suggestions stay explicit and editable. Tap one to fill both the item label and category in one move."
+            emptyStateCopy="Suggestions will appear here when the merchant or local history gives us a confident starting point."
+            itemLabel={draft.itemLabel}
+            onApplySuggestion={onApplySuggestion}
+            onChangeItemLabel={onChangeItemLabel}
+            onSelectCategory={onSelectCategory}
+            suggestions={suggestions}
+            title="Suggested values"
           />
-        </View>
-      </SectionCard>
+
+          <SectionCard accentColor={colors.successSoft}>
+            <Text style={styles.cardTitle}>Save behavior</Text>
+            <Text style={styles.bodyCopy}>
+              Saving removes the payment from Inbox, recalculates Home immediately, and writes the
+              updated transaction back into local SQLite tables. Split remains a later follow-up
+              flow.
+            </Text>
+            <RuleIntentToggle isActive={draft.saveAsRule} onPress={onToggleSaveAsRule} />
+            <View style={styles.actionRow}>
+              <ActionButton label="Back to inbox" onPress={onCancel} tone="secondary" />
+              <ActionButton label="Skip for now" onPress={onSkip} tone="secondary" />
+              <ActionButton label="Split later" onPress={onOpenSplitPlaceholder} tone="secondary" />
+              <ActionButton
+                disabled={saveDisabled}
+                label="Save classification"
+                onPress={onSave}
+                tone="primary"
+              />
+            </View>
+          </SectionCard>
+        </ScrollView>
+      </View>
     </View>
   );
 }
@@ -2153,6 +2167,41 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 72,
+  },
+  sheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(24, 31, 24, 0.18)',
+    borderRadius: 28,
+  },
+  sheetCard: {
+    backgroundColor: colors.panelStrong,
+    borderColor: colors.edge,
+    borderRadius: 30,
+    borderWidth: 1,
+    maxHeight: '88%',
+    overflow: 'hidden',
+  },
+  sheetContent: {
+    gap: 16,
+    padding: 18,
+    paddingBottom: 28,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    backgroundColor: colors.edgeStrong,
+    borderRadius: 999,
+    height: 6,
+    marginTop: 12,
+    width: 64,
+  },
+  sheetHeader: {
+    gap: 8,
+  },
+  sheetScene: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingBottom: 20,
+    position: 'relative',
   },
   scrollContent: {
     gap: 20,

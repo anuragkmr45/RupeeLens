@@ -14,6 +14,20 @@ Protocol notes:
 
 - **Status:** completed
 - **Ticket:** UX-004
+- **Goal:** Close the remaining quick-classify gap by replacing the full-screen classify surface with a bottom-sheet interaction while preserving the shared manual-entry primitives.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `client/src/app/SpendTrackerApp.tsx`, `client/src/lib/app-info.ts`, `client/__tests__/app.test.tsx`.
+- **Rationale:** `SET-002` is still blocked, `UX-003` remains open for later partial/conflict and scale validation work, and `UX-004` is the clearest closeout candidate. The remaining repo-side acceptance gap is the actual bottom-sheet classify UX; suggestions and shared validation are already in place.
+- **Risks:** The bottom sheet must not regress the existing classify flow or hide key fields behind an unusable layout. The change must stay honest about rule creation and split flows, which are still partial or later-ticket work.
+- **API / schema impact:** No external API or storage changes. UI-only closeout on top of the existing local classify domain.
+- **Rollout / flag plan:** No flag. This upgrades the default local classify interaction.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** Quick classify presents as a bottom sheet, still supports the suggestion-led two-tap common case, keeps categories visible in the sheet, preserves save/skip controls, and all repo quality gates remain green.
+- **Outcome:** Replaced the full-page classify surface with a bottom-sheet interaction, kept the two-tap suggestion-led common case intact, preserved save/skip/split-later controls, and retained the shared manual-entry primitives and validation rules. Durable reusable rules remain separate `INT-003` work, but the `UX-004` local-beta scope is now complete.
+
+### UX-004 — Build Quick-Classify Bottom Sheet and Manual Add Flow
+
+- **Status:** completed
+- **Ticket:** UX-004
 - **Goal:** Continue quick classify and manual entry so the classification path is faster, suggestion-led, and built from shared form primitives even before the real rule engine lands.
 - **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/domain.ts`, `client/src/lib/app-info.ts`, `client/__tests__/app.test.tsx`, `client/__tests__/domain.test.ts`.
 - **Rationale:** `SET-002` remains blocked, `UX-003` is still open but now depends on later partial/conflict and split/rule follow-up, and `UX-004` already has a real partial implementation in the client. The highest-value next step is to reuse the classify/manual form primitives, surface explicit suggestion chips, and add honest save/skip controls without pretending that the missing rule engine or native capture integration already exists.
