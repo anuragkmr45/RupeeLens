@@ -1,6 +1,6 @@
 # UPI Spend Tracker
 
-Android-first v1 scaffold for a consumer UPI spend tracker. SET-001 establishes the monorepo foundation only: a minimal Expo client placeholder, a Fastify health API, a stub worker heartbeat, shared TypeScript packages, and synchronized backlog tracking.
+Android-first v1 scaffold for a consumer UPI spend tracker. The repo now includes an Expo mobile shell with onboarding, a persisted local dashboard, an interactive Inbox/classify flow, a Fastify health API, a stub worker heartbeat, shared TypeScript packages, and synchronized backlog tracking.
 
 ## Repository Layout
 
@@ -100,7 +100,9 @@ Branch-protection expectations and the exact required check names are documented
 
 ## Current Scope
 
-- Minimal bootstrap screen only; no feature screens, navigation, or global state yet
+- Android-first onboarding plus a persisted local dashboard, Inbox, and quick classify flow
+- Notification access setup can hand off to system settings, but real permission state and native capture ingestion are not implemented yet
+- Onboarding and local classifications persist on device through Expo SQLite storage, but full local domain tables and sync are still pending
 - Health endpoint only; no business APIs, auth, DB, or sync implementation yet
 - Worker heartbeat stub only; no queues, DB, exports, or background jobs yet
 - No deployment CI, migrations, analytics providers, notification capture, or remote config implementation yet

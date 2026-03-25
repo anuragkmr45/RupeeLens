@@ -1,5 +1,5 @@
-import { BootstrapApp } from './src/app/BootstrapApp';
+import { SpendTrackerApp } from './src/app/SpendTrackerApp';
 
 export default function App() {
-  return <BootstrapApp />;
+  return <SpendTrackerApp />;
 }

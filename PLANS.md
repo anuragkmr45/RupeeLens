@@ -4,6 +4,48 @@ Use this template before implementing any multi-step, cross-module, or risky cha
 
 ## Active Plan
 
+### UX-001 / UX-003 — Persisted Local Session
+
+- **Status:** completed
+- **Ticket:** UX-001 / UX-003 persistence
+- **Goal:** Make onboarding completion and local classification progress survive app restarts without waiting for the full domain DB implementation.
+- **Touched files/modules:** `PLANS.md`, `README.md`, `client/package.json`, `pnpm-lock.yaml`, `client/__tests__/app.test.tsx`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/persistence.ts`, `client/src/lib/app-info.ts`.
+- **Rationale:** The local dashboard and Inbox were finally usable, but every restart erased onboarding progress and classifications. The next remaining gap was persisting the current device state so the app behaves like a real offline-first client, even before the full SQLite domain schema lands.
+- **Risks:** Persistence must not overstate itself as the final app database, tests need explicit storage mocks to avoid native-module flakiness, and reset behavior must remain simple so demo data can be restored after manual exploration.
+- **API / schema impact:** None.
+- **Rollout / flag plan:** No flag. This upgrades the existing local shell to survive restarts by default.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/client exec expo config --type public`, `pnpm --filter @upi-spend-tracker/client lint`, `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test`, `pnpm --filter @upi-spend-tracker/client build`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** The app restores onboarding/classification state from local storage, saves updated state after changes, exposes a reset path for the demo dataset, and test coverage proves hydration plus persistence behavior.
+- **Outcome:** Added Expo SQLite-backed key-value persistence for onboarding completion, notification-access status, and local transactions; hydrated the client shell on launch; autosaved state after changes; exposed a reset action; and updated docs/tests to describe the new persisted local behavior clearly.
+
+### UX-002 / UX-003 — Interactive Local Dashboard and Inbox
+
+- **Status:** completed
+- **Ticket:** UX-002 / UX-003 shell
+- **Goal:** Turn the current mobile shell into a usable local session by adding seeded spend data, dashboard KPIs, an Inbox list, and an in-app classification loop.
+- **Touched files/modules:** `PLANS.md`, `README.md`, `client/__tests__/app.test.tsx`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/domain.ts`, `client/src/lib/app-info.ts`.
+- **Rationale:** The onboarding shell clarified setup, but the app still did not let the user do the core job of reviewing and classifying a payment. The next step needed to demonstrate the intended v1 flow end to end without waiting on native capture or local DB tickets.
+- **Risks:** The new flow must stay explicit that seeded data is demo-only and session-only, otherwise it could misrepresent persistence, capture reliability, or sync readiness. Dashboard math and Inbox behavior also need test coverage so the shell does not drift from the domain expectations.
+- **API / schema impact:** None.
+- **Rollout / flag plan:** No flag. This replaces the placeholder Home/Inbox shell as the default local experience.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/client exec expo config --type public`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** Home renders seeded KPIs from local state, Inbox lists uncategorized transactions, the user can classify one in app and see the Inbox/dashboard update immediately, and docs/tests describe the flow accurately.
+- **Outcome:** Added a local spend domain model with seeded transactions, wired dashboard summary math and Inbox state into the client shell, implemented a quick classify screen that updates state instantly, and updated docs/tests to reflect the new in-session behavior and its current limitations.
+
+### UX-001 / UX-002 — First Usable Mobile Shell
+
+- **Status:** completed
+- **Ticket:** UX-001 / UX-002 shell
+- **Goal:** Replace the bootstrap-only client screen with the first usable shell: notification-access onboarding plus placeholder home and inbox views that clarify what the user should do next.
+- **Touched files/modules:** `PLANS.md`, `README.md`, `client/App.tsx`, `client/__tests__/app.test.tsx`, `client/src/app/SpendTrackerApp.tsx`, `client/src/lib/app-info.ts`, `client/src/theme/colors.ts`, and removal of stale bootstrap-only components.
+- **Rationale:** The app launched successfully but stopped at a passive placeholder with no user flow. The first user-visible shell needed to explain setup, provide a next action, and establish a home/inbox structure without overpromising unimplemented capture or sync behavior.
+- **Risks:** Without persistence or real permission-state checks, the onboarding status remains advisory only; the UI must stay explicit that capture, inbox population, and sync still come later. Removing the old bootstrap components also requires tests and docs to stop referencing obsolete copy.
+- **API / schema impact:** None.
+- **Rollout / flag plan:** No flag. This replaces the previous placeholder as the default shell.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/client test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** Launching the client presents a clear onboarding action, local-only users can continue into a home shell, an inbox placeholder exists, tests cover the new flow, and repo docs no longer describe the app as a single bootstrap card.
+- **Outcome:** Replaced the static bootstrap card with a dependency-free React Native shell that opens Android notification settings, allows local-only continuation, adds home/inbox placeholders, updates the copy/palette, and aligns tests plus README with the new flow.
+
 ### SET-005 — Android Dev Build Toolchain Compatibility
 
 - **Status:** completed

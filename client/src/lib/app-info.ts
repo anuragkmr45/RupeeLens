@@ -1,5 +1,6 @@
 export const APP_COPY = {
-  stage: 'SET-001',
-  subtitle: 'Offline-first Android-first foundations for UPI spend tracking.',
+  stage: 'UX-001 / UX-003 local demo',
+  subtitle:
+    'Android-first onboarding plus a persisted dashboard, Inbox, and quick classify loop.',
   title: 'UPI Spend Tracker',
 } as const;
