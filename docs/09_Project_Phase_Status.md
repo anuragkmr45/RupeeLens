@@ -10,6 +10,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Backlog tracking now reflects tickets that are genuinely `done`, `blocked`, or `in_progress` based on the current repository, while unfinished acceptance criteria stay explicitly open.
 - `PLANS.md` now uses local `TRACK-*`, `APP-*`, and `ENV-*` identifiers for local execution history so it no longer collides with canonical backlog ticket IDs.
 - Codex workflow orchestration is now documented in `docs/10_Codex_Workflow.md`; migration commands and rollback guidance now live in `docs/11_Database_Migrations.md`.
+- Shared mobile design-system tokens and UI primitives now live in `packages/mobile-ui`, with a showcase screen reachable from the client Home shell.
 
 ## Sprint 0 — Foundations
 
@@ -20,12 +21,12 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Repo-level `AGENTS.md` and `PLANS.md`, now linked from the README
 - Codex workflow docs for same-thread single-ticket delivery runs
 - Ordered migration frameworks for mobile SQLite and server PostgreSQL plus root DB validation
+- Shared mobile design-system package with theme tokens, reusable primitives, and a showcase screen
 - Expo SDK 55 dev-build workflow plus Android/iOS shell support
 
 **Remaining**
 
 - Remote GitHub verification to truly close branch-protection setup
-- Canonical design-system tokens and reusable UI primitives package
 ## Sprint 1 — Capture Foundation
 
 **Done in repo**

@@ -104,12 +104,12 @@
       ],
       "tests": "Snapshot tests for primitives; manual accessibility review.",
       "done": "UI primitives documented and ready for feature teams.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-26",
+      "completed_at": "2026-03-26",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: `@upi-spend-tracker/mobile-ui` now owns the shared light/dark theme tokens and base primitives, the Expo client consumes those primitives and tokenized colors, Home exposes a showcase screen for the full primitive set, and snapshot plus app-flow tests cover the shared UI package."
     },
     {
       "id": "SET-004",

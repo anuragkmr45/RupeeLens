@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "pnpm -r --if-present --sort run build",
-    "build:shared": "pnpm --filter @upi-spend-tracker/shared-types --filter @upi-spend-tracker/shared-utils --filter @upi-spend-tracker/contracts --sort run build",
+    "build:shared": "pnpm --filter @upi-spend-tracker/shared-types --filter @upi-spend-tracker/shared-utils --filter @upi-spend-tracker/contracts --filter @upi-spend-tracker/mobile-ui --sort run build",
     "ci:verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm db:validate",
     "db:validate": "tsx scripts/db/validate.ts",
     "dev:api": "pnpm --filter @upi-spend-tracker/api dev",

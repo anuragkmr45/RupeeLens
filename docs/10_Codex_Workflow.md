@@ -125,12 +125,12 @@ Do not start a second ticket automatically in the same run.
 
 ## Current Default Next Ticket
 
-Unless repo truth changes first, the next ticket after `SET-004` should be:
+Unless repo truth changes first, the next ticket after `SET-003` should be:
 
-- `SET-003 — Create mobile design system tokens and UI primitives`
+- `SET-006 — Implement feature flags and remote parser config`
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `SET-004` becomes the earliest completed `P0` foundation closeout.
-- `SET-003` is the earliest remaining Sprint 0 ticket with satisfied dependencies and no external blocker.
+- `SET-003` is now closed, leaving no remaining unblocked Sprint 0 canonical tickets.
+- `SET-006` is the earliest remaining `P0` ticket in Sprint 1 with satisfied dependencies and no environment blocker documented in the backlog.

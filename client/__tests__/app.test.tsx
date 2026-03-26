@@ -103,6 +103,20 @@ describe('App', () => {
     expect(screen.getByText('Notification settings opened')).toBeTruthy();
   });
 
+  it('opens the design system showcase from Home', async () => {
+    const screen = render(<App />);
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+
+    expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
+
+    fireEvent.press(screen.getByRole('button', { name: 'View UI showcase' }));
+
+    expect(await screen.findByText('Mobile UI primitives')).toBeTruthy();
+    expect(screen.getByText('Foundation preview')).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Back to home' }).length).toBeGreaterThan(0);
+  });
+
   it('resumes a partially completed onboarding flow with saved choices', async () => {
     mockedLoadStoredSpendTrackerState.mockResolvedValue({
       onboardingPreferences: {
@@ -328,7 +342,7 @@ describe('App', () => {
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
 
     expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
-    fireEvent.press(screen.getAllByRole('button', { name: 'Add manual spend' })[0]);
+    fireEvent.press(screen.getAllByRole('button', { name: 'Add manual spend' })[0]!);
 
     expect(
       await screen.findByText('Capture a spend even without a notification'),

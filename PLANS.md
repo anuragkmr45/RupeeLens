@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### SET-003 — Create Mobile Design System Tokens and UI Primitives
+
+- **Status:** completed
+- **Ticket:** SET-003
+- **Goal:** Land a shared mobile UI package with reusable tokens and base primitives, wire the current Expo app onto it, and add a showcase screen plus snapshot coverage so later feature tickets stop re-implementing UI structure inline.
+- **Touched files/modules:** `PLANS.md`, `package.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, new `packages/mobile-ui/*`, `client/package.json`, `client/src/theme/colors.ts`, `client/src/app/SpendTrackerApp.tsx`, and client snapshot/user-flow tests.
+- **Rationale:** `SET-002` remains blocked, `SET-004` is now closed, and `SET-003` is the earliest remaining Sprint 0 foundation ticket with satisfied dependencies. The current client still keeps ad hoc colors, buttons, cards, chips, and sheet styles inline, so a shared package is the clearest next unblocker for later feature work.
+- **Risks:** The new package must work cleanly with Expo/Metro, the app refactor must not regress the current onboarding/Home/Inbox/manual flows, and the package should stay lean instead of turning into an over-abstracted design framework.
+- **API / schema impact:** No backend or persistence changes. Client-side UI packaging and theming only.
+- **Rollout / flag plan:** No flag. This becomes the default UI foundation for the mobile app and future feature screens.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** Tokens live in one shared package, the mobile app consumes the package primitives, light and dark theme support exists in the base components, a showcase screen demonstrates all required primitives, and snapshot plus repo quality checks pass.
+- **Outcome:** Added the new shared `@upi-spend-tracker/mobile-ui` workspace package with semantic tokens plus `AppShell`, `Button`, `Card`, `ListItem`, `BottomSheet`, `TextField`, `Chip`, `EmptyState`, `SectionHeader`, and `KPIBlock`; moved the Expo client onto those primitives through wrapper refactors and token consumption; added a Home-reachable design-system showcase screen; and covered the shared UI package with light/dark snapshot tests while keeping the existing onboarding, Home, Inbox, and manual-entry flows green.
+
 ### SET-004 — Implement Database Migration Framework for Mobile SQLite and Server PostgreSQL
 
 - **Status:** completed

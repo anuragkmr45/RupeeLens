@@ -9,9 +9,19 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import {
+  BottomSheet,
+  Button,
+  Card,
+  Chip,
+  EmptyState,
+  KPIBlock,
+  ListItem,
+  SectionHeader,
+  TextField,
+} from '@upi-spend-tracker/mobile-ui';
 
 import {
   buildClassificationDraft,
@@ -55,8 +65,9 @@ import {
 } from '../features/spend-tracker/persistence';
 import { APP_COPY } from '../lib/app-info';
 import { colors } from '../theme/colors';
+import { DesignSystemShowcaseScreen } from './DesignSystemShowcaseScreen';
 
-type Screen = 'classify' | 'home' | 'inbox' | 'manual' | 'onboarding';
+type Screen = 'classify' | 'home' | 'inbox' | 'manual' | 'onboarding' | 'showcase';
 type TabScreen = 'home' | 'inbox';
 
 const EMPTY_DRAFT: ClassificationDraft = {
@@ -467,6 +478,15 @@ export function SpendTrackerApp() {
     }
   }
 
+  if (!isHydrating && screen === 'showcase') {
+    return (
+      <View style={styles.screen}>
+        <StatusBar style="auto" />
+        <DesignSystemShowcaseScreen onBack={() => setScreen('home')} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.screen}>
       <StatusBar style="dark" />
@@ -547,6 +567,7 @@ export function SpendTrackerApp() {
                 onOpenManualEntry={() => handleOpenManualEntry('home')}
                 onOpenNotificationAccess={handleOpenNotificationAccess}
                 onOpenSearchPlaceholder={handleOpenSearchPlaceholder}
+                onOpenShowcase={() => setScreen('showcase')}
                 onResetDemoData={handleResetDemoData}
                 onSelectTab={(nextScreen) => setScreen(nextScreen)}
                 onStartClassification={handleStartClassification}
@@ -586,12 +607,11 @@ export function SpendTrackerApp() {
 function HydrationScreen() {
   return (
     <SectionCard accentColor={colors.heroGlowSecondary}>
-      <Text style={styles.sectionEyebrow}>Local session</Text>
-      <Text style={styles.cardTitle}>Restoring saved state on this device</Text>
-      <Text style={styles.bodyCopy}>
-        Reading the last onboarding choices, notification setup state, and saved transactions from
-        local SQLite tables.
-      </Text>
+      <SectionHeader
+        description="Reading the last onboarding choices, notification setup state, and saved transactions from local SQLite tables."
+        eyebrow="Local session"
+        title="Restoring saved state on this device"
+      />
     </SectionCard>
   );
 }
@@ -802,6 +822,7 @@ function HomeScreen({
   onOpenManualEntry,
   onOpenNotificationAccess,
   onOpenSearchPlaceholder,
+  onOpenShowcase,
   onResetDemoData,
   onSelectTab,
   onStartClassification,
@@ -815,6 +836,7 @@ function HomeScreen({
   onOpenManualEntry: () => void;
   onOpenNotificationAccess: () => Promise<void>;
   onOpenSearchPlaceholder: () => void;
+  onOpenShowcase: () => void;
   onResetDemoData: () => Promise<void>;
   onSelectTab: (screen: TabScreen) => void;
   onStartClassification: (transactionId: string) => void;
@@ -1021,6 +1043,7 @@ function HomeScreen({
             tone="secondary"
           />
           <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
+          <ActionButton label="View UI showcase" onPress={onOpenShowcase} tone="secondary" />
           <ActionButton label="Reset demo data" onPress={onResetDemoData} tone="secondary" />
         </View>
       </SectionCard>
@@ -1083,24 +1106,24 @@ function InboxScreen({
       keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.transaction.id}
       ListEmptyComponent={
-        <SectionCard accentColor={hasActiveFilters ? colors.panelWarm : colors.successSoft}>
-          <Text style={styles.cardTitle}>
-            {hasActiveFilters ? 'No matching items' : 'All caught up'}
-          </Text>
-          <Text style={styles.bodyCopy}>
-            {hasActiveFilters
+        <EmptyState
+          description={
+            hasActiveFilters
               ? 'The local Inbox still has saved items, but none match the current filter stack.'
-              : 'Return to Home to review the updated totals and top-spend signals for this session.'}
-          </Text>
-          <View style={styles.actionRow}>
-            {hasActiveFilters ? (
-              <ActionButton label="Clear filters" onPress={onClearFilters} tone="primary" />
-            ) : (
-              <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
-            )}
-            <ActionButton label="Back to home" onPress={onOpenHome} tone="secondary" />
-          </View>
-        </SectionCard>
+              : 'Return to Home to review the updated totals and top-spend signals for this session.'
+          }
+          title={hasActiveFilters ? 'No matching items' : 'All caught up'}
+          actions={
+            <View style={styles.actionRow}>
+              {hasActiveFilters ? (
+                <ActionButton label="Clear filters" onPress={onClearFilters} tone="primary" />
+              ) : (
+                <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
+              )}
+              <ActionButton label="Back to home" onPress={onOpenHome} tone="secondary" />
+            </View>
+          }
+        />
       }
       ListHeaderComponent={
         <View style={styles.inboxHeaderStack}>
@@ -1135,12 +1158,10 @@ function InboxScreen({
             </Text>
 
             <View style={styles.fieldStack}>
-              <Text style={styles.fieldLabel}>Merchant</Text>
-              <TextInput
+              <TextField
+                label="Merchant"
                 onChangeText={(merchantQuery) => onUpdateFilters({ merchantQuery })}
                 placeholder="Filter by merchant"
-                placeholderTextColor={colors.inkMuted}
-                style={styles.input}
                 value={filters.merchantQuery}
               />
             </View>
@@ -1291,72 +1312,59 @@ function ClassifyScreen({
   const saveDisabled = !isClassificationReady(draft);
 
   return (
-    <View style={styles.sheetScene}>
-      <Pressable
-        accessibilityLabel="Close quick classify"
-        accessibilityRole="button"
-        onPress={onCancel}
-        style={styles.sheetBackdrop}
-      />
+    <BottomSheet onDismiss={onCancel}>
+      <ScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sectionEyebrow}>Quick classify sheet</Text>
+          <Text style={styles.cardTitle}>Turn this payment into a usable spend</Text>
+          <Text style={styles.bodyCopy}>
+            Common cases should take two taps here: choose a suggestion, then save. The full edit
+            path still stays available inside the sheet.
+          </Text>
+        </View>
 
-      <View style={styles.sheetCard}>
-        <View style={styles.sheetHandle} />
-        <ScrollView
-          contentContainerStyle={styles.sheetContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sectionEyebrow}>Quick classify sheet</Text>
-            <Text style={styles.cardTitle}>Turn this payment into a usable spend</Text>
-            <Text style={styles.bodyCopy}>
-              Common cases should take two taps here: choose a suggestion, then save. The full edit
-              path still stays available inside the sheet.
-            </Text>
+        <SectionCard accentColor={colors.panelWarm}>
+          <Text style={styles.cardTitle}>{transaction.merchant}</Text>
+          <Text style={styles.amountLabel}>{formatCurrency(transaction.amountMinor)}</Text>
+          <Text style={styles.bodyCopy}>
+            {transaction.sourceApp} captured at {formatCaptureMoment(transaction.capturedAt)}
+          </Text>
+        </SectionCard>
+
+        <ClassificationFieldsCard
+          categoryId={draft.categoryId}
+          description="Suggestions stay explicit and editable. Tap one to fill both the item label and category in one move."
+          emptyStateCopy="Suggestions will appear here when the merchant or local history gives us a confident starting point."
+          itemLabel={draft.itemLabel}
+          onApplySuggestion={onApplySuggestion}
+          onChangeItemLabel={onChangeItemLabel}
+          onSelectCategory={onSelectCategory}
+          suggestions={suggestions}
+          title="Suggested values"
+        />
+
+        <SectionCard accentColor={colors.successSoft}>
+          <Text style={styles.cardTitle}>Save behavior</Text>
+          <Text style={styles.bodyCopy}>
+            Saving removes the payment from Inbox, recalculates Home immediately, and writes the
+            updated transaction back into local SQLite tables. Split remains a later follow-up
+            flow.
+          </Text>
+          <RuleIntentToggle isActive={draft.saveAsRule} onPress={onToggleSaveAsRule} />
+          <View style={styles.actionRow}>
+            <ActionButton label="Back to inbox" onPress={onCancel} tone="secondary" />
+            <ActionButton label="Skip for now" onPress={onSkip} tone="secondary" />
+            <ActionButton label="Split later" onPress={onOpenSplitPlaceholder} tone="secondary" />
+            <ActionButton
+              disabled={saveDisabled}
+              label="Save classification"
+              onPress={onSave}
+              tone="primary"
+            />
           </View>
-
-          <SectionCard accentColor={colors.panelWarm}>
-            <Text style={styles.cardTitle}>{transaction.merchant}</Text>
-            <Text style={styles.amountLabel}>{formatCurrency(transaction.amountMinor)}</Text>
-            <Text style={styles.bodyCopy}>
-              {transaction.sourceApp} captured at {formatCaptureMoment(transaction.capturedAt)}
-            </Text>
-          </SectionCard>
-
-          <ClassificationFieldsCard
-            categoryId={draft.categoryId}
-            description="Suggestions stay explicit and editable. Tap one to fill both the item label and category in one move."
-            emptyStateCopy="Suggestions will appear here when the merchant or local history gives us a confident starting point."
-            itemLabel={draft.itemLabel}
-            onApplySuggestion={onApplySuggestion}
-            onChangeItemLabel={onChangeItemLabel}
-            onSelectCategory={onSelectCategory}
-            suggestions={suggestions}
-            title="Suggested values"
-          />
-
-          <SectionCard accentColor={colors.successSoft}>
-            <Text style={styles.cardTitle}>Save behavior</Text>
-            <Text style={styles.bodyCopy}>
-              Saving removes the payment from Inbox, recalculates Home immediately, and writes the
-              updated transaction back into local SQLite tables. Split remains a later follow-up
-              flow.
-            </Text>
-            <RuleIntentToggle isActive={draft.saveAsRule} onPress={onToggleSaveAsRule} />
-            <View style={styles.actionRow}>
-              <ActionButton label="Back to inbox" onPress={onCancel} tone="secondary" />
-              <ActionButton label="Skip for now" onPress={onSkip} tone="secondary" />
-              <ActionButton label="Split later" onPress={onOpenSplitPlaceholder} tone="secondary" />
-              <ActionButton
-                disabled={saveDisabled}
-                label="Save classification"
-                onPress={onSave}
-                tone="primary"
-              />
-            </View>
-          </SectionCard>
-        </ScrollView>
-      </View>
-    </View>
+        </SectionCard>
+      </ScrollView>
+    </BottomSheet>
   );
 }
 
@@ -1407,30 +1415,21 @@ function ManualEntryScreen({
       <SectionCard accentColor={colors.panelWarm}>
         <Text style={styles.cardTitle}>Spend details</Text>
         <View style={styles.inputStack}>
-          <View style={styles.fieldStack}>
-            <Text style={styles.fieldLabel}>Amount</Text>
-            <TextInput
-              keyboardType="decimal-pad"
-              onChangeText={onChangeAmount}
-              placeholder="180 or 180.50"
-              placeholderTextColor={colors.inkMuted}
-              style={styles.input}
-              value={draft.amountInput}
-            />
-          </View>
+          <TextField
+            keyboardType="decimal-pad"
+            label="Amount"
+            onChangeText={onChangeAmount}
+            placeholder="180 or 180.50"
+            value={draft.amountInput}
+          />
 
-          <View style={styles.fieldStack}>
-            <Text style={styles.fieldLabel}>Merchant</Text>
-            <TextInput
-              autoCapitalize="words"
-              onChangeText={onChangeMerchant}
-              placeholder="Where did you spend?"
-              placeholderTextColor={colors.inkMuted}
-              style={styles.input}
-              value={draft.merchant}
-            />
-          </View>
-
+          <TextField
+            autoCapitalize="words"
+            label="Merchant"
+            onChangeText={onChangeMerchant}
+            placeholder="Where did you spend?"
+            value={draft.merchant}
+          />
         </View>
       </SectionCard>
 
@@ -1513,12 +1512,10 @@ function ClassificationFieldsCard({
       </View>
 
       <View style={styles.fieldStack}>
-        <Text style={styles.fieldLabel}>Item label</Text>
-        <TextInput
+        <TextField
+          label="Item label"
           onChangeText={onChangeItemLabel}
           placeholder="What did you buy?"
-          placeholderTextColor={colors.inkMuted}
-          style={styles.input}
           value={itemLabel}
         />
       </View>
@@ -1596,12 +1593,7 @@ function SectionCard({
   accentColor: string;
   children: ReactNode;
 }) {
-  return (
-    <View style={styles.sectionCard}>
-      <View style={[styles.sectionAccent, { backgroundColor: accentColor }]} />
-      <View style={styles.sectionBody}>{children}</View>
-    </View>
-  );
+  return <Card accentColor={accentColor}>{children}</Card>;
 }
 
 function MetricCard({
@@ -1612,9 +1604,8 @@ function MetricCard({
   value: string;
 }) {
   return (
-    <View style={styles.metricCard}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
+    <View style={styles.metricCardShell}>
+      <KPIBlock label={label} value={value} />
     </View>
   );
 }
@@ -1660,16 +1651,7 @@ function StatusChip({
   label: string;
   tone: 'pending' | 'ready';
 }) {
-  return (
-    <View
-      style={[
-        styles.statusChip,
-        tone === 'ready' ? styles.statusChipReady : styles.statusChipPending,
-      ]}
-    >
-      <Text style={styles.statusChipText}>{label}</Text>
-    </View>
-  );
+  return <Chip label={label} tone={tone} />;
 }
 
 function ActionButton({
@@ -1685,29 +1667,16 @@ function ActionButton({
   onPress: () => void | Promise<void>;
   tone: 'primary' | 'secondary';
 }) {
+  const buttonAccessibilityProps = accessibilityLabel ? { accessibilityLabel } : {};
+
   return (
-    <Pressable
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole="button"
+    <Button
+      {...buttonAccessibilityProps}
       disabled={disabled}
+      label={label}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.button,
-        tone === 'primary' ? styles.buttonPrimary : styles.buttonSecondary,
-        disabled ? styles.buttonDisabled : null,
-        pressed ? styles.buttonPressed : null,
-      ]}
-    >
-      <Text
-        style={[
-          styles.buttonLabel,
-          tone === 'primary' ? styles.buttonLabelPrimary : styles.buttonLabelSecondary,
-          disabled ? styles.buttonLabelDisabled : null,
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
+      variant={tone === 'primary' ? 'primary' : 'secondary'}
+    />
   );
 }
 
@@ -1746,26 +1715,7 @@ function CategoryChip({
   label: string;
   onPress: () => void;
 }) {
-  return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={[
-        styles.categoryChip,
-        isActive ? styles.categoryChipActive : styles.categoryChipIdle,
-      ]}
-    >
-      <Text
-        style={[
-          styles.categoryChipLabel,
-          isActive ? styles.categoryChipLabelActive : styles.categoryChipLabelIdle,
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
+  return <Chip label={label} onPress={onPress} selected={isActive} />;
 }
 
 function TransactionCard({
@@ -1785,17 +1735,11 @@ function TransactionCard({
   const hasSavedItemPreview = transaction.items[0]?.label?.trim().length;
 
   return (
-    <View style={styles.transactionCard}>
-      <View style={styles.transactionHeader}>
-        <View style={styles.transactionCopy}>
-          <Text style={styles.transactionTitle}>{transaction.merchant}</Text>
-          <Text style={styles.transactionMeta}>
-            {transaction.sourceApp} | {formatCaptureMoment(transaction.capturedAt)}
-          </Text>
-        </View>
-        <Text style={styles.transactionAmount}>{formatCurrency(transaction.amountMinor)}</Text>
-      </View>
-
+    <ListItem
+      subtitle={`${transaction.sourceApp} | ${formatCaptureMoment(transaction.capturedAt)}`}
+      title={transaction.merchant}
+      trailing={<Text style={styles.transactionAmount}>{formatCurrency(transaction.amountMinor)}</Text>}
+    >
       <StatusChip
         label={reviewStatus === 'skipped' ? 'Skipped' : 'Needs review'}
         tone={reviewStatus === 'skipped' ? 'pending' : 'ready'}
@@ -1840,7 +1784,7 @@ function TransactionCard({
           tone="secondary"
         />
       </View>
-    </View>
+    </ListItem>
   );
 }
 
@@ -2072,6 +2016,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
     justifyContent: 'space-between',
+  },
+  metricCardShell: {
+    width: '48%',
   },
   metricLabel: {
     color: colors.inkMuted,

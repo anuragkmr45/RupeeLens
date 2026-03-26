@@ -8,6 +8,7 @@ Android-first v1 scaffold for a consumer UPI spend tracker. The repo now include
 - `server/api`: Fastify API runtime
 - `server/worker`: Node.js worker runtime
 - `packages/contracts`: shared API DTOs
+- `packages/mobile-ui`: shared mobile design-system tokens and UI primitives
 - `packages/shared-types`: type-only shared primitives and interfaces
 - `packages/shared-utils`: runtime-safe shared helpers
 - `packages/eslint-config`: shared flat ESLint config
@@ -113,6 +114,7 @@ Within a continuing Codex thread for this repo, a user message of `next` means r
 ## Current Scope
 
 - Android-first onboarding now includes notification education, source-app selection, budget-cycle choice, sync preference, and a cycle-aware local dashboard with budget progress, top items, recent activity, a filtered Inbox, bottom-sheet quick classify, skipped-item recovery, and manual spend entry
+- Mobile UI foundations now live in `@upi-spend-tracker/mobile-ui`, and Home links to a design-system showcase screen that demonstrates the shared primitives in light and dark themes
 - Notification access setup can hand off to system settings, but real permission state and native capture ingestion are not implemented yet
 - Home now includes quick-action entrypoints for budgets and search, while Inbox supports local status, merchant, source-app, amount, and age filters plus skip/delete actions on a FlatList path validated against a seeded 1,000-item local queue; quick classify now runs in a bottom sheet with explicit suggestion chips and a save-as-rule intent toggle; the actual budget creation, search, split, and durable rule screens still arrive in later tickets
 - Onboarding, classified spends, and manual entries persist on device through local SQLite tables with ordered migrations and root-level DB validation; sync and native capture import are still pending

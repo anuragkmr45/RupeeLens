@@ -94,7 +94,7 @@ CI required for main branch; docs updated.
 - **Story points:** 5
 - **Goal:** Ensure consistent UI, dark mode, and future theming without repeated redesign.
 - **Dependencies:** SET-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-26 | Completed At: 2026-03-26 | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: `@upi-spend-tracker/mobile-ui` now owns the shared light/dark theme tokens and base primitives, the Expo client consumes those primitives and tokenized colors, Home exposes a showcase screen for the full primitive set, and snapshot plus app-flow tests cover the shared UI package.
 
 **Description**  
 Define spacing, typography, radius, elevation, semantic colors, icon sizes, and motion tokens. Build base components: AppShell, Button, Card, ListItem, BottomSheet, TextField, Chip, EmptyState, SectionHeader, KPIBlock.
