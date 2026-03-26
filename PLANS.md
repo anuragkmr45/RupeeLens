@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### CAP-001 — Build Android NotificationListenerService and Allowlist Controls
+
+- **Status:** blocked
+- **Ticket:** CAP-001
+- **Goal:** Add the first Android-native capture layer so notification-listener permission state, per-app allowlist filtering, raw snapshot persistence, and app-visible diagnostics all exist before parser work starts.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, Android native files under `client/android/app/src/main/java/com/upispendtracker/client/*`, `client/android/app/src/main/AndroidManifest.xml`, new client-side capture bridge/helpers, `client/src/app/SpendTrackerApp.tsx`, related app/native tests, and repo-truth docs if the implementation changes current scope/status.
+- **Rationale:** `SET-002` remains blocked, `SET-006` is now closed, and `CAP-001` is the earliest remaining `P0` canonical ticket with satisfied dependencies. The Android app currently has no listener service, no native snapshot store, no allowlist enforcement, and no real permission reflection in UI.
+- **Risks:** Native capture touches Android lifecycle, permissions, local persistence, and JS bridge seams. The implementation must stay honest about what belongs to later tickets: no parsing, no dedupe, no capture import into the domain DB, and no fake instrumentation success if device/emulator validation is unavailable.
+- **API / schema impact:** No backend/API contract change expected. Adds Android-native capture storage and JS bridge methods inside the client app only.
+- **Rollout / flag plan:** Respect the existing remote bootstrap kill switch for capture-related UI. Native capture should remain Android-only and local-first.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus targeted Android Gradle compile/test commands and native validation if the environment supports it.
+- **Done when:** Android has a real `NotificationListenerService`, only allowlisted packages are stored, UI reflects live permission state and allowlist choices, diagnostics show recent native-capture status, and repo quality gates plus feasible Android validation stay green.
+- **Outcome:** Added an Android-native notification listener service, SharedPreferences-backed allowlist store, local raw-snapshot SQLite helper, React Native diagnostics bridge, and Home/onboarding permission diagnostics while keeping root lint/typecheck/test/build, `pnpm db:validate`, client tests, and Android Gradle unit-test/debug-assemble validation green. The ticket remains blocked on supported-device closeout because `adb devices` shows no attached emulator or phone, so listener callbacks and sample-app flows could not be manually or instrumentally validated on Android.
+
 ### SET-006 — Implement Feature Flags and Remote Parser Config
 
 - **Status:** completed

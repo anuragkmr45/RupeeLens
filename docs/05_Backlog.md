@@ -206,7 +206,7 @@ Detect payment notifications reliably and turn them into structured capture even
 - **Story points:** 8
 - **Goal:** Observe supported payment notifications only after explicit user opt-in.
 - **Dependencies:** SET-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: blocked | Owner: codex | Started At: 2026-03-26 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth now includes an Android `NotificationListenerService`, native allowlist persistence, raw snapshot storage, a React Native diagnostics bridge, and UI permission reflection tied to the native service. Client tests, root quality gates, and Android unit-test/debug-assemble validation passed, but the ticket remains blocked because `adb devices` shows no attached emulator or phone for listener callback and sample-app validation on supported Android versions.
 
 **Description**  
 Create native Android service to receive notifications, filter by allowed packages, and persist raw payload snapshots needed for parsing. Add onboarding checks and diagnostics.

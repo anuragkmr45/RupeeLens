@@ -208,12 +208,12 @@
       ],
       "tests": "Instrumented tests for listener callbacks and allowlist filtering; manual tests with sample apps.",
       "done": "Notification listener stable on supported Android versions.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "blocked",
+      "owner": "codex",
+      "started_at": "2026-03-26",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth now includes an Android `NotificationListenerService`, native allowlist persistence, raw snapshot storage, a React Native diagnostics bridge, and UI permission reflection tied to the native service. Client tests, root quality gates, and Android unit-test/debug-assemble validation passed, but the ticket remains blocked because `adb devices` shows no attached emulator or phone for listener callback and sample-app validation on supported Android versions."
     },
     {
       "id": "CAP-002",

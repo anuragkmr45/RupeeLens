@@ -125,12 +125,13 @@ Do not start a second ticket automatically in the same run.
 
 ## Current Default Next Ticket
 
-Unless repo truth changes first, the next ticket after `SET-006` should be:
+Unless repo truth changes first, the default next ticket is:
 
-- `CAP-001 — Build Android NotificationListenerService and allowlist controls`
+- `CAP-001 — Build Android NotificationListenerService and allowlist controls` as a closeout pass if an Android emulator or phone is available for listener validation
+- Otherwise `CAP-002 — Implement parser registry with package-specific and generic parsers`
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `SET-006` is now closed, leaving `CAP-001` as the earliest remaining `P0` ticket in Sprint 1 with satisfied dependencies.
-- Native capture infrastructure is now the next real blocker for parser ingestion, permission-state reflection, and downstream capture tickets.
+- Repo truth now includes the CAP-001 native listener foundation, but its final closeout is blocked on supported-device validation rather than missing implementation.
+- If native validation is still unavailable, parser work becomes the next best repo-side product step because the listener, allowlist, and diagnostics foundation already exists locally.

@@ -33,10 +33,12 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 - UI-level onboarding handoff that can open Android notification settings
 - First signed remote bootstrap-config loop with API delivery, mobile cache/refresh handling, rollout channels, feature flags, parser templates, and stale-safe fallback observability
+- Android-native `NotificationListenerService` foundation with allowlist filtering, raw snapshot persistence, a React Native diagnostics bridge, and UI permission-state reflection sourced from the native listener permission
 
 **Remaining**
 
-- Notification listener service, allowlist controls, parser registry, dedupe, and native capture DB
+- Supported-device closeout for the notification listener on a real emulator or phone
+- Parser registry, dedupe, and native capture repository/domain import work
 
 ## Sprint 2 — First Usable App
 
@@ -49,8 +51,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 **Remaining**
 
-- Real permission-state reflection instead of advisory UI state
-- Native capture bridge, diagnostics surface, and quick-classify notification flow
+- Notification-driven quick-classify flow
 - Budget creation flow, search screen, partial/conflict Inbox views, and split/create-rule actions
 
 ## Sprint 3 — Core UX And Intelligence

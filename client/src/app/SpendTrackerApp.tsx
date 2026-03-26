@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { type ReactNode, useEffect, useState } from 'react';
 import {
+  AppState,
   Alert,
   FlatList,
   Linking,
@@ -63,6 +64,13 @@ import {
   type SupportedSourceAppId,
   type SyncMode,
 } from '../features/spend-tracker/persistence';
+import {
+  clearStoredCaptureSnapshots,
+  DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS,
+  getNativeCaptureDiagnostics,
+  setAllowedSourceApps,
+  type NativeCaptureDiagnostics,
+} from '../features/android-capture/native-capture';
 import {
   buildBootstrapRefreshFailureState,
   createInitialBootstrapConfigState,
@@ -168,6 +176,9 @@ export function SpendTrackerApp() {
     useState<ManualEntryDraft>(EMPTY_MANUAL_ENTRY_DRAFT);
   const [inboxFilters, setInboxFilters] = useState<InboxFilters>(DEFAULT_INBOX_FILTERS);
   const [manualReturnScreen, setManualReturnScreen] = useState<TabScreen>('home');
+  const [captureDiagnostics, setCaptureDiagnostics] = useState<NativeCaptureDiagnostics>(
+    DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS,
+  );
   const [bootstrapState, setBootstrapState] = useState<BootstrapConfigState>(
     createInitialBootstrapConfigState(),
   );
@@ -223,6 +234,59 @@ export function SpendTrackerApp() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function refreshDiagnostics() {
+      const diagnostics = await getNativeCaptureDiagnostics();
+
+      if (!isMounted) {
+        return;
+      }
+
+      setCaptureDiagnostics(diagnostics);
+    }
+
+    void refreshDiagnostics();
+
+    const appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        void refreshDiagnostics();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      appStateSubscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isHydrating) {
+      return;
+    }
+
+    let isMounted = true;
+
+    async function syncAllowedApps() {
+      const diagnostics = await setAllowedSourceApps(
+        onboardingPreferences.selectedSourceAppIds,
+      );
+
+      if (!isMounted) {
+        return;
+      }
+
+      setCaptureDiagnostics(diagnostics);
+    }
+
+    void syncAllowedApps();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isHydrating, onboardingPreferences.selectedSourceAppIds]);
 
   useEffect(() => {
     let isMounted = true;
@@ -308,6 +372,10 @@ export function SpendTrackerApp() {
         'Open the system settings manually and allow notification access for UPI Spend Tracker.',
       );
     }
+  }
+
+  async function handleRefreshCaptureDiagnostics() {
+    setCaptureDiagnostics(await getNativeCaptureDiagnostics());
   }
 
   function handleStartClassification(transactionId: string) {
@@ -535,6 +603,7 @@ export function SpendTrackerApp() {
 
     try {
       await clearStoredSpendTrackerState();
+      setCaptureDiagnostics(await clearStoredCaptureSnapshots());
     } catch {
       Alert.alert(
         'Unable to reset local data',
@@ -608,6 +677,7 @@ export function SpendTrackerApp() {
             {!isHydrating && screen === 'onboarding' ? (
               <OnboardingScreen
                 bootstrapState={bootstrapState}
+                captureDiagnostics={captureDiagnostics}
                 onboardingPreferences={onboardingPreferences}
                 notificationAccessState={notificationAccessState}
                 onContinue={() => {
@@ -616,6 +686,7 @@ export function SpendTrackerApp() {
                 }}
                 onClearSourceApps={handleClearSourceApps}
                 onOpenNotificationAccess={handleOpenNotificationAccess}
+                onRefreshCaptureDiagnostics={handleRefreshCaptureDiagnostics}
                 onSelectAllSourceApps={handleSelectAllSourceApps}
                 onSelectBudgetCycle={handleSelectBudgetCycle}
                 onSelectSyncMode={handleSelectSyncMode}
@@ -626,6 +697,7 @@ export function SpendTrackerApp() {
             {!isHydrating && screen === 'home' ? (
               <HomeScreen
                 bootstrapState={bootstrapState}
+                captureDiagnostics={captureDiagnostics}
                 nextPendingTransaction={pendingTransactions[0] ?? null}
                 notificationAccessState={notificationAccessState}
                 onboardingPreferences={onboardingPreferences}
@@ -633,6 +705,7 @@ export function SpendTrackerApp() {
                 onOpenInbox={() => setScreen('inbox')}
                 onOpenManualEntry={() => handleOpenManualEntry('home')}
                 onOpenNotificationAccess={handleOpenNotificationAccess}
+                onRefreshCaptureDiagnostics={handleRefreshCaptureDiagnostics}
                 onOpenSearchPlaceholder={handleOpenSearchPlaceholder}
                 onOpenShowcase={() => setScreen('showcase')}
                 onResetDemoData={handleResetDemoData}
@@ -685,22 +758,26 @@ function HydrationScreen() {
 
 function OnboardingScreen({
   bootstrapState,
+  captureDiagnostics,
   onboardingPreferences,
   notificationAccessState,
   onContinue,
   onClearSourceApps,
   onOpenNotificationAccess,
+  onRefreshCaptureDiagnostics,
   onSelectAllSourceApps,
   onSelectBudgetCycle,
   onSelectSyncMode,
   onToggleSourceApp,
 }: {
   bootstrapState: BootstrapConfigState;
+  captureDiagnostics: NativeCaptureDiagnostics;
   onboardingPreferences: OnboardingPreferences;
   notificationAccessState: NotificationAccessState;
   onContinue: () => void;
   onClearSourceApps: () => void;
   onOpenNotificationAccess: () => Promise<void>;
+  onRefreshCaptureDiagnostics: () => Promise<void>;
   onSelectAllSourceApps: () => void;
   onSelectBudgetCycle: (budgetCycleId: BudgetCycleId) => void;
   onSelectSyncMode: (syncMode: SyncMode) => void;
@@ -718,8 +795,9 @@ function OnboardingScreen({
   );
   const selectedSyncModeLabel = getSyncModeLabel(onboardingPreferences.syncMode);
   const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
+  const listenerPermissionGranted = captureDiagnostics.listenerPermissionGranted;
   const completionCount = [
-    notificationAccessState === 'settings_opened' || capturePausedRemotely,
+    listenerPermissionGranted || capturePausedRemotely,
     onboardingPreferences.selectedSourceAppIds.length > 0,
     true,
     true,
@@ -768,24 +846,36 @@ function OnboardingScreen({
           {capturePausedRemotely
             ? bootstrapState.config.runtimeCompatibility?.reason ??
               'Remote config currently pauses notification capture. Keep the local review loop running with manual add while refresh retries.'
+            : listenerPermissionGranted
+              ? 'Android now reports notification-listener access as granted for this app. Allowed source apps below will drive native filtering.'
             : isAndroid
-            ? 'Notification access is needed before Android can hand UPI payment alerts to the app. Open the system screen, review the permission, then return here to finish setup.'
-            : 'Open iOS app settings, then return here. iOS remains shell-only and does not support notification capture in v1.'}
+              ? 'Notification access is needed before Android can hand UPI payment alerts to the app. Open the system screen, grant access, then return here and retry the permission check.'
+              : 'Open iOS app settings, then return here. iOS remains shell-only and does not support notification capture in v1.'}
         </Text>
         <StatusChip
           label={
             capturePausedRemotely
               ? 'Capture paused remotely'
-              : notificationAccessState === 'settings_opened'
-              ? 'Settings opened'
+              : listenerPermissionGranted
+                ? 'Permission granted'
+                : notificationAccessState === 'settings_opened'
+                  ? 'Settings opened, permission still pending'
               : 'Still needs review'
           }
           tone={
-            capturePausedRemotely || notificationAccessState === 'settings_opened'
+            capturePausedRemotely || listenerPermissionGranted
               ? 'ready'
               : 'pending'
           }
         />
+        <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>
+            Native service: {captureDiagnostics.serviceAvailable ? 'available in this Android build' : 'not available'}
+          </Text>
+          <Text style={styles.helperCopy}>
+            Stored raw captures: {captureDiagnostics.storedSnapshotCount}
+          </Text>
+        </View>
         <View style={styles.actionRow}>
           <ActionButton
             disabled={capturePausedRemotely}
@@ -793,6 +883,13 @@ function OnboardingScreen({
             onPress={onOpenNotificationAccess}
             tone="primary"
           />
+          {isAndroid ? (
+            <ActionButton
+              label="Retry permission check"
+              onPress={onRefreshCaptureDiagnostics}
+              tone="secondary"
+            />
+          ) : null}
         </View>
       </SectionCard>
 
@@ -801,8 +898,8 @@ function OnboardingScreen({
       <SectionCard accentColor={colors.panelWarm}>
         <Text style={styles.cardTitle}>Source apps</Text>
         <Text style={styles.bodyCopy}>
-          Choose which payment apps to prepare for capture later. These are saved as local
-          onboarding preferences today and do not yet control Android-native filtering.
+          Choose which payment apps should be allowed for capture. On Android these choices now
+          sync into the native allowlist and block unsupported packages from being stored.
         </Text>
         <StatusChip
           label={
@@ -833,6 +930,9 @@ function OnboardingScreen({
           ))}
         </View>
         <Text style={styles.helperCopy}>{selectedSourceAppsSummary}</Text>
+        <Text style={styles.helperCopy}>
+          Native allowlist: {formatSourceAppSummary(captureDiagnostics.allowedSourceAppIds)}
+        </Text>
       </SectionCard>
 
       <SectionCard accentColor={colors.panel}>
@@ -897,6 +997,7 @@ function OnboardingScreen({
 
 function HomeScreen({
   bootstrapState,
+  captureDiagnostics,
   nextPendingTransaction,
   notificationAccessState,
   onboardingPreferences,
@@ -904,6 +1005,7 @@ function HomeScreen({
   onOpenInbox,
   onOpenManualEntry,
   onOpenNotificationAccess,
+  onRefreshCaptureDiagnostics,
   onOpenSearchPlaceholder,
   onOpenShowcase,
   onResetDemoData,
@@ -912,6 +1014,7 @@ function HomeScreen({
   summary,
 }: {
   bootstrapState: BootstrapConfigState;
+  captureDiagnostics: NativeCaptureDiagnostics;
   nextPendingTransaction: Transaction | null;
   notificationAccessState: NotificationAccessState;
   onboardingPreferences: OnboardingPreferences;
@@ -919,6 +1022,7 @@ function HomeScreen({
   onOpenInbox: () => void;
   onOpenManualEntry: () => void;
   onOpenNotificationAccess: () => Promise<void>;
+  onRefreshCaptureDiagnostics: () => Promise<void>;
   onOpenSearchPlaceholder: () => void;
   onOpenShowcase: () => void;
   onResetDemoData: () => Promise<void>;
@@ -938,6 +1042,7 @@ function HomeScreen({
     0,
   );
   const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
+  const listenerPermissionGranted = captureDiagnostics.listenerPermissionGranted;
   const budgetsEnabled = bootstrapState.config.featureFlags.budgets_enabled;
   const searchEnabled = bootstrapState.config.featureFlags.search_enabled;
   const showcaseEnabled = bootstrapState.config.featureFlags.showcase_enabled;
@@ -1129,17 +1234,25 @@ function HomeScreen({
           label={
             capturePausedRemotely
               ? 'Capture paused remotely'
-              : notificationAccessState === 'settings_opened'
-              ? 'Notification settings opened'
+              : listenerPermissionGranted
+                ? 'Notification access granted'
+                : notificationAccessState === 'settings_opened'
+                  ? 'Settings opened, permission still pending'
               : 'Notification access not confirmed'
           }
           tone={
-            capturePausedRemotely || notificationAccessState === 'settings_opened'
+            capturePausedRemotely || listenerPermissionGranted
               ? 'ready'
               : 'pending'
           }
         />
       </SectionCard>
+
+      <CaptureDiagnosticsCard
+        captureDiagnostics={captureDiagnostics}
+        onOpenNotificationAccess={onOpenNotificationAccess}
+        onRefreshCaptureDiagnostics={onRefreshCaptureDiagnostics}
+      />
 
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Scope right now</Text>
@@ -1213,6 +1326,61 @@ function BootstrapConfigStatusCard({
         label={getBootstrapStatusLabel(bootstrapState)}
         tone={bootstrapState.status === 'fresh' ? 'ready' : 'pending'}
       />
+    </SectionCard>
+  );
+}
+
+function CaptureDiagnosticsCard({
+  captureDiagnostics,
+  onOpenNotificationAccess,
+  onRefreshCaptureDiagnostics,
+}: {
+  captureDiagnostics: NativeCaptureDiagnostics;
+  onOpenNotificationAccess: () => Promise<void>;
+  onRefreshCaptureDiagnostics: () => Promise<void>;
+}) {
+  return (
+    <SectionCard accentColor={colors.panelWarm}>
+      <Text style={styles.cardTitle}>Android capture diagnostics</Text>
+      <Text style={styles.bodyCopy}>
+        This native status now comes from the Android listener service and raw snapshot store, not
+        just the local onboarding checklist.
+      </Text>
+      <View style={styles.helperStack}>
+        <Text style={styles.helperCopy}>
+          Listener permission:{' '}
+          {captureDiagnostics.listenerPermissionGranted ? 'granted' : 'not granted yet'}
+        </Text>
+        <Text style={styles.helperCopy}>
+          Allowed source apps: {formatSourceAppSummary(captureDiagnostics.allowedSourceAppIds)}
+        </Text>
+        <Text style={styles.helperCopy}>
+          Stored raw captures: {captureDiagnostics.storedSnapshotCount}
+        </Text>
+        <Text style={styles.helperCopy}>
+          Last capture:{' '}
+          {captureDiagnostics.lastCapture
+            ? `${getSourceAppLabel(captureDiagnostics.lastCapture.sourceAppId)} · ${formatNativeCaptureMoment(captureDiagnostics.lastCapture.capturedAtMs)}`
+            : 'No allowlisted notifications stored yet'}
+        </Text>
+        {captureDiagnostics.lastCapture ? (
+          <Text style={styles.helperCopy}>
+            Snapshot preview: {captureDiagnostics.lastCapture.preview}
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.actionRow}>
+        <ActionButton
+          label="Refresh diagnostics"
+          onPress={onRefreshCaptureDiagnostics}
+          tone="secondary"
+        />
+        <ActionButton
+          label="Review notification access"
+          onPress={onOpenNotificationAccess}
+          tone="secondary"
+        />
+      </View>
     </SectionCard>
   );
 }
@@ -1961,11 +2129,23 @@ function getSourceAppLabel(sourceAppId: SupportedSourceAppId): string {
   );
 }
 
+function formatSourceAppSummary(sourceAppIds: SupportedSourceAppId[]): string {
+  if (sourceAppIds.length === 0) {
+    return 'None selected';
+  }
+
+  return sourceAppIds.map((sourceAppId) => getSourceAppLabel(sourceAppId)).join(', ');
+}
+
 function getBudgetCycleLabel(budgetCycleId: BudgetCycleId): string {
   return (
     BUDGET_CYCLE_OPTIONS.find((option) => option.id === budgetCycleId)?.label ??
     'Calendar month'
   );
+}
+
+function formatNativeCaptureMoment(capturedAtMs: number): string {
+  return formatCaptureMoment(new Date(capturedAtMs).toISOString());
 }
 
 function getBudgetCycleStartDay(budgetCycleId: BudgetCycleId): number {

@@ -2,6 +2,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import App from '../App';
 import { seededTransactions, type Transaction } from '../src/features/spend-tracker/domain';
+import type { NativeCaptureDiagnostics } from '../src/features/android-capture/native-capture';
 import type { BootstrapConfigState } from '../src/features/bootstrap-config/runtime-config';
 import {
   DEFAULT_ONBOARDING_PREFERENCES,
@@ -179,6 +180,37 @@ jest.mock('../src/features/bootstrap-config/runtime-config', () => ({
   }),
 }));
 
+jest.mock('../src/features/android-capture/native-capture', () => ({
+  clearStoredCaptureSnapshots: jest.fn().mockResolvedValue({
+    allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    lastCapture: null,
+    listenerPermissionGranted: false,
+    serviceAvailable: true,
+    storedSnapshotCount: 0,
+  }),
+  DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS: {
+    allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    lastCapture: null,
+    listenerPermissionGranted: false,
+    serviceAvailable: true,
+    storedSnapshotCount: 0,
+  },
+  getNativeCaptureDiagnostics: jest.fn().mockResolvedValue({
+    allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    lastCapture: null,
+    listenerPermissionGranted: false,
+    serviceAvailable: true,
+    storedSnapshotCount: 0,
+  }),
+  setAllowedSourceApps: jest.fn().mockResolvedValue({
+    allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    lastCapture: null,
+    listenerPermissionGranted: false,
+    serviceAvailable: true,
+    storedSnapshotCount: 0,
+  }),
+}));
+
 const mockedLoadStoredSpendTrackerState =
   loadStoredSpendTrackerState as jest.MockedFunction<typeof loadStoredSpendTrackerState>;
 const mockedSaveStoredSpendTrackerState =
@@ -188,6 +220,12 @@ const mockedBootstrapConfigModule = jest.requireMock(
 ) as {
   hydrateBootstrapConfigCache: jest.Mock<Promise<BootstrapConfigState | null>, []>;
   refreshBootstrapConfig: jest.Mock<Promise<BootstrapConfigState>, []>;
+};
+const mockedNativeCaptureModule = jest.requireMock(
+  '../src/features/android-capture/native-capture'
+) as {
+  getNativeCaptureDiagnostics: jest.Mock<Promise<NativeCaptureDiagnostics>, []>;
+  setAllowedSourceApps: jest.Mock<Promise<NativeCaptureDiagnostics>, [string[]]>;
 };
 
 function buildMockBootstrapState(
@@ -236,6 +274,19 @@ function buildMockBootstrapState(
   };
 }
 
+function buildMockCaptureDiagnostics(
+  overrides: Partial<NativeCaptureDiagnostics> = {},
+): NativeCaptureDiagnostics {
+  return {
+    allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    lastCapture: null,
+    listenerPermissionGranted: false,
+    serviceAvailable: true,
+    storedSnapshotCount: 0,
+    ...overrides,
+  };
+}
+
 function buildHighVolumeInboxTransactions(totalTransactions = 1_000): Transaction[] {
   return [
     {
@@ -270,6 +321,14 @@ describe('App', () => {
     jest.clearAllMocks();
     mockedLoadStoredSpendTrackerState.mockResolvedValue(null);
     mockedSaveStoredSpendTrackerState.mockResolvedValue(undefined);
+    mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(
+      buildMockCaptureDiagnostics(),
+    );
+    mockedNativeCaptureModule.setAllowedSourceApps.mockImplementation(async (sourceAppIds) =>
+      buildMockCaptureDiagnostics({
+        allowedSourceAppIds: sourceAppIds as NativeCaptureDiagnostics['allowedSourceAppIds'],
+      }),
+    );
     mockedBootstrapConfigModule.hydrateBootstrapConfigCache.mockResolvedValue(
       buildMockBootstrapState(),
     );
@@ -337,11 +396,12 @@ describe('App', () => {
 
     expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
     expect(screen.getByText('Remote bootstrap config')).toBeTruthy();
+    expect(screen.getByText('Android capture diagnostics')).toBeTruthy();
     expect(screen.getByText('Budget progress')).toBeTruthy();
     expect(screen.getByText('Top items')).toBeTruthy();
     expect(screen.getByText('Create budget')).toBeTruthy();
     expect(screen.getByText('1 pending')).toBeTruthy();
-    expect(screen.getByText('Notification settings opened')).toBeTruthy();
+    expect(screen.getByText('Settings opened, permission still pending')).toBeTruthy();
   });
 
   it('opens the design system showcase from Home', async () => {
@@ -420,11 +480,54 @@ describe('App', () => {
     const screen = render(<App />);
 
     expect(await screen.findByText('Source apps')).toBeTruthy();
-    expect(screen.getByText('Settings opened')).toBeTruthy();
+    expect(screen.getByText('Settings opened, permission still pending')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'BHIM' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Salary cycle' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Prepare for sync later' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Finish setup' })).toBeTruthy();
+  });
+
+  it('syncs the onboarding source-app selection into the native allowlist', async () => {
+    const screen = render(<App />);
+
+    expect(await screen.findByText('Source apps')).toBeTruthy();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Deselect all' }));
+    fireEvent.press(screen.getByRole('button', { name: 'BHIM' }));
+
+    await waitFor(() =>
+      expect(mockedNativeCaptureModule.setAllowedSourceApps).toHaveBeenLastCalledWith(['bhim']),
+    );
+    expect(screen.getByText('Native allowlist: BHIM')).toBeTruthy();
+  });
+
+  it('shows native capture diagnostics from the Android bridge', async () => {
+    const diagnostics = buildMockCaptureDiagnostics({
+      allowedSourceAppIds: ['google_pay'],
+      lastCapture: {
+        capturedAtMs: new Date('2026-03-26T09:45:00.000Z').getTime(),
+        packageName: 'com.google.android.apps.nbu.paisa.user',
+        preview: 'title=Paid Rs 299 text=To Corner Store',
+        sourceAppId: 'google_pay',
+      },
+      listenerPermissionGranted: true,
+      storedSnapshotCount: 3,
+    });
+
+    mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(diagnostics);
+    mockedNativeCaptureModule.setAllowedSourceApps.mockResolvedValue(diagnostics);
+
+    const screen = render(<App />);
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+
+    expect(await screen.findByText('Android capture diagnostics')).toBeTruthy();
+    expect(screen.getByText('Listener permission: granted')).toBeTruthy();
+    expect(screen.getByText('Allowed source apps: Google Pay')).toBeTruthy();
+    expect(screen.getByText('Stored raw captures: 3')).toBeTruthy();
+    expect(
+      screen.getByText('Snapshot preview: title=Paid Rs 299 text=To Corner Store'),
+    ).toBeTruthy();
   });
 
   it('persists onboarding preferences before onboarding is completed', async () => {

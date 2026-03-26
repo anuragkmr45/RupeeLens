@@ -1,6 +1,6 @@
 # UPI Spend Tracker
 
-Android-first v1 scaffold for a consumer UPI spend tracker. The repo now includes an Expo mobile shell with resumable onboarding, a cycle-aware local SQLite-backed dashboard, filtered Inbox/classify and manual-add flows, a Fastify health API, a stub worker heartbeat, shared TypeScript packages, and synchronized backlog tracking.
+Android-first v1 scaffold for a consumer UPI spend tracker. The repo now includes an Expo mobile shell with resumable onboarding, a cycle-aware local SQLite-backed dashboard, filtered Inbox/classify and manual-add flows, an Android-native notification-listener foundation, a Fastify health API, a stub worker heartbeat, shared TypeScript packages, and synchronized backlog tracking.
 
 ## Repository Layout
 
@@ -115,12 +115,12 @@ Within a continuing Codex thread for this repo, a user message of `next` means r
 
 - Android-first onboarding now includes notification education, source-app selection, budget-cycle choice, sync preference, signed remote bootstrap config status, and a cycle-aware local dashboard with budget progress, top items, recent activity, a filtered Inbox, bottom-sheet quick classify, skipped-item recovery, and manual spend entry
 - Mobile UI foundations now live in `@upi-spend-tracker/mobile-ui`, and Home links to a design-system showcase screen that demonstrates the shared primitives in light and dark themes
-- Notification access setup can hand off to system settings, but real permission state and native capture ingestion are not implemented yet
+- Android dev builds now include a native notification-listener service, per-app allowlist sync, raw snapshot persistence, and a diagnostics card that reflects real listener permission state; parser, dedupe, and spend-domain import are still pending, and supported-device listener validation still needs an attached emulator or phone
 - Home now includes quick-action entrypoints for budgets and search, while Inbox supports local status, merchant, source-app, amount, and age filters plus skip/delete actions on a FlatList path validated against a seeded 1,000-item local queue; quick classify now runs in a bottom sheet with explicit suggestion chips and a save-as-rule intent toggle; the actual budget creation, search, split, and durable rule screens still arrive in later tickets
 - Onboarding, classified spends, and manual entries persist on device through local SQLite tables with ordered migrations and root-level DB validation; sync and native capture import are still pending
 - Backend skeleton now boots API and worker runtimes through explicit module factories, tested env loaders, and service/repository seams; `GET /health` and `GET /v1/bootstrap/config` are live, but there are still no business APIs, auth, DB, or sync implementation yet
 - Worker runtime now composes scheduled jobs through module contracts, but only the heartbeat job exists; there are still no queues, DB, exports, or real background jobs yet
-- No deployment CI, analytics providers, or native notification capture implementation yet
+- No deployment CI, analytics providers, or full parser/dedupe/native capture pipeline yet
 
 ## Backlog Tracking Convention
 

@@ -1,4 +1,5 @@
 <resources>
   <string name="app_name">UPI Spend Tracker</string>
   <string name="expo_system_ui_user_interface_style" translatable="false">light</string>
+  <string name="notification_capture_service_label">UPI Spend Tracker capture</string>
 </resources>
