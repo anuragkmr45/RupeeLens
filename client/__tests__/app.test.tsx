@@ -2,6 +2,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import App from '../App';
 import { seededTransactions, type Transaction } from '../src/features/spend-tracker/domain';
+import type { BootstrapConfigState } from '../src/features/bootstrap-config/runtime-config';
 import {
   DEFAULT_ONBOARDING_PREFERENCES,
   loadStoredSpendTrackerState,
@@ -19,10 +20,221 @@ jest.mock('../src/features/spend-tracker/persistence', () => ({
   saveStoredSpendTrackerState: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock('../src/features/bootstrap-config/runtime-config', () => ({
+  buildBootstrapRefreshFailureState: jest.fn((currentState, error) => ({
+    ...currentState,
+    lastError: error instanceof Error ? error.message : 'Bootstrap refresh failed.',
+    message: 'Using stale cached config while refresh retries.',
+    status: 'stale',
+  })),
+  createInitialBootstrapConfigState: jest.fn(() => ({
+    config: {
+      cacheTtlSeconds: 600,
+      configVersion: 'bootstrap-beta-fallback',
+      copyOverrides: {
+        home_remote_config_status: 'Using fallback config.',
+      },
+      featureFlags: {
+        budgets_enabled: false,
+        notification_capture_enabled: true,
+        search_enabled: true,
+        showcase_enabled: true,
+      },
+      minSupportedVersion: '0.0.0',
+      parserConfig: {
+        parserKillSwitch: false,
+        templates: {
+          generic_upi_v1: {
+            enabled: true,
+            fields: {
+              amount: 'amount',
+              merchant: 'merchant',
+            },
+            sourceApps: ['google_pay'],
+            version: '1.0.0',
+          },
+        },
+      },
+      rolloutChannel: 'beta',
+      runtimeCompatibility: {
+        compatible: true,
+      },
+      signature: 'test-signature',
+      softUpgradeVersion: '0.1.0',
+    },
+    fetchedAt: null,
+    message: 'Loading cached bootstrap config.',
+    source: 'fallback',
+    status: 'loading',
+  })),
+  formatRolloutChannel: jest.fn((channel: string) =>
+    channel === 'beta' ? 'Beta' : channel === 'internal' ? 'Internal' : 'Production',
+  ),
+  getDefaultBootstrapConfigQuery: jest.fn(() => ({
+    appVersion: '1.0.0',
+    channel: 'beta',
+    platform: 'android',
+    runtimeVersion: 'expo-sdk-55-dev-client',
+  })),
+  getEnabledParserTemplateIds: jest.fn((config) =>
+    Object.entries(config.parserConfig.templates)
+      .filter(([, template]) => (template as { enabled: boolean }).enabled)
+      .map(([templateId]) => templateId),
+  ),
+  hydrateBootstrapConfigCache: jest.fn().mockResolvedValue({
+    config: {
+      cacheTtlSeconds: 600,
+      configVersion: 'bootstrap-beta-cached',
+      copyOverrides: {
+        home_remote_config_status: 'Cached config ready.',
+      },
+      featureFlags: {
+        budgets_enabled: false,
+        notification_capture_enabled: true,
+        search_enabled: true,
+        showcase_enabled: true,
+      },
+      minSupportedVersion: '0.0.0',
+      parserConfig: {
+        parserKillSwitch: false,
+        templates: {
+          generic_upi_v1: {
+            enabled: true,
+            fields: {
+              amount: 'amount',
+              merchant: 'merchant',
+            },
+            sourceApps: ['google_pay'],
+            version: '1.0.0',
+          },
+        },
+      },
+      rolloutChannel: 'beta',
+      runtimeCompatibility: {
+        compatible: true,
+      },
+      signature: 'test-signature',
+      softUpgradeVersion: '0.1.0',
+    },
+    fetchedAt: '2026-03-26T10:00:00.000Z',
+    message:
+      'Loaded cached beta bootstrap config instantly. A background refresh still runs to pick up newer flags or parser templates.',
+    source: 'cache',
+    status: 'fresh',
+  }),
+  isRemoteCapturePaused: jest.fn((config) =>
+    !config.featureFlags.notification_capture_enabled ||
+    config.parserConfig.parserKillSwitch ||
+    config.runtimeCompatibility?.compatible === false,
+  ),
+  refreshBootstrapConfig: jest.fn().mockResolvedValue({
+    config: {
+      cacheTtlSeconds: 300,
+      configVersion: 'bootstrap-beta-network',
+      copyOverrides: {
+        home_remote_config_status: 'Fresh network config.',
+      },
+      featureFlags: {
+        budgets_enabled: false,
+        notification_capture_enabled: true,
+        search_enabled: true,
+        showcase_enabled: true,
+      },
+      minSupportedVersion: '0.0.0',
+      parserConfig: {
+        parserKillSwitch: false,
+        templates: {
+          generic_upi_v1: {
+            enabled: true,
+            fields: {
+              amount: 'amount',
+              merchant: 'merchant',
+            },
+            sourceApps: ['google_pay'],
+            version: '1.0.0',
+          },
+          experimental_upi_v2: {
+            enabled: true,
+            fields: {
+              amount: 'amount',
+              merchant: 'merchant',
+            },
+            sourceApps: ['google_pay', 'phonepe'],
+            version: '2.0.0',
+          },
+        },
+      },
+      rolloutChannel: 'beta',
+      runtimeCompatibility: {
+        compatible: true,
+      },
+      signature: 'test-signature',
+      softUpgradeVersion: '0.1.0',
+    },
+    fetchedAt: '2026-03-26T10:02:00.000Z',
+    message:
+      'Fresh beta bootstrap config loaded from the API. Feature flags and parser templates are now current for this build.',
+    source: 'network',
+    status: 'fresh',
+  }),
+}));
+
 const mockedLoadStoredSpendTrackerState =
   loadStoredSpendTrackerState as jest.MockedFunction<typeof loadStoredSpendTrackerState>;
 const mockedSaveStoredSpendTrackerState =
   saveStoredSpendTrackerState as jest.MockedFunction<typeof saveStoredSpendTrackerState>;
+const mockedBootstrapConfigModule = jest.requireMock(
+  '../src/features/bootstrap-config/runtime-config'
+) as {
+  hydrateBootstrapConfigCache: jest.Mock<Promise<BootstrapConfigState | null>, []>;
+  refreshBootstrapConfig: jest.Mock<Promise<BootstrapConfigState>, []>;
+};
+
+function buildMockBootstrapState(
+  overrides: Partial<BootstrapConfigState> = {},
+): BootstrapConfigState {
+  return {
+    config: {
+      cacheTtlSeconds: 600,
+      configVersion: 'bootstrap-beta-test',
+      copyOverrides: {
+        home_remote_config_status: 'Test config',
+      },
+      featureFlags: {
+        budgets_enabled: false,
+        notification_capture_enabled: true,
+        search_enabled: true,
+        showcase_enabled: true,
+      },
+      minSupportedVersion: '0.0.0',
+      parserConfig: {
+        parserKillSwitch: false,
+        templates: {
+          generic_upi_v1: {
+            enabled: true,
+            fields: {
+              amount: 'amount',
+              merchant: 'merchant',
+            },
+            sourceApps: ['google_pay'],
+            version: '1.0.0',
+          },
+        },
+      },
+      rolloutChannel: 'beta',
+      runtimeCompatibility: {
+        compatible: true,
+      },
+      signature: 'test-signature',
+      softUpgradeVersion: '0.1.0',
+    },
+    fetchedAt: '2026-03-26T10:00:00.000Z',
+    message: 'Loaded cached beta bootstrap config instantly.',
+    source: 'cache',
+    status: 'fresh',
+    ...overrides,
+  };
+}
 
 function buildHighVolumeInboxTransactions(totalTransactions = 1_000): Transaction[] {
   return [
@@ -58,6 +270,34 @@ describe('App', () => {
     jest.clearAllMocks();
     mockedLoadStoredSpendTrackerState.mockResolvedValue(null);
     mockedSaveStoredSpendTrackerState.mockResolvedValue(undefined);
+    mockedBootstrapConfigModule.hydrateBootstrapConfigCache.mockResolvedValue(
+      buildMockBootstrapState(),
+    );
+    mockedBootstrapConfigModule.refreshBootstrapConfig.mockResolvedValue(
+      buildMockBootstrapState({
+        config: {
+          ...buildMockBootstrapState().config,
+          configVersion: 'bootstrap-beta-network',
+          parserConfig: {
+            parserKillSwitch: false,
+            templates: {
+              ...buildMockBootstrapState().config.parserConfig.templates,
+              experimental_upi_v2: {
+                enabled: true,
+                fields: {
+                  amount: 'amount',
+                  merchant: 'merchant',
+                },
+                sourceApps: ['google_pay', 'phonepe'],
+                version: '2.0.0',
+              },
+            },
+          },
+        },
+        message: 'Fresh beta bootstrap config loaded from the API.',
+        source: 'network',
+      }),
+    );
   });
 
   it('shows the hydration screen before onboarding resumes', async () => {
@@ -96,6 +336,7 @@ describe('App', () => {
     const screen = render(<App />);
 
     expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
+    expect(screen.getByText('Remote bootstrap config')).toBeTruthy();
     expect(screen.getByText('Budget progress')).toBeTruthy();
     expect(screen.getByText('Top items')).toBeTruthy();
     expect(screen.getByText('Create budget')).toBeTruthy();
@@ -115,6 +356,53 @@ describe('App', () => {
     expect(await screen.findByText('Mobile UI primitives')).toBeTruthy();
     expect(screen.getByText('Foundation preview')).toBeTruthy();
     expect(screen.getAllByRole('button', { name: 'Back to home' }).length).toBeGreaterThan(0);
+  });
+
+  it('shows stale remote-config fallback details and disables remotely paused actions', async () => {
+    mockedBootstrapConfigModule.hydrateBootstrapConfigCache.mockResolvedValue(
+      buildMockBootstrapState({
+        config: {
+          ...buildMockBootstrapState().config,
+          featureFlags: {
+            budgets_enabled: false,
+            notification_capture_enabled: false,
+            search_enabled: false,
+            showcase_enabled: false,
+          },
+          parserConfig: {
+            parserKillSwitch: true,
+            templates: buildMockBootstrapState().config.parserConfig.templates,
+          },
+          runtimeCompatibility: {
+            compatible: false,
+            reason: 'Upgrade required to at least 1.1.0.',
+          },
+        },
+        lastError: 'Network request failed',
+        message:
+          'Using stale cached beta config while refresh retries. The last good flags and parser templates stay active until the API responds again.',
+        source: 'cache',
+        status: 'stale',
+      }),
+    );
+    mockedBootstrapConfigModule.refreshBootstrapConfig.mockRejectedValue(
+      new Error('Network request failed'),
+    );
+
+    const screen = render(<App />);
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+
+    expect(await screen.findByText('Remote bootstrap config')).toBeTruthy();
+    expect(screen.getByText('Stale cached config')).toBeTruthy();
+    expect(screen.getByText('Last refresh issue: Network request failed')).toBeTruthy();
+    expect(screen.getByText('Capture paused remotely')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'View UI showcase' }).props.accessibilityState?.disabled,
+    ).toBe(true);
+    expect(
+      screen.getByRole('button', { name: 'Search' }).props.accessibilityState?.disabled,
+    ).toBe(true);
   });
 
   it('resumes a partially completed onboarding flow with saved choices', async () => {

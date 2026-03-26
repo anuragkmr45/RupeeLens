@@ -175,7 +175,7 @@ Docs merged and linked from README.
 - **Story points:** 5
 - **Goal:** Ship parser fixes and staged rollout safely without forcing native releases for every tweak.
 - **Dependencies:** SET-001, SET-004
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-26 | Completed At: 2026-03-26 | Commit Ref: pending-local-commit | Tracking Notes: Added the first live signed `/v1/bootstrap/config` endpoint, shared bootstrap DTOs/integrity helpers, a client-side cached bootstrap refresh loop with stale-safe fallback observability, and app-level feature-flag/parser-template status while keeping repo validation green.
 
 **Description**  
 Build bootstrap config endpoint, mobile cache layer, config TTL, signature/version checks, kill switches, parser templates, and staged rollout support by version/channel.

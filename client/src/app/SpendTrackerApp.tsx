@@ -63,6 +63,17 @@ import {
   type SupportedSourceAppId,
   type SyncMode,
 } from '../features/spend-tracker/persistence';
+import {
+  buildBootstrapRefreshFailureState,
+  createInitialBootstrapConfigState,
+  formatRolloutChannel,
+  getDefaultBootstrapConfigQuery,
+  getEnabledParserTemplateIds,
+  hydrateBootstrapConfigCache,
+  isRemoteCapturePaused,
+  refreshBootstrapConfig,
+  type BootstrapConfigState,
+} from '../features/bootstrap-config/runtime-config';
 import { APP_COPY } from '../lib/app-info';
 import { colors } from '../theme/colors';
 import { DesignSystemShowcaseScreen } from './DesignSystemShowcaseScreen';
@@ -157,6 +168,9 @@ export function SpendTrackerApp() {
     useState<ManualEntryDraft>(EMPTY_MANUAL_ENTRY_DRAFT);
   const [inboxFilters, setInboxFilters] = useState<InboxFilters>(DEFAULT_INBOX_FILTERS);
   const [manualReturnScreen, setManualReturnScreen] = useState<TabScreen>('home');
+  const [bootstrapState, setBootstrapState] = useState<BootstrapConfigState>(
+    createInitialBootstrapConfigState(),
+  );
 
   const pendingTransactions = getPendingTransactions(transactions);
   const allReviewTransactions = getInboxReviewTransactions(transactions, {
@@ -180,6 +194,7 @@ export function SpendTrackerApp() {
     manualDraft.merchant,
   );
   const manualAmountMinor = parseCurrencyInputToMinor(manualDraft.amountInput);
+  const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
 
   useEffect(() => {
     let isMounted = true;
@@ -210,6 +225,47 @@ export function SpendTrackerApp() {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
+    async function syncBootstrapConfig() {
+      const query = getDefaultBootstrapConfigQuery();
+      const cachedBootstrapState = await hydrateBootstrapConfigCache(query);
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (cachedBootstrapState) {
+        setBootstrapState(cachedBootstrapState);
+      }
+
+      try {
+        const refreshedBootstrapState = await refreshBootstrapConfig(query);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setBootstrapState(refreshedBootstrapState);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setBootstrapState((currentState) =>
+          buildBootstrapRefreshFailureState(currentState, error),
+        );
+      }
+    }
+
+    void syncBootstrapConfig();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (isHydrating) {
       return;
     }
@@ -229,6 +285,15 @@ export function SpendTrackerApp() {
   ]);
 
   async function handleOpenNotificationAccess() {
+    if (capturePausedRemotely) {
+      Alert.alert(
+        'Capture paused by remote config',
+        bootstrapState.config.runtimeCompatibility?.reason ??
+          'The current bootstrap config disabled notification capture or parser execution. Manual add stays available while the app waits for a newer config.',
+      );
+      return;
+    }
+
     try {
       if (Platform.OS === 'android') {
         await Linking.sendIntent('android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS');
@@ -542,6 +607,7 @@ export function SpendTrackerApp() {
 
             {!isHydrating && screen === 'onboarding' ? (
               <OnboardingScreen
+                bootstrapState={bootstrapState}
                 onboardingPreferences={onboardingPreferences}
                 notificationAccessState={notificationAccessState}
                 onContinue={() => {
@@ -559,6 +625,7 @@ export function SpendTrackerApp() {
 
             {!isHydrating && screen === 'home' ? (
               <HomeScreen
+                bootstrapState={bootstrapState}
                 nextPendingTransaction={pendingTransactions[0] ?? null}
                 notificationAccessState={notificationAccessState}
                 onboardingPreferences={onboardingPreferences}
@@ -617,6 +684,7 @@ function HydrationScreen() {
 }
 
 function OnboardingScreen({
+  bootstrapState,
   onboardingPreferences,
   notificationAccessState,
   onContinue,
@@ -627,6 +695,7 @@ function OnboardingScreen({
   onSelectSyncMode,
   onToggleSourceApp,
 }: {
+  bootstrapState: BootstrapConfigState;
   onboardingPreferences: OnboardingPreferences;
   notificationAccessState: NotificationAccessState;
   onContinue: () => void;
@@ -648,8 +717,9 @@ function OnboardingScreen({
     onboardingPreferences.budgetCycleId,
   );
   const selectedSyncModeLabel = getSyncModeLabel(onboardingPreferences.syncMode);
+  const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
   const completionCount = [
-    notificationAccessState === 'settings_opened',
+    notificationAccessState === 'settings_opened' || capturePausedRemotely,
     onboardingPreferences.selectedSourceAppIds.length > 0,
     true,
     true,
@@ -695,26 +765,38 @@ function OnboardingScreen({
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Notification access</Text>
         <Text style={styles.bodyCopy}>
-          {isAndroid
+          {capturePausedRemotely
+            ? bootstrapState.config.runtimeCompatibility?.reason ??
+              'Remote config currently pauses notification capture. Keep the local review loop running with manual add while refresh retries.'
+            : isAndroid
             ? 'Notification access is needed before Android can hand UPI payment alerts to the app. Open the system screen, review the permission, then return here to finish setup.'
             : 'Open iOS app settings, then return here. iOS remains shell-only and does not support notification capture in v1.'}
         </Text>
         <StatusChip
           label={
-            notificationAccessState === 'settings_opened'
+            capturePausedRemotely
+              ? 'Capture paused remotely'
+              : notificationAccessState === 'settings_opened'
               ? 'Settings opened'
               : 'Still needs review'
           }
-          tone={notificationAccessState === 'settings_opened' ? 'ready' : 'pending'}
+          tone={
+            capturePausedRemotely || notificationAccessState === 'settings_opened'
+              ? 'ready'
+              : 'pending'
+          }
         />
         <View style={styles.actionRow}>
           <ActionButton
+            disabled={capturePausedRemotely}
             label={isAndroid ? 'Open notification access' : 'Open app settings'}
             onPress={onOpenNotificationAccess}
             tone="primary"
           />
         </View>
       </SectionCard>
+
+      <BootstrapConfigStatusCard bootstrapState={bootstrapState} />
 
       <SectionCard accentColor={colors.panelWarm}>
         <Text style={styles.cardTitle}>Source apps</Text>
@@ -814,6 +896,7 @@ function OnboardingScreen({
 }
 
 function HomeScreen({
+  bootstrapState,
   nextPendingTransaction,
   notificationAccessState,
   onboardingPreferences,
@@ -828,6 +911,7 @@ function HomeScreen({
   onStartClassification,
   summary,
 }: {
+  bootstrapState: BootstrapConfigState;
   nextPendingTransaction: Transaction | null;
   notificationAccessState: NotificationAccessState;
   onboardingPreferences: OnboardingPreferences;
@@ -853,6 +937,10 @@ function HomeScreen({
     summary.totalSpendMinor - summary.budgetTargetMinor,
     0,
   );
+  const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
+  const budgetsEnabled = bootstrapState.config.featureFlags.budgets_enabled;
+  const searchEnabled = bootstrapState.config.featureFlags.search_enabled;
+  const showcaseEnabled = bootstrapState.config.featureFlags.showcase_enabled;
 
   return (
     <View style={styles.stack}>
@@ -870,6 +958,8 @@ function HomeScreen({
           device.
         </Text>
       </SectionCard>
+
+      <BootstrapConfigStatusCard bootstrapState={bootstrapState} />
 
       <View style={styles.metricGrid}>
         <MetricCard label="Total spend" value={formatCurrency(summary.totalSpendMinor)} />
@@ -909,14 +999,32 @@ function HomeScreen({
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Quick actions</Text>
         <Text style={styles.bodyCopy}>
-          Manual add and Inbox are live now. Budget creation and search are honest placeholders for
-          the next dashboard passes.
+          Manual add and Inbox are live now. Budget creation, search, and showcase access follow
+          the active remote flags so staged rollout does not require a native release.
         </Text>
+        <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>
+            Budgets: {budgetsEnabled ? 'enabled for this channel' : 'disabled remotely'}
+          </Text>
+          <Text style={styles.helperCopy}>
+            Search: {searchEnabled ? 'enabled for this channel' : 'disabled remotely'}
+          </Text>
+        </View>
         <View style={styles.actionRow}>
           <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
           <ActionButton label="Review inbox" onPress={onOpenInbox} tone="secondary" />
-          <ActionButton label="Create budget" onPress={onOpenBudgetPlaceholder} tone="secondary" />
-          <ActionButton label="Search" onPress={onOpenSearchPlaceholder} tone="secondary" />
+          <ActionButton
+            disabled={!budgetsEnabled}
+            label="Create budget"
+            onPress={onOpenBudgetPlaceholder}
+            tone="secondary"
+          />
+          <ActionButton
+            disabled={!searchEnabled}
+            label="Search"
+            onPress={onOpenSearchPlaceholder}
+            tone="secondary"
+          />
         </View>
       </SectionCard>
 
@@ -1019,12 +1127,16 @@ function HomeScreen({
         </View>
         <StatusChip
           label={
-            notificationAccessState === 'settings_opened'
+            capturePausedRemotely
+              ? 'Capture paused remotely'
+              : notificationAccessState === 'settings_opened'
               ? 'Notification settings opened'
               : 'Notification access not confirmed'
           }
           tone={
-            notificationAccessState === 'settings_opened' ? 'ready' : 'pending'
+            capturePausedRemotely || notificationAccessState === 'settings_opened'
+              ? 'ready'
+              : 'pending'
           }
         />
       </SectionCard>
@@ -1033,21 +1145,75 @@ function HomeScreen({
         <Text style={styles.cardTitle}>Scope right now</Text>
         <Text style={styles.bodyCopy}>
           Android system settings can already be opened from the app, and Home plus Inbox now read
-          from local SQLite-backed spend tables. Real permission checks and native capture import
-          remain separate implementation steps.
+          from local SQLite-backed spend tables. Remote config now controls parser kill switches and
+          staged feature rollout, while real permission checks and native capture import remain
+          separate implementation steps.
         </Text>
         <View style={styles.actionRow}>
           <ActionButton
+            disabled={capturePausedRemotely}
             label="Review notification access"
             onPress={onOpenNotificationAccess}
             tone="secondary"
           />
           <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
-          <ActionButton label="View UI showcase" onPress={onOpenShowcase} tone="secondary" />
+          <ActionButton
+            disabled={!showcaseEnabled}
+            label="View UI showcase"
+            onPress={onOpenShowcase}
+            tone="secondary"
+          />
           <ActionButton label="Reset demo data" onPress={onResetDemoData} tone="secondary" />
         </View>
       </SectionCard>
     </View>
+  );
+}
+
+function BootstrapConfigStatusCard({
+  bootstrapState,
+}: {
+  bootstrapState: BootstrapConfigState;
+}) {
+  const enabledTemplateIds = getEnabledParserTemplateIds(bootstrapState.config);
+  const runtimeReason = bootstrapState.config.runtimeCompatibility?.reason;
+  const featureSummary = [
+    `Capture ${bootstrapState.config.featureFlags.notification_capture_enabled ? 'on' : 'off'}`,
+    `Search ${bootstrapState.config.featureFlags.search_enabled ? 'on' : 'off'}`,
+    `Showcase ${bootstrapState.config.featureFlags.showcase_enabled ? 'on' : 'off'}`,
+  ].join(' · ');
+
+  return (
+    <SectionCard
+      accentColor={bootstrapState.status === 'fresh' ? colors.successSoft : colors.panelWarm}
+    >
+      <Text style={styles.cardTitle}>Remote bootstrap config</Text>
+      <Text style={styles.bodyCopy}>{bootstrapState.message}</Text>
+      <View style={styles.helperStack}>
+        <Text style={styles.helperCopy}>
+          Channel: {formatRolloutChannel(bootstrapState.config.rolloutChannel)} · Version:{' '}
+          {bootstrapState.config.configVersion}
+        </Text>
+        {bootstrapState.config.copyOverrides?.home_remote_config_status ? (
+          <Text style={styles.helperCopy}>
+            {bootstrapState.config.copyOverrides.home_remote_config_status}
+          </Text>
+        ) : null}
+        <Text style={styles.helperCopy}>
+          Parser templates:{' '}
+          {enabledTemplateIds.length > 0 ? enabledTemplateIds.join(', ') : 'all templates disabled'}
+        </Text>
+        <Text style={styles.helperCopy}>Flags: {featureSummary}</Text>
+        {runtimeReason ? <Text style={styles.helperCopy}>{runtimeReason}</Text> : null}
+        {bootstrapState.lastError ? (
+          <Text style={styles.helperCopy}>Last refresh issue: {bootstrapState.lastError}</Text>
+        ) : null}
+      </View>
+      <StatusChip
+        label={getBootstrapStatusLabel(bootstrapState)}
+        tone={bootstrapState.status === 'fresh' ? 'ready' : 'pending'}
+      />
+    </SectionCard>
   );
 }
 
@@ -1823,6 +1989,26 @@ function getCategoryLabel(categoryId: CategoryId): string {
     categoryOptions.find((category) => category.id === categoryId)?.label ??
     'Needs category'
   );
+}
+
+function getBootstrapStatusLabel(bootstrapState: BootstrapConfigState): string {
+  if (bootstrapState.status === 'loading') {
+    return 'Bootstrap refresh queued';
+  }
+
+  if (bootstrapState.source === 'network') {
+    return 'Fresh from API';
+  }
+
+  if (bootstrapState.source === 'cache' && bootstrapState.status === 'fresh') {
+    return 'Using cached config';
+  }
+
+  if (bootstrapState.source === 'cache') {
+    return 'Stale cached config';
+  }
+
+  return 'Fallback config active';
 }
 
 function hasActiveInboxFilters(filters: InboxFilters): boolean {

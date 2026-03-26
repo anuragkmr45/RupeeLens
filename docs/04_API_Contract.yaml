@@ -903,47 +903,86 @@ components:
         lastSeenAt:
           type: string
           format: date-time
+    RuntimeCompatibilityInfo:
+      type: object
+      required:
+      - compatible
+      properties:
+        compatible:
+          type: boolean
+        reason:
+          type: string
+    ParserTemplateConfig:
+      type: object
+      required:
+      - enabled
+      - fields
+      - sourceApps
+      - version
+      properties:
+        enabled:
+          type: boolean
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+        sourceApps:
+          type: array
+          items:
+            type: string
+        version:
+          type: string
+    BootstrapParserConfig:
+      type: object
+      required:
+      - parserKillSwitch
+      - templates
+      properties:
+        parserKillSwitch:
+          type: boolean
+        templates:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ParserTemplateConfig'
     BootstrapConfigResponse:
       type: object
       required:
-      - configVersion
-      - minSupportedVersion
-      - featureFlags
-      - parserConfig
       - cacheTtlSeconds
+      - configVersion
+      - featureFlags
+      - minSupportedVersion
+      - parserConfig
+      - rolloutChannel
+      - signature
       properties:
+        cacheTtlSeconds:
+          type: integer
         configVersion:
           type: string
-        minSupportedVersion:
-          type: string
-        softUpgradeVersion:
-          type: string
-        runtimeCompatibility:
-          type: object
-          properties:
-            compatible:
-              type: boolean
-            reason:
-              type: string
-        featureFlags:
-          type: object
-          additionalProperties:
-            type: boolean
-        parserConfig:
-          type: object
-          additionalProperties: true
         copyOverrides:
           type: object
           additionalProperties:
             type: string
-        cacheTtlSeconds:
-          type: integer
+        featureFlags:
+          type: object
+          additionalProperties:
+            type: boolean
+        minSupportedVersion:
+          type: string
+        parserConfig:
+          $ref: '#/components/schemas/BootstrapParserConfig'
         rolloutChannel:
           type: string
           enum:
           - internal
           - beta
           - production
+        runtimeCompatibility:
+          $ref: '#/components/schemas/RuntimeCompatibilityInfo'
+        signature:
+          type: string
+        softUpgradeVersion:
+          type: string
     SyncPushRequest:
       type: object
       required:

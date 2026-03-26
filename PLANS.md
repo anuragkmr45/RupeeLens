@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### SET-006 — Implement Feature Flags and Remote Parser Config
+
+- **Status:** completed
+- **Ticket:** SET-006
+- **Goal:** Add the first real bootstrap-config loop across API and mobile so feature flags, parser templates, rollout channel selection, cache TTL handling, and stale-safe fallback all exist before native parser work expands.
+- **Touched files/modules:** `PLANS.md`, `docs/04_API_Contract.yaml`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, new bootstrap config types/helpers under `packages/contracts` and `packages/shared-utils`, new bootstrap module files under `server/api/src/modules/*`, new client remote-config cache/fetch helpers, and focused tests for server/client bootstrap behavior.
+- **Rationale:** `SET-002` remains blocked, `SET-003` is now closed, and `SET-006` is the earliest remaining `P0` canonical ticket with satisfied dependencies. It also lays rollout and kill-switch groundwork before Android-native parser expansion.
+- **Risks:** The config loop must stay lean and truthful: enough to support rollout, TTL, stale fallback, and parser-template transport without pretending that native capture or cloud sync already exist. API contract, client caching, and shared signature/version logic must stay synchronized.
+- **API / schema impact:** Adds the first real `/v1/bootstrap/config` implementation and shared typed DTOs. No DB schema change was required because the client cache lives in Expo's local key-value store.
+- **Rollout / flag plan:** The feature itself introduces the rollout/kill-switch substrate. Default config should keep current local-only behavior intact even when remote fetch fails.
+- **Validation commands:** `pnpm lint`, `pnpm lint:openapi`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** The API serves typed bootstrap config by platform/version/channel, the client loads cached or bundled config immediately and refreshes in background, stale fallback is observable in the app state, parser templates and feature flags are transport-driven, and all repo quality gates remain green.
+- **Outcome:** Added shared bootstrap-config DTOs plus integrity/version helpers, implemented a live Fastify `/v1/bootstrap/config` module with rollout-channel overrides and signed payloads, added a client-side cached bootstrap loop with background refresh and stale-safe fallback observability, surfaced feature-flag/parser-template status in the app, aligned the OpenAPI contract, and passed `pnpm lint`, `pnpm lint:openapi`, `pnpm typecheck`, `pnpm test`, and `pnpm build`.
+
 ### SET-003 — Create Mobile Design System Tokens and UI Primitives
 
 - **Status:** completed

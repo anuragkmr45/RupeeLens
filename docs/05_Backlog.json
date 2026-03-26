@@ -182,12 +182,12 @@
       ],
       "tests": "Simulate old config, invalid signature, and network loss; verify safe fallback.",
       "done": "Remote config live in dev and test environments.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-26",
+      "completed_at": "2026-03-26",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Added the first live signed `/v1/bootstrap/config` endpoint, shared bootstrap DTOs and integrity helpers, a client-side cached bootstrap refresh loop with stale-safe fallback observability, and app-level feature-flag/parser-template status while keeping repo validation green."
     },
     {
       "id": "CAP-001",

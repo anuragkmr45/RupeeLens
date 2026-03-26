@@ -38,9 +38,15 @@ importers:
 
   client:
     dependencies:
+      '@upi-spend-tracker/contracts':
+        specifier: workspace:*
+        version: link:../packages/contracts
       '@upi-spend-tracker/mobile-ui':
         specifier: workspace:*
         version: link:../packages/mobile-ui
+      '@upi-spend-tracker/shared-utils':
+        specifier: workspace:*
+        version: link:../packages/shared-utils
       expo:
         specifier: ~55.0.6
         version: 55.0.6(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)

@@ -31,11 +31,11 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 **Done in repo**
 
-- Only the UI-level onboarding handoff that can open Android notification settings
+- UI-level onboarding handoff that can open Android notification settings
+- First signed remote bootstrap-config loop with API delivery, mobile cache/refresh handling, rollout channels, feature flags, parser templates, and stale-safe fallback observability
 
 **Remaining**
 
-- Remote parser config and feature-flag infrastructure
 - Notification listener service, allowlist controls, parser registry, dedupe, and native capture DB
 
 ## Sprint 2 — First Usable App
@@ -85,11 +85,12 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 **Done in repo**
 
 - Typed health contract plus `GET /health`
+- First typed bootstrap contract plus `GET /v1/bootstrap/config` with version compatibility and signed payloads
 - Worker heartbeat scheduled through the shared worker module/runtime skeleton
 
 **Remaining**
 
-- Domain APIs, report APIs, remote config API, background jobs, and mobile outbox/conflict queue
+- Domain APIs, report APIs, background jobs, and mobile outbox/conflict queue
 - Broader QA harnesses, parser fixtures, and release-quality matrix work
 
 ## Sprint 6 — Hardening

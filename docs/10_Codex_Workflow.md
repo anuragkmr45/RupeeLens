@@ -125,12 +125,12 @@ Do not start a second ticket automatically in the same run.
 
 ## Current Default Next Ticket
 
-Unless repo truth changes first, the next ticket after `SET-003` should be:
+Unless repo truth changes first, the next ticket after `SET-006` should be:
 
-- `SET-006 — Implement feature flags and remote parser config`
+- `CAP-001 — Build Android NotificationListenerService and allowlist controls`
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `SET-003` is now closed, leaving no remaining unblocked Sprint 0 canonical tickets.
-- `SET-006` is the earliest remaining `P0` ticket in Sprint 1 with satisfied dependencies and no environment blocker documented in the backlog.
+- `SET-006` is now closed, leaving `CAP-001` as the earliest remaining `P0` ticket in Sprint 1 with satisfied dependencies.
+- Native capture infrastructure is now the next real blocker for parser ingestion, permission-state reflection, and downstream capture tickets.
