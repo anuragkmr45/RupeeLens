@@ -114,8 +114,8 @@ Within a continuing Codex thread for this repo, a user message of `next` means r
 - Notification access setup can hand off to system settings, but real permission state and native capture ingestion are not implemented yet
 - Home now includes quick-action entrypoints for budgets and search, while Inbox supports local status, merchant, source-app, amount, and age filters plus skip/delete actions on a FlatList path validated against a seeded 1,000-item local queue; quick classify now runs in a bottom sheet with explicit suggestion chips and a save-as-rule intent toggle; the actual budget creation, search, split, and durable rule screens still arrive in later tickets
 - Onboarding, classified spends, and manual entries persist on device through local SQLite tables, but migrations, sync, and native capture import are still pending
-- Health endpoint only; no business APIs, auth, DB, or sync implementation yet
-- Worker heartbeat stub only; no queues, DB, exports, or background jobs yet
+- Backend skeleton now boots API and worker runtimes through explicit module factories, tested env loaders, and service/repository seams, but only the health endpoint is implemented; there are still no business APIs, auth, DB, or sync implementation yet
+- Worker runtime now composes scheduled jobs through module contracts, but only the heartbeat job exists; there are still no queues, DB, exports, or real background jobs yet
 - No deployment CI, migrations, analytics providers, notification capture, or remote config implementation yet
 
 ## Backlog Tracking Convention

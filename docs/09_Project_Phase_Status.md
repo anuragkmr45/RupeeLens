@@ -72,20 +72,20 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 **Done in repo**
 
-- Groundwork only: local SQLite transaction tables on mobile plus backend/process skeletons
+- Local SQLite transaction tables on mobile plus a modular backend skeleton with explicit API and worker module factories, tested runtime config loaders, and repository/service seams around health and heartbeat
 
 **Remaining**
 
 - Suggestions, budgets, rollups, CSV export, backup/restore
 - Guest session, pairing, and sync APIs
-- Backend modular-monolith feature modules beyond the health route
+- Backend modular-monolith feature modules beyond health and heartbeat
 
 ## Sprint 5 — APIs And Reports
 
 **Done in repo**
 
 - Typed health contract plus `GET /health`
-- Worker heartbeat stub
+- Worker heartbeat scheduled through the shared worker module/runtime skeleton
 
 **Remaining**
 

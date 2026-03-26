@@ -1,7 +1,5 @@
-import { createHeartbeatPayload } from './jobs/heartbeat.job.js';
 import type { Logger } from './lib/logger.js';
-
-const DEFAULT_HEARTBEAT_INTERVAL_MS = 60_000;
+import type { WorkerJob } from './modules/module.js';
 
 export interface WorkerRuntime {
   start(): void;
@@ -9,33 +7,43 @@ export interface WorkerRuntime {
 }
 
 export interface WorkerRuntimeOptions {
-  intervalMs?: number;
+  jobs: readonly WorkerJob[];
   logger: Logger;
 }
 
 export function createWorkerRuntime({
-  intervalMs = DEFAULT_HEARTBEAT_INTERVAL_MS,
+  jobs,
   logger,
 }: WorkerRuntimeOptions): WorkerRuntime {
-  let timer: NodeJS.Timeout | undefined;
-
-  const runHeartbeat = () => {
-    const payload = createHeartbeatPayload();
-    logger.info('worker heartbeat', payload);
-  };
+  let timers: NodeJS.Timeout[] = [];
 
   return {
     start() {
+      if (timers.length > 0) {
+        return;
+      }
+
       logger.info('worker booted', {
-        heartbeat_interval_ms: intervalMs,
+        job_count: jobs.length,
+        jobs: jobs.map((job) => ({
+          interval_ms: job.intervalMs,
+          name: job.name,
+        })),
       });
-      runHeartbeat();
-      timer = setInterval(runHeartbeat, intervalMs);
+
+      timers = jobs.map((job) => {
+        job.run();
+        return setInterval(() => {
+          job.run();
+        }, job.intervalMs);
+      });
     },
     stop() {
-      if (timer) {
+      for (const timer of timers) {
         clearInterval(timer);
       }
+
+      timers = [];
     },
   };
 }

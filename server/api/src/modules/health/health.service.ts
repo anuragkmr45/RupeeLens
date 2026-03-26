@@ -1,10 +1,21 @@
 import type { HealthResponse } from '@upi-spend-tracker/contracts';
-import { getCurrentUtcTimestamp } from '@upi-spend-tracker/shared-utils';
 
-export function getHealthResponse(): HealthResponse {
+import type { HealthRepository } from './health.repository.js';
+
+export interface HealthService {
+  getHealthResponse(): HealthResponse;
+}
+
+export function createHealthService(repository: HealthRepository): HealthService {
   return {
-    service: 'api',
-    status: 'healthy',
-    timestamp_utc: getCurrentUtcTimestamp(),
+    getHealthResponse() {
+      const snapshot = repository.readSnapshot();
+
+      return {
+        service: snapshot.service,
+        status: snapshot.status,
+        timestamp_utc: snapshot.timestampUtc as HealthResponse['timestamp_utc'],
+      };
+    },
   };
 }

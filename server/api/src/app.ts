@@ -1,14 +1,15 @@
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 
-import { registerHealthRoutes } from './modules/health/health.route.js';
+import { createHealthModule } from './modules/health/health.module.js';
+import { registerApiModules } from './modules/module.js';
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
     logger: false,
   });
 
-  registerHealthRoutes(app);
+  registerApiModules(app, [createHealthModule()]);
 
   return app;
 }

@@ -3,10 +3,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { createWorkerRuntime } from './worker.js';
 
 describe('worker runtime', () => {
-  it('logs boot and an immediate heartbeat', () => {
+  it('logs boot metadata and runs each job immediately', () => {
     const info = vi.fn();
+    const runHeartbeat = vi.fn();
     const runtime = createWorkerRuntime({
-      intervalMs: 10_000,
+      jobs: [
+        {
+          intervalMs: 10_000,
+          name: 'heartbeat',
+          run: runHeartbeat,
+        },
+      ],
       logger: {
         info,
       },
@@ -16,13 +23,14 @@ describe('worker runtime', () => {
     runtime.stop();
 
     expect(info).toHaveBeenCalledWith('worker booted', {
-      heartbeat_interval_ms: 10_000,
+      job_count: 1,
+      jobs: [
+        {
+          interval_ms: 10_000,
+          name: 'heartbeat',
+        },
+      ],
     });
-    expect(info).toHaveBeenCalledWith(
-      'worker heartbeat',
-      expect.objectContaining({
-        service: 'worker',
-      }),
-    );
+    expect(runHeartbeat).toHaveBeenCalledTimes(1);
   });
 });

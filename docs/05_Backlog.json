@@ -765,12 +765,12 @@
       ],
       "tests": "Module bootstrap tests and smoke route tests.",
       "done": "Backend skeleton ready for feature modules.",
-      "status": "in_progress",
+      "status": "done",
       "owner": "codex",
       "started_at": "2026-03-25",
-      "completed_at": "",
+      "completed_at": "2026-03-26",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: Fastify API and worker runtimes are split, shared packages exist, GET /health is typed, and the worker heartbeat runs. Feature modules beyond health, repository layers, and broader backend boundaries remain open."
+      "tracking_notes": "Repo truth: API and worker now bootstrap through explicit module factories and registration helpers, health and heartbeat each own repository/service seams, and both runtimes have tested config loaders. Real domain APIs and worker jobs beyond health and heartbeat remain later-ticket scope."
     },
     {
       "id": "API-002",

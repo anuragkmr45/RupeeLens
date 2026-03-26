@@ -798,7 +798,7 @@ Provide scalable APIs, sync, reporting, and device pairing.
 - **Story points:** 8
 - **Goal:** Create a scalable but understandable backend foundation for v1.
 - **Dependencies:** SET-001
-- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-25 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: Fastify API and worker runtimes are split, shared packages exist, GET /health is typed, and the worker heartbeat runs. Feature modules beyond health, repository layers, and broader backend boundaries remain open.
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-25 | Completed At: 2026-03-26 | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: API and worker now bootstrap through explicit module factories and registration helpers, health and heartbeat each own repository/service seams, and both runtimes have tested config loaders. Real domain APIs and worker jobs beyond health and heartbeat remain later-ticket scope.
 
 **Description**  
 Set up Fastify or Express-compatible architecture, shared domain modules, dependency boundaries, config loading, structured logging, and worker entrypoint sharing the same modules.

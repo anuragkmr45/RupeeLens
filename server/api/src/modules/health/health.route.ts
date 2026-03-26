@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 
-import { getHealthResponse } from './health.service.js';
+import type { HealthService } from './health.service.js';
 
-export function registerHealthRoutes(app: FastifyInstance) {
-  app.get('/health', async () => getHealthResponse());
+export function registerHealthRoutes(app: FastifyInstance, service: HealthService) {
+  app.get('/health', async () => service.getHealthResponse());
 }

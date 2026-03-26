@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### API-001 — Bootstrap Node Modular Monolith With API and Worker Runtimes
+
+- **Status:** completed
+- **Ticket:** API-001
+- **Goal:** Close the remaining backend-foundation gap by introducing explicit module bootstrap boundaries, repository/service seams, and worker runtime/config composition that future features can extend without cross-module reach-ins.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `docs/09_Project_Phase_Status.md`, `README.md`, `server/api/src/app.ts`, `server/api/src/lib/env.ts`, `server/api/src/modules/module.ts`, `server/api/src/modules/health/*`, `server/worker/src/index.ts`, `server/worker/src/worker.ts`, `server/worker/src/lib/env.ts`, `server/worker/src/modules/module.ts`, `server/worker/src/modules/heartbeat/*`, and related backend tests.
+- **Rationale:** `SET-002` is still blocked, and `API-001` is now the earliest active canonical ticket with a realistic closeout path. The repo already has separate API and worker runtimes plus typed health and heartbeat behavior, so the remaining gap is formalizing module ownership and runtime boundaries rather than starting later feature APIs.
+- **Risks:** The refactor must not break existing dev scripts or the current `/health` route and worker heartbeat behavior. Module abstractions need to stay lean; over-engineering the skeleton would slow later feature work instead of helping it.
+- **API / schema impact:** No external API contract change expected. Internal backend structure only: module registration, runtime config loading, and service/repository seams.
+- **Rollout / flag plan:** No flag. This hardens the default backend foundation for future feature modules.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** API and worker still run separately, module factories own their services and repositories, worker jobs are composed through explicit module contracts, config loaders are tested, and repo quality gates stay green.
+- **Outcome:** Reworked the API and worker runtimes around explicit module factories and registration helpers, moved health and heartbeat behavior behind repository/service seams, added tested env loaders for both runtimes, and kept the typed `/health` route plus scheduled worker heartbeat behavior intact. The backend skeleton is now ready for future feature modules without cross-module reach-ins, while real domain APIs and jobs remain later-ticket scope.
+
 ### UX-003 — Create Inbox for Uncategorized and Partially Classified Transactions
 
 - **Status:** completed
