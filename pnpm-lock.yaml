@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.4.2
+        version: 0.4.2
       '@stoplight/spectral-cli':
         specifier: ^6.15.0
         version: 6.15.0
@@ -20,6 +23,9 @@ importers:
       prettier:
         specifier: ^3.8.1
         version: 3.8.1
+      sql.js:
+        specifier: ^1.14.1
+        version: 1.14.1
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -660,6 +666,9 @@ packages:
 
   '@bcoe/v8-coverage@0.2.3':
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
+
+  '@electric-sql/pglite@0.4.2':
+    resolution: {integrity: sha512-1GUUl/MZpy5QWgWisD3Epho3GkJrZ1MzVgQpo2pifQWUs96F9rXKZxeVLPhkwFYck34CH/kQ8lis6wX9ifn3kg==}
 
   '@emnapi/core@1.9.0':
     resolution: {integrity: sha512-0DQ98G9ZQZOxfUcQn1waV2yS8aWdZ6kJMbYCJB3oUBecjWYO1fqJ+a1DRfPF3O5JEkwqwP1A9QEN/9mYm2Yd0w==}
@@ -4312,6 +4321,9 @@ packages:
   sprintf-js@1.0.3:
     resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
 
+  sql.js@1.14.1:
+    resolution: {integrity: sha512-gcj8zBWU5cFsi9WUP+4bFNXAyF1iRpA3LLyS/DP5xlrNzGmPIizUeBggKa8DbDwdqaKwUcTEnChtd2grWo/x/A==}
+
   stack-generator@2.0.10:
     resolution: {integrity: sha512-mwnua/hkqM6pF4k8SnmZ2zfETsRUpWXREfA/goT8SLCV4iOFa4bzOX2nDipWAZFPTjLvQB82f5yaodMVhK0yJQ==}
 
@@ -5476,6 +5488,8 @@ snapshots:
       '@babel/helper-validator-identifier': 7.28.5
 
   '@bcoe/v8-coverage@0.2.3': {}
+
+  '@electric-sql/pglite@0.4.2': {}
 
   '@emnapi/core@1.9.0':
     dependencies:
@@ -10220,6 +10234,8 @@ snapshots:
   split2@4.2.0: {}
 
   sprintf-js@1.0.3: {}
+
+  sql.js@1.14.1: {}
 
   stack-generator@2.0.10:
     dependencies:

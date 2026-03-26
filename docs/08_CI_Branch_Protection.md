@@ -11,7 +11,7 @@ This repository automates pull-request quality checks in GitHub Actions, but bra
 - `OpenAPI`
 - `Verify`
 
-`Scope` publishes a readable changed-area summary for `client`, `server/api`, `server/worker`, `packages`, `docs`, and root-level files. `PR Title` enforces Conventional Commits style on the pull-request title. `OpenAPI` runs `pnpm lint:openapi`. `Verify` runs `pnpm ci:verify`.
+`Scope` publishes a readable changed-area summary for `client`, `server/api`, `server/worker`, `packages`, `docs`, and root-level files. `PR Title` enforces Conventional Commits style on the pull-request title. `OpenAPI` runs `pnpm lint:openapi`. `Verify` runs `pnpm ci:verify`, which now includes `pnpm db:validate` alongside lint, typecheck, test, and build.
 
 ## Required GitHub Ruleset For `main`
 
@@ -48,6 +48,7 @@ Preferred setup: GitHub repository rulesets targeting the `main` branch.
 - Open a pull request and confirm all four checks appear.
 - Confirm GitHub ruleset configuration requires the same four checks by exact name.
 - Confirm merge is blocked when any required check fails.
+- Confirm the `Verify` job log includes a successful `pnpm db:validate` step.
 
 ## Fallback If Rulesets Are Unavailable
 

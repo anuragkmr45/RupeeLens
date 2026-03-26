@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### SET-004 — Implement Database Migration Framework for Mobile SQLite and Server PostgreSQL
+
+- **Status:** completed
+- **Ticket:** SET-004
+- **Goal:** Land a real migration framework for both mobile SQLite and server PostgreSQL, including ordered manifests, schema version tracking, developer validation scripts, and CI enforcement through a canonical `pnpm db:validate` command.
+- **Touched files/modules:** `PLANS.md`, `package.json`, `.github/workflows/pr.yml`, `README.md`, `AGENTS.md`, `docs/08_CI_Branch_Protection.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `docs/11_Database_Migrations.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `client/src/features/spend-tracker/persistence.ts`, new mobile migration helpers/tests, new server migration helpers/tests, and new root `scripts/db/*`.
+- **Rationale:** `SET-002` is still blocked, there are no remaining active product tickets ahead of foundations, and `SET-004` is the earliest `P0` todo ticket with satisfied dependencies. It also unlocks later remote-config and backend work because the repo still lacks a canonical DB validation surface.
+- **Risks:** The migration layer must not break existing local client persistence or overstate server DB readiness beyond a baseline framework. CI/doc changes need to stay synchronized so `db:validate` is both real and documented, not just added to one place.
+- **API / schema impact:** Internal schema/migration infrastructure only. No public API contract change.
+- **Rollout / flag plan:** No feature flag. This becomes the canonical migration and DB validation path for the repo.
+- **Validation commands:** `pnpm db:validate`, `pnpm lint`, `pnpm lint:openapi`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** Mobile and server both initialize from ordered migrations, schema versions are tracked, rollback/forward-fix guidance is documented, CI runs the canonical DB validation command, and all repo quality gates remain green.
+- **Outcome:** Added ordered mobile and server migration manifests plus runners, switched the client persistence boot path onto the mobile migration runner with legacy-schema adoption, introduced the canonical root `pnpm db:validate` command backed by `sql.js` and `PGlite`, and updated repo verification/docs so CI and contributor guidance now treat DB validation as a real quality gate.
+
 ### API-001 — Bootstrap Node Modular Monolith With API and Worker Runtimes
 
 - **Status:** completed

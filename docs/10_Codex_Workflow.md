@@ -74,6 +74,7 @@ If repo truth and backlog status disagree, prefer live code plus the most struct
 ### 6. Validate
 
 - Run the default repo checks unless the ticket is truthfully blocked by external environment:
+  - `pnpm db:validate` when DB schema, migrations, or migration tooling changes
   - `pnpm lint`
   - `pnpm typecheck`
   - `pnpm test`
@@ -118,28 +119,18 @@ Do not start a second ticket automatically in the same run.
 ## Validation Rules
 
 - Treat missing validations as blockers, not as implied passes.
-- `pnpm db:validate` is not part of the current root command surface yet.
-- Until `SET-004` adds real migration infrastructure and a canonical DB validation command, DB-related work must use ticket-specific checks and explicitly note that the root `db:validate` command does not exist.
+- `pnpm db:validate` is now the canonical migration validation command for DB schema, migration, and migration-tooling changes.
+- DB-related tickets should run `pnpm db:validate` in addition to the default repo checks, unless the current environment is truthfully blocked.
 - Do not claim migration safety, branch protection, or platform-native success without direct evidence from the current environment.
 
 ## Current Default Next Ticket
 
-Unless repo truth changes first, the next product run should continue:
+Unless repo truth changes first, the next ticket after `SET-004` should be:
 
-- `UX-001 — Implement onboarding and permission education flow`
+- `SET-003 — Create mobile design system tokens and UI primitives`
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `UX-001` is the earliest actionable `in_progress` ticket.
-- The current client only partially satisfies the onboarding spec.
-
-Remaining `UX-001` scope should come from `docs/03_Screen_Spec.md`:
-
-- source app allowlist selection
-- budget cycle selection
-- explicit local-only vs sync choice
-- resumable onboarding
-- permission education and settings handoff
-
-Real permission-state reflection is still dependency-sensitive and must not be faked.
+- `SET-004` becomes the earliest completed `P0` foundation closeout.
+- `SET-003` is the earliest remaining Sprint 0 ticket with satisfied dependencies and no external blocker.

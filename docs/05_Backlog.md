@@ -121,7 +121,7 @@ UI primitives documented and ready for feature teams.
 - **Story points:** 5
 - **Goal:** Make schema changes safe and repeatable across environments.
 - **Dependencies:** SET-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-26 | Completed At: 2026-03-26 | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: mobile and server now initialize through ordered migration manifests with schema version tracking, the client persistence path applies mobile migrations before reads/writes and can adopt older untracked local schemas, `pnpm db:validate` validates empty-state and legacy upgrade paths, and `pnpm ci:verify` now enforces DB validation in CI.
 
 **Description**  
 Create migration runners, seed strategy, schema version tracking, rollback guidance, and local developer scripts for both mobile SQLite and server PostgreSQL.

@@ -6,6 +6,7 @@ import {
   type CategoryId,
   type Transaction,
 } from './domain';
+import { applyMobileMigrations } from './db/migration-runner';
 
 export type NotificationAccessState = 'not_started' | 'settings_opened';
 export type SupportedSourceAppId =
@@ -57,38 +58,6 @@ interface TransactionItemRow {
 
 const DATABASE_NAME = 'spend-tracker.db';
 const LEGACY_STORAGE_KEY = 'spend_tracker_demo_state_v1';
-const SETTINGS_TABLE_SQL = `
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY NOT NULL,
-    value TEXT NOT NULL
-  );
-`;
-const TRANSACTIONS_TABLE_SQL = `
-  CREATE TABLE IF NOT EXISTS transactions (
-    id TEXT PRIMARY KEY NOT NULL,
-    amount_minor INTEGER NOT NULL,
-    captured_at TEXT NOT NULL,
-    merchant TEXT NOT NULL,
-    source_app TEXT NOT NULL,
-    status TEXT NOT NULL CHECK(status IN ('classified', 'uncategorized', 'skipped'))
-  );
-`;
-const TRANSACTION_ITEMS_TABLE_SQL = `
-  CREATE TABLE IF NOT EXISTS transaction_items (
-    id TEXT PRIMARY KEY NOT NULL,
-    transaction_id TEXT NOT NULL,
-    amount_minor INTEGER NOT NULL,
-    category_id TEXT NOT NULL,
-    label TEXT NOT NULL,
-    sort_order INTEGER NOT NULL,
-    FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
-  );
-`;
-const TRANSACTION_ITEMS_INDEX_SQL = `
-  CREATE INDEX IF NOT EXISTS idx_transaction_items_transaction_id
-  ON transaction_items(transaction_id, sort_order);
-`;
-
 export const DEFAULT_ONBOARDING_PREFERENCES: OnboardingPreferences = {
   budgetCycleId: 'calendar_month',
   selectedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
@@ -144,7 +113,7 @@ async function getDatabase(): Promise<SQLiteDatabase> {
   const database = await databasePromise;
 
   if (!schemaPromise) {
-    const schemaTask = ensureSchema(database);
+    const schemaTask = applyMobileMigrations(database);
     schemaPromise = schemaTask.catch((error: unknown) => {
       schemaPromise = null;
       throw error;
@@ -153,90 +122,6 @@ async function getDatabase(): Promise<SQLiteDatabase> {
 
   await schemaPromise;
   return database;
-}
-
-async function ensureSchema(database: SQLiteDatabase): Promise<void> {
-  await database.execAsync(`
-    PRAGMA foreign_keys = ON;
-    ${SETTINGS_TABLE_SQL}
-  `);
-
-  await ensureTransactionsSchema(database);
-}
-
-async function ensureTransactionsSchema(database: SQLiteDatabase): Promise<void> {
-  const transactionsTableRow = await database.getFirstAsync<{ sql: string | null }>(
-    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'transactions'",
-  );
-  const transactionsTableSql = transactionsTableRow?.sql ?? null;
-
-  if (!transactionsTableSql) {
-    await database.execAsync(`
-      ${TRANSACTIONS_TABLE_SQL}
-      ${TRANSACTION_ITEMS_TABLE_SQL}
-      ${TRANSACTION_ITEMS_INDEX_SQL}
-    `);
-    return;
-  }
-
-  if (!transactionsTableSql.includes("'skipped'")) {
-    await database.execAsync(`
-      PRAGMA foreign_keys = OFF;
-
-      ALTER TABLE transaction_items RENAME TO transaction_items_legacy;
-      ALTER TABLE transactions RENAME TO transactions_legacy;
-
-      ${TRANSACTIONS_TABLE_SQL}
-      ${TRANSACTION_ITEMS_TABLE_SQL}
-
-      INSERT INTO transactions (
-        id,
-        amount_minor,
-        captured_at,
-        merchant,
-        source_app,
-        status
-      )
-      SELECT
-        id,
-        amount_minor,
-        captured_at,
-        merchant,
-        source_app,
-        status
-      FROM transactions_legacy;
-
-      INSERT INTO transaction_items (
-        id,
-        transaction_id,
-        amount_minor,
-        category_id,
-        label,
-        sort_order
-      )
-      SELECT
-        id,
-        transaction_id,
-        amount_minor,
-        category_id,
-        label,
-        sort_order
-      FROM transaction_items_legacy;
-
-      DROP TABLE transaction_items_legacy;
-      DROP TABLE transactions_legacy;
-
-      ${TRANSACTION_ITEMS_INDEX_SQL}
-
-      PRAGMA foreign_keys = ON;
-    `);
-    return;
-  }
-
-  await database.execAsync(`
-    ${TRANSACTION_ITEMS_TABLE_SQL}
-    ${TRANSACTION_ITEMS_INDEX_SQL}
-  `);
 }
 
 async function hasStoredState(database: SQLiteDatabase): Promise<boolean> {

@@ -130,12 +130,12 @@
       ],
       "tests": "Run migrations from empty DB and on existing DB with prior version; verify schema hash.",
       "done": "Migration workflow documented and validated.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-26",
+      "completed_at": "2026-03-26",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: mobile and server now initialize through ordered migration manifests with schema version tracking, the client persistence path applies mobile migrations before reads/writes and can adopt older untracked local schemas, `pnpm db:validate` validates empty-state and legacy upgrade paths, and `pnpm ci:verify` now enforces DB validation in CI."
     },
     {
       "id": "SET-005",

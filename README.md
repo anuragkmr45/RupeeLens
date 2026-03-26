@@ -26,6 +26,7 @@ Android-first v1 scaffold for a consumer UPI spend tracker. The repo now include
 
 ```bash
 pnpm install
+pnpm db:validate
 pnpm lint
 pnpm lint:openapi
 pnpm typecheck
@@ -38,6 +39,7 @@ pnpm build
 Run the same checks that CI expects before opening or updating a pull request:
 
 ```bash
+pnpm db:validate
 pnpm lint
 pnpm lint:openapi
 pnpm typecheck
@@ -45,7 +47,7 @@ pnpm test
 pnpm build
 ```
 
-`pnpm ci:verify` runs the canonical non-OpenAPI quality gates in the same order as the `Verify` GitHub Actions job.
+`pnpm ci:verify` runs the canonical non-OpenAPI quality gates, including `pnpm db:validate`, in the same order as the `Verify` GitHub Actions job.
 
 ## Run The Runtimes
 
@@ -104,7 +106,7 @@ Branch-protection expectations and the exact required check names are documented
 - `PLANS.md`: execution-plan template plus implementation-history log
 - `docs/09_Project_Phase_Status.md`: repo-truth audit of what is done and what remains by sprint
 - `docs/10_Codex_Workflow.md`: single-ticket delivery loop for audit, selection, implementation, validation, and truthful tracking updates
-- `docs/11_Database_Migrations.md`: current migration-status guidance until `SET-004` lands the formal framework
+- `docs/11_Database_Migrations.md`: migration commands, seed strategy, validation behavior, and rollback/forward-fix guidance
 
 Within a continuing Codex thread for this repo, a user message of `next` means rerun the single-ticket workflow documented in `docs/10_Codex_Workflow.md`.
 
@@ -113,10 +115,10 @@ Within a continuing Codex thread for this repo, a user message of `next` means r
 - Android-first onboarding now includes notification education, source-app selection, budget-cycle choice, sync preference, and a cycle-aware local dashboard with budget progress, top items, recent activity, a filtered Inbox, bottom-sheet quick classify, skipped-item recovery, and manual spend entry
 - Notification access setup can hand off to system settings, but real permission state and native capture ingestion are not implemented yet
 - Home now includes quick-action entrypoints for budgets and search, while Inbox supports local status, merchant, source-app, amount, and age filters plus skip/delete actions on a FlatList path validated against a seeded 1,000-item local queue; quick classify now runs in a bottom sheet with explicit suggestion chips and a save-as-rule intent toggle; the actual budget creation, search, split, and durable rule screens still arrive in later tickets
-- Onboarding, classified spends, and manual entries persist on device through local SQLite tables, but migrations, sync, and native capture import are still pending
+- Onboarding, classified spends, and manual entries persist on device through local SQLite tables with ordered migrations and root-level DB validation; sync and native capture import are still pending
 - Backend skeleton now boots API and worker runtimes through explicit module factories, tested env loaders, and service/repository seams, but only the health endpoint is implemented; there are still no business APIs, auth, DB, or sync implementation yet
 - Worker runtime now composes scheduled jobs through module contracts, but only the heartbeat job exists; there are still no queues, DB, exports, or real background jobs yet
-- No deployment CI, migrations, analytics providers, notification capture, or remote config implementation yet
+- No deployment CI, analytics providers, notification capture, or remote config implementation yet
 
 ## Backlog Tracking Convention
 

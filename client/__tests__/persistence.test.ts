@@ -20,6 +20,10 @@ interface DatabaseMock {
   withTransactionAsync: jest.Mock<Promise<void>, [() => Promise<void>]>;
 }
 
+function includesSql(sql: string, snippet: string): boolean {
+  return sql.replace(/\s+/g, ' ').includes(snippet);
+}
+
 function createDatabaseMock(): DatabaseMock {
   return {
     execAsync: jest.fn().mockResolvedValue(undefined),
@@ -73,45 +77,77 @@ describe('spend-tracker persistence', () => {
     const { openDatabaseAsync } = getExpoSqliteMock();
 
     openDatabaseAsync.mockResolvedValue(database);
-    database.getFirstAsync
-      .mockResolvedValueOnce({ count: 5 })
-      .mockResolvedValueOnce({ count: 2 });
-    database.getAllAsync
-      .mockResolvedValueOnce([
-        { key: 'selected_source_app_ids', value: '["google_pay","phonepe"]' },
-        { key: 'budget_cycle_id', value: 'salary_cycle' },
-        { key: 'sync_mode', value: 'sync_later' },
-        { key: 'notification_access_state', value: 'settings_opened' },
-        { key: 'onboarding_completed', value: 'true' },
-      ])
-      .mockResolvedValueOnce([
-        {
-          amountMinor: 29900,
-          capturedAt: '2026-03-25T10:00:00+05:30',
-          id: 'txn_manual_store',
-          merchant: 'Corner Store',
-          sourceApp: 'Manual entry',
-          status: 'classified',
-        },
-        {
-          amountMinor: 18000,
-          capturedAt: '2026-03-25T09:12:00+05:30',
-          id: 'txn_blue_tokai',
-          merchant: 'Blue Tokai Roasters',
-          sourceApp: 'Google Pay',
-          status: 'skipped',
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          amountMinor: 29900,
-          categoryId: 'groceries',
-          id: 'txn_manual_store_item_1',
-          label: 'Snacks',
-          sortOrder: 0,
-          transactionId: 'txn_manual_store',
-        },
-      ]);
+    database.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM schema_migrations')) {
+        return { count: 4 };
+      }
+
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM transactions')) {
+        return { count: 5 };
+      }
+
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM settings')) {
+        return { count: 2 };
+      }
+
+      return null;
+    });
+    database.getAllAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, 'SELECT id FROM schema_migrations ORDER BY id ASC')) {
+        return [
+          { id: '001_create_settings_table' },
+          { id: '002_create_transactions_table' },
+          { id: '003_create_transaction_items_table' },
+          { id: '004_create_transaction_items_index' },
+        ];
+      }
+
+      if (includesSql(sql, 'SELECT key, value FROM settings')) {
+        return [
+          { key: 'selected_source_app_ids', value: '["google_pay","phonepe"]' },
+          { key: 'budget_cycle_id', value: 'salary_cycle' },
+          { key: 'sync_mode', value: 'sync_later' },
+          { key: 'notification_access_state', value: 'settings_opened' },
+          { key: 'onboarding_completed', value: 'true' },
+        ];
+      }
+
+      if (includesSql(sql, 'FROM transactions')) {
+        return [
+          {
+            amountMinor: 29900,
+            capturedAt: '2026-03-25T10:00:00+05:30',
+            id: 'txn_manual_store',
+            merchant: 'Corner Store',
+            sourceApp: 'Manual entry',
+            status: 'classified',
+          },
+          {
+            amountMinor: 18000,
+            capturedAt: '2026-03-25T09:12:00+05:30',
+            id: 'txn_blue_tokai',
+            merchant: 'Blue Tokai Roasters',
+            sourceApp: 'Google Pay',
+            status: 'skipped',
+          },
+        ];
+      }
+
+      if (includesSql(sql, 'FROM transaction_items')) {
+        return [
+          {
+            amountMinor: 29900,
+            categoryId: 'groceries',
+            id: 'txn_manual_store_item_1',
+            label: 'Snacks',
+            sortOrder: 0,
+            transactionId: 'txn_manual_store',
+          },
+        ];
+      }
+
+      return [];
+    });
 
     const { loadStoredSpendTrackerState } = loadPersistenceModule();
 
@@ -159,9 +195,32 @@ describe('spend-tracker persistence', () => {
     const { Storage } = getKvStoreMock();
 
     openDatabaseAsync.mockResolvedValue(database);
-    database.getFirstAsync
-      .mockResolvedValueOnce({ count: 0 })
-      .mockResolvedValueOnce({ count: 0 });
+    database.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM schema_migrations')) {
+        return { count: 0 };
+      }
+
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM transactions')) {
+        return { count: 0 };
+      }
+
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM settings')) {
+        return { count: 0 };
+      }
+
+      return null;
+    });
+    database.getAllAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, "FROM sqlite_master WHERE type = 'table'")) {
+        return [];
+      }
+
+      if (includesSql(sql, 'SELECT id FROM schema_migrations ORDER BY id ASC')) {
+        return [];
+      }
+
+      return [];
+    });
     Storage.getItem.mockResolvedValue(
       JSON.stringify({
         notificationAccessState: 'not_started',
@@ -198,6 +257,24 @@ describe('spend-tracker persistence', () => {
     const { openDatabaseAsync } = getExpoSqliteMock();
 
     openDatabaseAsync.mockResolvedValue(database);
+    database.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM schema_migrations')) {
+        return { count: 0 };
+      }
+
+      return null;
+    });
+    database.getAllAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, "FROM sqlite_master WHERE type = 'table'")) {
+        return [];
+      }
+
+      if (includesSql(sql, 'SELECT id FROM schema_migrations ORDER BY id ASC')) {
+        return [];
+      }
+
+      return [];
+    });
 
     const { saveStoredSpendTrackerState } = loadPersistenceModule();
 

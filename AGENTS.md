@@ -32,6 +32,7 @@ This repository contains the Android-first v1 of UPI Spend Tracker. Codex and hu
 Run from repository root:
 
 - `pnpm install`
+- `pnpm db:validate`
 - `pnpm lint`
 - `pnpm lint:openapi`
 - `pnpm typecheck`
