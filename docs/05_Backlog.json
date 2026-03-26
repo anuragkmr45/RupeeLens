@@ -438,12 +438,12 @@
       ],
       "tests": "Seeded-data performance test and classification action tests.",
       "done": "Inbox accepted by product for daily-use flow.",
-      "status": "in_progress",
+      "status": "done",
       "owner": "codex",
       "started_at": "2026-03-25",
-      "completed_at": "",
+      "completed_at": "2026-03-25",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: Inbox now supports local filters for status, merchant, source app, amount, and age; skipped items can be revisited; delete actions update local state instantly; and the list uses a FlatList-based rendering path. Partial/conflict views, split/create-rule actions, and explicit 1,000-item performance validation remain open."
+      "tracking_notes": "Repo truth: Inbox now supports local filters for status, merchant, source app, amount, and age; skipped items can be revisited; delete and classify actions update local state instantly; and a seeded 1,000-item test now covers the tuned FlatList path for larger local review queues. Partial/conflict views plus split/create-rule workflows remain later follow-up scope."
     },
     {
       "id": "UX-004",

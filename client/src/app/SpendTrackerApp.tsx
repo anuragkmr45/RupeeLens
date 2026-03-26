@@ -1078,7 +1078,9 @@ function InboxScreen({
     <FlatList
       contentContainerStyle={styles.inboxListContent}
       data={filteredReviewTransactions}
+      initialNumToRender={12}
       ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+      keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.transaction.id}
       ListEmptyComponent={
         <SectionCard accentColor={hasActiveFilters ? colors.panelWarm : colors.successSoft}>
@@ -1243,6 +1245,8 @@ function InboxScreen({
           </SectionCard>
         </View>
       }
+      maxToRenderPerBatch={16}
+      removeClippedSubviews={true}
       renderItem={({ item }) => (
         <TransactionCard
           onDelete={() => onDeleteTransaction(item.transaction.id)}
@@ -1253,6 +1257,8 @@ function InboxScreen({
         />
       )}
       showsVerticalScrollIndicator={false}
+      updateCellsBatchingPeriod={50}
+      windowSize={7}
     />
   );
 }

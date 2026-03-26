@@ -449,7 +449,7 @@ Dashboard is production-ready and performance-budget compliant.
 - **Story points:** 8
 - **Goal:** Make skipped or ambiguous transactions easy to recover later.
 - **Dependencies:** CAP-006, UX-002
-- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-25 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: Inbox now supports local filters for status, merchant, source app, amount, and age; skipped items can be revisited; delete actions update local state instantly; and the list uses a FlatList-based rendering path. Partial/conflict views, split/create-rule actions, and explicit 1,000-item performance validation remain open.
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-25 | Completed At: 2026-03-25 | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: Inbox now supports local filters for status, merchant, source app, amount, and age; skipped items can be revisited; delete and classify actions update local state instantly; and a seeded 1,000-item test now covers the tuned FlatList path for larger local review queues. Partial/conflict views plus split/create-rule workflows remain later follow-up scope.
 
 **Description**  
 Build list and filter views for uncategorized payments, partially split transactions, and conflict items. Support swipe or tap actions for classify, split, skip, delete, and create rule.

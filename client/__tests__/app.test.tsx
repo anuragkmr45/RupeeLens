@@ -1,7 +1,7 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import App from '../App';
-import { seededTransactions } from '../src/features/spend-tracker/domain';
+import { seededTransactions, type Transaction } from '../src/features/spend-tracker/domain';
 import {
   DEFAULT_ONBOARDING_PREFERENCES,
   loadStoredSpendTrackerState,
@@ -23,6 +23,35 @@ const mockedLoadStoredSpendTrackerState =
   loadStoredSpendTrackerState as jest.MockedFunction<typeof loadStoredSpendTrackerState>;
 const mockedSaveStoredSpendTrackerState =
   saveStoredSpendTrackerState as jest.MockedFunction<typeof saveStoredSpendTrackerState>;
+
+function buildHighVolumeInboxTransactions(totalTransactions = 1_000): Transaction[] {
+  return [
+    {
+      amountMinor: 79900,
+      capturedAt: '2026-03-18T09:12:00+05:30',
+      id: 'txn_target_inbox_scale',
+      items: [],
+      merchant: 'Target Merchant',
+      sourceApp: 'Google Pay',
+      status: 'uncategorized',
+    },
+    ...Array.from({ length: totalTransactions - 1 }, (_, index) => ({
+      amountMinor: 19900,
+      capturedAt: '2026-03-25T08:34:00+05:30',
+      id: `txn_inbox_scale_${index + 1}`,
+      items: [],
+      merchant: `Merchant ${String(index + 1).padStart(4, '0')}`,
+      sourceApp: 'PhonePe',
+      status: 'uncategorized' as const,
+    })),
+  ];
+}
+
+async function flushVirtualizedListTimers(): Promise<void> {
+  await act(async () => {
+    jest.runOnlyPendingTimers();
+  });
+}
 
 describe('App', () => {
   beforeEach(() => {
@@ -207,6 +236,55 @@ describe('App', () => {
         lastSavedState?.transactions.find((transaction) => transaction.id === 'txn_blue_tokai'),
       ).toBeUndefined();
     });
+  });
+
+  it('keeps the inbox usable with 1000 local items and all filter types', async () => {
+    jest.useFakeTimers();
+    mockedLoadStoredSpendTrackerState.mockResolvedValue({
+      onboardingPreferences: DEFAULT_ONBOARDING_PREFERENCES,
+      notificationAccessState: 'settings_opened',
+      onboardingCompleted: true,
+      transactions: buildHighVolumeInboxTransactions(),
+    });
+
+    try {
+      const screen = render(<App />);
+
+      await flushVirtualizedListTimers();
+      fireEvent.press(await screen.findByRole('button', { name: 'Inbox' }));
+      await flushVirtualizedListTimers();
+
+      expect(await screen.findByText('Showing 1000 of 1000 unresolved items')).toBeTruthy();
+
+      fireEvent.press(screen.getByRole('button', { name: 'Google Pay' }));
+      await flushVirtualizedListTimers();
+      expect(screen.getByText('Showing 1 of 1000 unresolved items')).toBeTruthy();
+      expect(screen.getByText('Target Merchant')).toBeTruthy();
+
+      fireEvent.press(screen.getByRole('button', { name: 'Clear filters' }));
+      await flushVirtualizedListTimers();
+      fireEvent.press(screen.getByRole('button', { name: 'Over Rs 500' }));
+      await flushVirtualizedListTimers();
+      expect(screen.getByText('Showing 1 of 1000 unresolved items')).toBeTruthy();
+      expect(screen.getByText('Target Merchant')).toBeTruthy();
+
+      fireEvent.press(screen.getByRole('button', { name: 'Clear filters' }));
+      await flushVirtualizedListTimers();
+      fireEvent.press(screen.getByRole('button', { name: 'Older' }));
+      await flushVirtualizedListTimers();
+      expect(screen.getByText('Showing 1 of 1000 unresolved items')).toBeTruthy();
+      expect(screen.getByText('Target Merchant')).toBeTruthy();
+
+      fireEvent.press(screen.getByRole('button', { name: 'Clear filters' }));
+      await flushVirtualizedListTimers();
+      fireEvent.changeText(screen.getByPlaceholderText('Filter by merchant'), 'Target');
+      await flushVirtualizedListTimers();
+      expect(screen.getByText('Showing 1 of 1000 unresolved items')).toBeTruthy();
+      expect(screen.getByText('Target Merchant')).toBeTruthy();
+    } finally {
+      jest.runOnlyPendingTimers();
+      jest.useRealTimers();
+    }
   });
 
   it('uses explicit quick-classify suggestions and rule-intent toggle', async () => {

@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### UX-003 — Create Inbox for Uncategorized and Partially Classified Transactions
+
+- **Status:** completed
+- **Ticket:** UX-003
+- **Goal:** Close the remaining Inbox acceptance gap by adding explicit high-volume validation and tightening the virtualized list path for large local review queues.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `client/src/app/SpendTrackerApp.tsx`, `client/__tests__/app.test.tsx`.
+- **Rationale:** `SET-002` is still blocked, `UX-004` is now closed, and `UX-003` is the earliest active product ticket with a realistic closeout path. Filters, revisit, and delete behavior already exist; the remaining repo-side gap is proving the Inbox path holds up against a 1,000-item local queue and baking that into the list configuration and tests.
+- **Risks:** Any long-list tuning must not break the existing Inbox interaction model or make tests flaky. The closeout must stay honest that partial/conflict and split/create-rule workflows are separate follow-up scope, not silently completed here.
+- **API / schema impact:** No external API or schema changes. UI-only scalability validation on top of the existing local Inbox flow.
+- **Rollout / flag plan:** No flag. This hardens the default local Inbox behavior.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** Inbox keeps instant update behavior, the filter/revisit flows still pass, the list path is explicitly tuned for larger datasets, and a seeded 1,000-item validation test proves the local Inbox remains usable.
+- **Outcome:** Added explicit FlatList tuning for the local Inbox path and covered a seeded 1,000-item queue in tests across source-app, amount, age, and merchant filters. With the existing instant-update classify flow plus revisit/delete behavior still green, the repo-side `UX-003` acceptance criteria are now satisfied; partial/conflict views and split/create-rule workflows remain later-ticket scope.
+
 ### UX-004 — Build Quick-Classify Bottom Sheet and Manual Add Flow
 
 - **Status:** completed
