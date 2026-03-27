@@ -39,7 +39,8 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 **Remaining**
 
-- Connected-device closeout for the new Room-backed native capture repository is blocked because `adb devices` is currently empty, and the native capture domain-import work still remains
+- Connected-device closeout for dedupe and the new Room-backed native capture repository is still blocked because the attached Android device cancels debug APK installation with `INSTALL_FAILED_USER_RESTRICTED`
+- Native capture domain-import work still remains
 
 ## Sprint 2 — First Usable App
 

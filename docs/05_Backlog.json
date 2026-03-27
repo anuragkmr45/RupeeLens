@@ -265,7 +265,7 @@
       "started_at": "2026-03-27",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "CAP-003 now has repo-side exact/fuzzy dedupe, bootstrap-delivered thresholds, duplicate counters, Android diagnostics wiring, a JVM deduper test suite, and replay/integration coverage. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `./gradlew :app:testDebugUnitTest` passed, but `./gradlew :app:connectedDebugAndroidTest` is blocked on 2026-03-27 because the attached Android device canceled installation of `app-debug.apk` with `INSTALL_FAILED_USER_RESTRICTED`."
+      "tracking_notes": "CAP-003 now has repo-side exact/fuzzy dedupe, bootstrap-delivered thresholds, duplicate counters, Android diagnostics wiring, a JVM deduper test suite, and replay/integration coverage. On 2026-03-27 `adb devices` again showed the physical device `e342703`, `./gradlew :app:testDebugUnitTest` passed, and `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed. The closeout remains blocked because `./gradlew :app:connectedDebugAndroidTest` still failed while installing `app-debug.apk` on `M2102J20SI - 13` with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`."
     },
     {
       "id": "CAP-004",

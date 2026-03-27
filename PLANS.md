@@ -10,9 +10,23 @@ Protocol notes:
 
 ## Active Plan
 
+### CAP-003 — Implement Capture Dedupe And Replay Protection
+
+- **Status:** blocked
+- **Ticket:** CAP-003
+- **Goal:** Close the blocked dedupe ticket now that a connected Android device is available again, and move it to `done` if on-device validation succeeds.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, and repo-truth docs only if closeout succeeds. Android native/test files should change only if connected validation exposes a real CAP-003 gap.
+- **Rationale:** `adb devices` now reports `e342703	device`, so the environment-only blocker changed materially. The workflow prefers closing earlier blocked tickets before starting untouched work, and `CAP-003` is the earliest blocked capture ticket whose remaining gap may now be resolvable on-device.
+- **Risks:** Connected Android validation may still fail because of install policy, device state, or an uncovered native bug. This pass must stay scoped to CAP-003 closeout and must not spill into CAP-004 repository closeout or later notification-action work.
+- **API / schema impact:** None expected unless connected validation exposes a narrow native dedupe defect.
+- **Rollout / flag plan:** No rollout change. Confirm the existing bootstrap-delivered dedupe thresholds and local diagnostics rather than widening scope.
+- **Validation commands:** `adb devices`, `cd client/android && ./gradlew :app:testDebugUnitTest :app:connectedDebugAndroidTest`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** CAP-003 has direct connected-Android validation evidence for dedupe behavior, repo quality gates remain green, and backlog tracking can move from `blocked` to `done` truthfully.
+- **Outcome:** `adb devices` now shows the physical Android device `e342703`, and `cd client/android && ./gradlew :app:testDebugUnitTest` passed. The closeout still remains blocked because `cd client/android && ./gradlew :app:connectedDebugAndroidTest` failed on 2026-03-27 while installing `/Users/anuragkumar/Desktop/RupeeLens/client/android/app/build/outputs/apk/debug/app-debug.apk` with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` on `M2102J20SI - 13`. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` also passed. No repo-side CAP-003 code changes were needed in this pass; the remaining blocker is device policy/user confirmation.
+
 ### UX-005 — Implement Split-Items Screen And Remainder Handling
 
-- **Status:** in_progress
+- **Status:** completed
 - **Ticket:** UX-005
 - **Goal:** Add a full-screen split flow for one payment to map to multiple items or categories, with running totals, remainder handling, and Inbox visibility for partially classified transactions.
 - **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/domain.ts`, `client/src/features/spend-tracker/persistence.ts`, and focused client tests only.
