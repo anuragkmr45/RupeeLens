@@ -510,6 +510,7 @@ describe('App', () => {
     expect(screen.getByText('Remote bootstrap config')).toBeTruthy();
     expect(screen.getByText('Android capture diagnostics')).toBeTruthy();
     expect(screen.getByText('Budget progress')).toBeTruthy();
+    expect(screen.getByText(/Projected spend:/)).toBeTruthy();
     expect(screen.getByText('Top items')).toBeTruthy();
     expect(screen.getByText('Create budget')).toBeTruthy();
     expect(screen.getByText('1 pending')).toBeTruthy();

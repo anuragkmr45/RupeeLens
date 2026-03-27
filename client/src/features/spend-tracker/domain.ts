@@ -189,8 +189,11 @@ export interface ManualEntryInput {
 }
 
 export interface DashboardSummary {
+  budgetLabel: string;
   budgetRemainingMinor: number;
+  budgetProjectedSpendMinor: number;
   budgetTargetMinor: number;
+  budgetThresholdState: BudgetThresholdState;
   budgetUsedRatio: number;
   classifiedCount: number;
   inboxCount: number;
@@ -266,6 +269,42 @@ export interface ClassificationSuggestion {
   source: ClassificationSuggestionSource;
 }
 
+export type BudgetScope = 'overall' | 'category' | 'merchant' | 'item';
+export type BudgetPeriod = 'monthly' | 'weekly' | 'rolling' | 'custom';
+export type BudgetThresholdState = 'on_track' | 'warning' | 'at_risk' | 'over_budget';
+
+export interface BudgetDefinition {
+  categoryId?: CategoryId | null;
+  createdAt: string;
+  id: string;
+  itemLabel?: string | null;
+  label: string;
+  merchantId?: MerchantId | null;
+  merchantLabel?: string | null;
+  merchantNormalizedLabel?: string | null;
+  period: BudgetPeriod;
+  rollingWindowDays?: number | null;
+  scope: BudgetScope;
+  startsOnDay?: number | null;
+  targetMinor: number;
+  updatedAt: string;
+  weekStartsOn?: number | null;
+}
+
+export interface BudgetSummary {
+  budget: BudgetDefinition;
+  cycleEnd: string;
+  cycleStart: string;
+  matchedItemCount: number;
+  matchedTransactionCount: number;
+  overrunMinor: number;
+  projectedSpendMinor: number;
+  remainingMinor: number;
+  spentMinor: number;
+  thresholdState: BudgetThresholdState;
+  usageRatio: number;
+}
+
 interface HistorySuggestionAccumulator {
   amountBucketMatches: number;
   categoryId: CategoryId;
@@ -285,6 +324,7 @@ interface HistoryObservationMatch {
 }
 
 export interface DashboardSummaryOptions {
+  budgets?: BudgetDefinition[] | null;
   budgetTargetMinor: number;
   cycleStartDay: number;
   now?: string;
@@ -2320,24 +2360,23 @@ export function summarizeDashboard(
   options: DashboardSummaryOptions,
   categories: CategoryOption[] = categoryOptions,
 ): DashboardSummary {
-  const periodTransactions = getCurrentCycleTransactions(
+  const primaryBudgetSummary = getPrimaryDashboardBudgetSummary(transactions, options);
+  const periodTransactions = getTransactionsInRange(
     transactions,
-    options.cycleStartDay,
-    options.now,
+    new Date(primaryBudgetSummary.cycleStart),
+    new Date(primaryBudgetSummary.cycleEnd),
   );
   const merchantSpend = new Map<string, number>();
   const categorySpend = new Map<CategoryId, number>();
   const itemSummaries: TransactionItemSummary[] = [];
-  const budgetTargetMinor = Math.max(options.budgetTargetMinor, 1);
   const recentActivityLimit = options.recentActivityLimit ?? 3;
   const topItemsLimit = options.topItemsLimit ?? 3;
 
   let classifiedCount = 0;
   let inboxCount = 0;
-  let totalSpendMinor = 0;
+  const totalSpendMinor = primaryBudgetSummary.spentMinor;
 
   for (const transaction of periodTransactions) {
-    totalSpendMinor += transaction.amountMinor;
     merchantSpend.set(
       transaction.merchant,
       (merchantSpend.get(transaction.merchant) ?? 0) + transaction.amountMinor,
@@ -2375,9 +2414,12 @@ export function summarizeDashboard(
   }
 
   return {
-    budgetRemainingMinor: Math.max(budgetTargetMinor - totalSpendMinor, 0),
-    budgetTargetMinor,
-    budgetUsedRatio: Math.min(totalSpendMinor / budgetTargetMinor, 1),
+    budgetLabel: primaryBudgetSummary.budget.label,
+    budgetRemainingMinor: primaryBudgetSummary.remainingMinor,
+    budgetProjectedSpendMinor: primaryBudgetSummary.projectedSpendMinor,
+    budgetTargetMinor: primaryBudgetSummary.budget.targetMinor,
+    budgetThresholdState: primaryBudgetSummary.thresholdState,
+    budgetUsedRatio: primaryBudgetSummary.usageRatio,
     classifiedCount,
     inboxCount,
     recentActivity: sortTransactionsByCapturedAtDesc(periodTransactions).slice(0, recentActivityLimit),
@@ -2390,22 +2432,184 @@ export function summarizeDashboard(
   };
 }
 
-function getCurrentCycleTransactions(
+export function summarizeBudgets(
   transactions: Transaction[],
-  cycleStartDay: number,
+  budgets: BudgetDefinition[] | null | undefined,
   now?: string,
-): Transaction[] {
-  const sortedTransactions = sortTransactionsByCapturedAtDesc(transactions);
-  const anchorDate = new Date(
-    now ?? sortedTransactions[0]?.capturedAt ?? new Date().toISOString(),
+): BudgetSummary[] {
+  const anchorDate = getBudgetAnchorDate(transactions, now);
+
+  return normalizeBudgetDefinitions(budgets).map((budget) =>
+    summarizeBudget(transactions, budget, anchorDate),
   );
-  const { cycleEnd, cycleStart } = getCycleWindow(anchorDate, cycleStartDay);
+}
 
-  return sortedTransactions.filter((transaction) => {
-    const capturedAt = new Date(transaction.capturedAt);
+export function normalizeBudgetDefinitions(
+  budgets: BudgetDefinition[] | null | undefined,
+): BudgetDefinition[] {
+  if (!Array.isArray(budgets)) {
+    return [];
+  }
 
-    return capturedAt >= cycleStart && capturedAt < cycleEnd;
-  });
+  const normalizedBudgets: BudgetDefinition[] = [];
+  const seenIds = new Set<string>();
+
+  for (const budget of budgets) {
+    if (
+      !budget ||
+      typeof budget !== 'object' ||
+      typeof budget.id !== 'string' ||
+      typeof budget.label !== 'string' ||
+      typeof budget.targetMinor !== 'number' ||
+      typeof budget.createdAt !== 'string' ||
+      typeof budget.updatedAt !== 'string' ||
+      !isBudgetScope(budget.scope) ||
+      !isBudgetPeriod(budget.period)
+    ) {
+      continue;
+    }
+
+    const normalizedId = budget.id.trim();
+    const normalizedLabel = budget.label.trim();
+
+    if (
+      normalizedId.length === 0 ||
+      normalizedLabel.length === 0 ||
+      budget.targetMinor <= 0 ||
+      seenIds.has(normalizedId)
+    ) {
+      continue;
+    }
+
+    const normalizedBudget: BudgetDefinition = {
+      createdAt: budget.createdAt,
+      id: normalizedId,
+      label: normalizedLabel,
+      period: budget.period,
+      scope: budget.scope,
+      targetMinor: Math.round(budget.targetMinor),
+      updatedAt: budget.updatedAt,
+    };
+
+    if (budget.scope === 'category') {
+      if (typeof budget.categoryId !== 'string' || budget.categoryId.trim().length === 0) {
+        continue;
+      }
+
+      normalizedBudget.categoryId = budget.categoryId.trim();
+    }
+
+    if (budget.scope === 'merchant') {
+      const merchantNormalizedLabel = normalizeMerchantLabel(
+        budget.merchantNormalizedLabel || budget.merchantLabel || '',
+      );
+
+      if (merchantNormalizedLabel.length === 0) {
+        continue;
+      }
+
+      normalizedBudget.merchantId =
+        typeof budget.merchantId === 'string' && budget.merchantId.trim().length > 0
+          ? budget.merchantId.trim()
+          : null;
+      normalizedBudget.merchantLabel =
+        typeof budget.merchantLabel === 'string' && budget.merchantLabel.trim().length > 0
+          ? budget.merchantLabel.trim()
+          : formatMerchantLabel(merchantNormalizedLabel, merchantNormalizedLabel);
+      normalizedBudget.merchantNormalizedLabel = merchantNormalizedLabel;
+    }
+
+    if (budget.scope === 'item') {
+      const normalizedItemLabel = normalizeBudgetItemLabel(budget.itemLabel ?? '');
+
+      if (normalizedItemLabel.length === 0) {
+        continue;
+      }
+
+      normalizedBudget.itemLabel = budget.itemLabel?.trim() ?? '';
+    }
+
+    if (budget.period === 'custom') {
+      normalizedBudget.startsOnDay = clampBudgetStartDay(budget.startsOnDay);
+    }
+
+    if (budget.period === 'weekly') {
+      normalizedBudget.weekStartsOn = clampBudgetWeekday(budget.weekStartsOn);
+    }
+
+    if (budget.period === 'rolling') {
+      normalizedBudget.rollingWindowDays = clampRollingWindowDays(budget.rollingWindowDays);
+    }
+
+    seenIds.add(normalizedId);
+    normalizedBudgets.push(normalizedBudget);
+  }
+
+  normalizedBudgets.sort(compareBudgetsForPriority);
+  return normalizedBudgets;
+}
+
+function getPrimaryDashboardBudgetSummary(
+  transactions: Transaction[],
+  options: DashboardSummaryOptions,
+): BudgetSummary {
+  const normalizedBudgets = normalizeBudgetDefinitions(options.budgets);
+  const fallbackBudget = buildLegacyDashboardBudget(options);
+  const primaryBudget =
+    normalizedBudgets.find((budget) => budget.scope === 'overall') ?? fallbackBudget;
+
+  return summarizeBudget(transactions, primaryBudget, getBudgetAnchorDate(transactions, options.now));
+}
+
+function summarizeBudget(
+  transactions: Transaction[],
+  budget: BudgetDefinition,
+  anchorDate: Date,
+): BudgetSummary {
+  const { cycleEnd, cycleStart } = getBudgetWindow(anchorDate, budget);
+  let matchedItemCount = 0;
+  let matchedTransactionCount = 0;
+  let spentMinor = 0;
+
+  for (const transaction of getTransactionsInRange(transactions, cycleStart, cycleEnd)) {
+    if (transaction.status === 'skipped') {
+      continue;
+    }
+
+    const match = getBudgetSpendMatch(transaction, budget);
+
+    if (!match.matched) {
+      continue;
+    }
+
+    spentMinor += match.amountMinor;
+    matchedItemCount += match.matchedItemCount;
+    matchedTransactionCount += 1;
+  }
+
+  const projectedSpendMinor = getProjectedBudgetSpendMinor(
+    spentMinor,
+    budget,
+    cycleStart,
+    cycleEnd,
+    anchorDate,
+  );
+  const usageRatio = spentMinor / budget.targetMinor;
+  const projectedUsageRatio = projectedSpendMinor / budget.targetMinor;
+
+  return {
+    budget,
+    cycleEnd: cycleEnd.toISOString(),
+    cycleStart: cycleStart.toISOString(),
+    matchedItemCount,
+    matchedTransactionCount,
+    overrunMinor: Math.max(spentMinor - budget.targetMinor, 0),
+    projectedSpendMinor,
+    remainingMinor: Math.max(budget.targetMinor - spentMinor, 0),
+    spentMinor,
+    thresholdState: getBudgetThresholdState(usageRatio, projectedUsageRatio),
+    usageRatio: Math.min(usageRatio, 1),
+  };
 }
 
 function matchesInboxStatusFilter(
@@ -2618,6 +2822,242 @@ function matchesTimelineDateFilter(
   }
 
   return transactionDate < thirtyDaysAgoStart;
+}
+
+function getBudgetAnchorDate(transactions: Transaction[], now?: string): Date {
+  const sortedTransactions = sortTransactionsByCapturedAtDesc(transactions);
+
+  return new Date(now ?? sortedTransactions[0]?.capturedAt ?? new Date().toISOString());
+}
+
+function getTransactionsInRange(
+  transactions: Transaction[],
+  cycleStart: Date,
+  cycleEnd: Date,
+): Transaction[] {
+  return sortTransactionsByCapturedAtDesc(transactions).filter((transaction) => {
+    const capturedAt = new Date(transaction.capturedAt);
+
+    return capturedAt >= cycleStart && capturedAt < cycleEnd;
+  });
+}
+
+function isBudgetScope(value: unknown): value is BudgetScope {
+  return value === 'overall' || value === 'category' || value === 'merchant' || value === 'item';
+}
+
+function isBudgetPeriod(value: unknown): value is BudgetPeriod {
+  return value === 'monthly' || value === 'weekly' || value === 'rolling' || value === 'custom';
+}
+
+function compareBudgetsForPriority(left: BudgetDefinition, right: BudgetDefinition): number {
+  if (left.scope !== right.scope) {
+    return left.scope === 'overall' ? -1 : right.scope === 'overall' ? 1 : 0;
+  }
+
+  const updatedAtDelta =
+    new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+
+  if (updatedAtDelta !== 0) {
+    return updatedAtDelta;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function clampBudgetStartDay(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.min(Math.max(Math.round(value), 1), 31);
+}
+
+function clampBudgetWeekday(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.min(Math.max(Math.round(value), 0), 6);
+}
+
+function clampRollingWindowDays(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 30;
+  }
+
+  return Math.min(Math.max(Math.round(value), 1), 365);
+}
+
+function normalizeBudgetItemLabel(itemLabel: string): string {
+  return itemLabel.trim().toLowerCase();
+}
+
+function buildLegacyDashboardBudget(options: DashboardSummaryOptions): BudgetDefinition {
+  const normalizedTargetMinor = Math.max(Math.round(options.budgetTargetMinor), 1);
+  const normalizedCycleStartDay = clampBudgetStartDay(options.cycleStartDay);
+  const budgetPeriod = normalizedCycleStartDay === 1 ? 'monthly' : 'custom';
+  const timestamp = options.now ?? new Date().toISOString();
+  const fallbackBudget: BudgetDefinition = {
+    createdAt: timestamp,
+    id: `dashboard_budget_${budgetPeriod}_${normalizedCycleStartDay}`,
+    label: 'Current cycle budget',
+    period: budgetPeriod,
+    scope: 'overall',
+    targetMinor: normalizedTargetMinor,
+    updatedAt: timestamp,
+  };
+
+  if (budgetPeriod === 'custom') {
+    fallbackBudget.startsOnDay = normalizedCycleStartDay;
+  }
+
+  return fallbackBudget;
+}
+
+function getBudgetWindow(
+  anchorDate: Date,
+  budget: BudgetDefinition,
+): { cycleEnd: Date; cycleStart: Date } {
+  switch (budget.period) {
+    case 'weekly':
+      return getWeeklyBudgetWindow(anchorDate, budget.weekStartsOn ?? 1);
+    case 'rolling':
+      return getRollingBudgetWindow(anchorDate, budget.rollingWindowDays ?? 30);
+    case 'custom':
+      return getCycleWindow(anchorDate, budget.startsOnDay ?? 1);
+    case 'monthly':
+    default:
+      return getMonthlyBudgetWindow(anchorDate);
+  }
+}
+
+function getMonthlyBudgetWindow(anchorDate: Date): { cycleEnd: Date; cycleStart: Date } {
+  const cycleStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1, 0, 0, 0, 0);
+
+  return {
+    cycleEnd: new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 1, 0, 0, 0, 0),
+    cycleStart,
+  };
+}
+
+function getWeeklyBudgetWindow(
+  anchorDate: Date,
+  weekStartsOn: number,
+): { cycleEnd: Date; cycleStart: Date } {
+  const anchorDayStart = getStartOfDay(anchorDate);
+  const dayDelta = (anchorDayStart.getDay() - weekStartsOn + 7) % 7;
+  const cycleStart = new Date(anchorDayStart);
+
+  cycleStart.setDate(cycleStart.getDate() - dayDelta);
+
+  const cycleEnd = new Date(cycleStart);
+  cycleEnd.setDate(cycleEnd.getDate() + 7);
+
+  return { cycleEnd, cycleStart };
+}
+
+function getRollingBudgetWindow(
+  anchorDate: Date,
+  rollingWindowDays: number,
+): { cycleEnd: Date; cycleStart: Date } {
+  const cycleEnd = new Date(getStartOfDay(anchorDate));
+  cycleEnd.setDate(cycleEnd.getDate() + 1);
+
+  const cycleStart = new Date(cycleEnd);
+  cycleStart.setDate(cycleStart.getDate() - Math.max(rollingWindowDays, 1));
+
+  return { cycleEnd, cycleStart };
+}
+
+function getBudgetSpendMatch(
+  transaction: Transaction,
+  budget: BudgetDefinition,
+): { amountMinor: number; matched: boolean; matchedItemCount: number } {
+  if (budget.scope === 'overall') {
+    return {
+      amountMinor: transaction.amountMinor,
+      matched: true,
+      matchedItemCount: transaction.items.length,
+    };
+  }
+
+  if (budget.scope === 'merchant') {
+    const transactionNormalizedMerchant = normalizeMerchantLabel(
+      getTransactionRawMerchant(transaction),
+    );
+    const matchesMerchant =
+      (budget.merchantId && transaction.merchantId === budget.merchantId) ||
+      transactionNormalizedMerchant === budget.merchantNormalizedLabel;
+
+    return {
+      amountMinor: matchesMerchant ? transaction.amountMinor : 0,
+      matched: matchesMerchant,
+      matchedItemCount: matchesMerchant ? transaction.items.length : 0,
+    };
+  }
+
+  if (budget.scope === 'category') {
+    const matchedItems = transaction.items.filter((item) => item.categoryId === budget.categoryId);
+
+    return {
+      amountMinor: matchedItems.reduce((sum, item) => sum + item.amountMinor, 0),
+      matched: matchedItems.length > 0,
+      matchedItemCount: matchedItems.length,
+    };
+  }
+
+  const normalizedBudgetItemLabel = normalizeBudgetItemLabel(budget.itemLabel ?? '');
+  const matchedItems = transaction.items.filter(
+    (item) => normalizeBudgetItemLabel(item.label) === normalizedBudgetItemLabel,
+  );
+
+  return {
+    amountMinor: matchedItems.reduce((sum, item) => sum + item.amountMinor, 0),
+    matched: matchedItems.length > 0,
+    matchedItemCount: matchedItems.length,
+  };
+}
+
+function getProjectedBudgetSpendMinor(
+  spentMinor: number,
+  budget: BudgetDefinition,
+  cycleStart: Date,
+  cycleEnd: Date,
+  anchorDate: Date,
+): number {
+  if (spentMinor <= 0) {
+    return 0;
+  }
+
+  if (budget.period === 'rolling') {
+    return spentMinor;
+  }
+
+  const totalWindowMs = Math.max(cycleEnd.getTime() - cycleStart.getTime(), 1);
+  const referenceTime = Math.min(Math.max(anchorDate.getTime(), cycleStart.getTime()), cycleEnd.getTime());
+  const elapsedWindowMs = Math.max(referenceTime - cycleStart.getTime(), 1);
+
+  return Math.max(spentMinor, Math.round((spentMinor / elapsedWindowMs) * totalWindowMs));
+}
+
+function getBudgetThresholdState(
+  usageRatio: number,
+  projectedUsageRatio: number,
+): BudgetThresholdState {
+  if (usageRatio >= 1) {
+    return 'over_budget';
+  }
+
+  if (projectedUsageRatio >= 1) {
+    return 'at_risk';
+  }
+
+  if (usageRatio >= 0.8 || projectedUsageRatio >= 0.8) {
+    return 'warning';
+  }
+
+  return 'on_track';
 }
 
 function getCycleWindow(

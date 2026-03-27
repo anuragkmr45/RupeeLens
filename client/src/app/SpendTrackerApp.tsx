@@ -727,7 +727,7 @@ export function SpendTrackerApp() {
   function handleOpenBudgetPlaceholder() {
     Alert.alert(
       'Budgets come next',
-      'Home now shows current-cycle budget progress, but budget creation and editing still land in a later ticket.',
+      'The local budget engine now powers Home, but budget creation, editing, and alerts still land in the next ticket.',
     );
   }
 
@@ -1770,9 +1770,9 @@ function HomeScreen({
       <SectionCard accentColor={colors.panelWarm}>
         <Text style={styles.cardTitle}>Budget progress</Text>
         <Text style={styles.bodyCopy}>
-          Current period: {getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}. The Home
-          summary uses the saved cycle choice and a local demo target until the real budget engine
-          lands.
+          Current period: {getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}. Home now uses
+          the canonical local budget engine for cycle math, projections, and threshold state while
+          budget setup screens still land in a later ticket.
         </Text>
         <Text style={styles.amountLabel}>
           {formatCurrency(summary.totalSpendMinor)} of {formatCurrency(summary.budgetTargetMinor)}
@@ -1786,11 +1786,16 @@ function HomeScreen({
           />
         </View>
         <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>Budget: {summary.budgetLabel}</Text>
           <Text style={styles.helperCopy}>{budgetUsedPercent}% of the current-cycle target used</Text>
           <Text style={styles.helperCopy}>
             {budgetOverrunMinor > 0
               ? `${formatCurrency(budgetOverrunMinor)} over the current target`
               : `${formatCurrency(summary.budgetRemainingMinor)} remaining in the current target`}
+          </Text>
+          <Text style={styles.helperCopy}>
+            Projected spend: {formatCurrency(summary.budgetProjectedSpendMinor)} · Status:{' '}
+            {getBudgetThresholdStateLabel(summary.budgetThresholdState)}
           </Text>
         </View>
       </SectionCard>
@@ -4305,6 +4310,22 @@ function getBudgetCycleLabel(budgetCycleId: BudgetCycleId): string {
     BUDGET_CYCLE_OPTIONS.find((option) => option.id === budgetCycleId)?.label ??
     'Calendar month'
   );
+}
+
+function getBudgetThresholdStateLabel(
+  thresholdState: DashboardSummary['budgetThresholdState'],
+): string {
+  switch (thresholdState) {
+    case 'warning':
+      return 'Watch closely';
+    case 'at_risk':
+      return 'At risk';
+    case 'over_budget':
+      return 'Over budget';
+    case 'on_track':
+    default:
+      return 'On track';
+  }
 }
 
 function formatNativeCaptureMoment(capturedAtMs: number): string {

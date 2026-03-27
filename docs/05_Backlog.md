@@ -690,7 +690,7 @@ History-based suggestions meet acceptance benchmark.
 - **Story points:** 8
 - **Goal:** Let users plan spending against their own cycle rather than calendar-month only.
 - **Dependencies:** INT-001, UX-002
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-28 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the client now has a canonical local budget engine supporting overall, category, merchant, and item scopes across monthly, weekly, rolling, and custom cycles, with deterministic spent/remaining/projected/threshold calculations and dashboard integration through the same shared engine. Home no longer uses demo-target math; it now shows projected spend and threshold state from the canonical engine, and domain tests cover monthly, weekly, rolling, and custom cycle boundaries plus immediate updates after classification changes. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28. Status remains `in_progress` because the backlog done-when still requires product and QA acceptance, which was not available in this environment.
 
 **Description**  
 Support overall, category, merchant, and item-level budgets with configurable cycle anchors. Compute spent, remaining, projected, and threshold states locally.

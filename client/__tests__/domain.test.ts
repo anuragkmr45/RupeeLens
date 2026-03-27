@@ -34,9 +34,11 @@ import {
   skipTransaction,
   splitMerchantAlias,
   splitTransaction,
+  summarizeBudgets,
   summarizeCategoryUsage,
   summarizeSplitDraft,
   summarizeDashboard,
+  type BudgetDefinition,
   updateCustomCategory,
   type SpendRule,
   type Transaction,
@@ -114,6 +116,297 @@ describe('spend-tracker dashboard summary', () => {
     expect(summary.recentActivity.map((transaction) => transaction.id)).toEqual([
       'txn_in_cycle',
     ]);
+  });
+
+  it('summarizes monthly, weekly, rolling, and custom budgets with canonical local math', () => {
+    const transactions: Transaction[] = [
+      {
+        amountMinor: 42000,
+        capturedAt: '2026-04-29T09:30:00+05:30',
+        id: 'txn_blinkit_recent',
+        items: [
+          {
+            amountMinor: 42000,
+            categoryId: 'groceries',
+            id: 'txn_blinkit_recent_item_1',
+            label: 'Fresh groceries',
+          },
+        ],
+        merchant: 'Blinkit',
+        sourceApp: 'PhonePe',
+        status: 'classified',
+      },
+      {
+        amountMinor: 22000,
+        capturedAt: '2026-04-28T08:00:00+05:30',
+        id: 'txn_commute_weekly',
+        items: [
+          {
+            amountMinor: 22000,
+            categoryId: 'transport',
+            id: 'txn_commute_weekly_item_1',
+            label: 'Metro recharge',
+          },
+        ],
+        merchant: 'Bangalore Metro',
+        sourceApp: 'Paytm',
+        status: 'classified',
+      },
+      {
+        amountMinor: 18000,
+        capturedAt: '2026-04-27T09:15:00+05:30',
+        id: 'txn_coffee_salary_cycle',
+        items: [
+          {
+            amountMinor: 18000,
+            categoryId: 'food_drink',
+            id: 'txn_coffee_salary_cycle_item_1',
+            label: 'Flat white',
+          },
+        ],
+        merchant: 'Blue Tokai Roasters',
+        sourceApp: 'Google Pay',
+        status: 'classified',
+      },
+      {
+        amountMinor: 30000,
+        capturedAt: '2026-04-01T18:10:00+05:30',
+        id: 'txn_monthly_bill',
+        items: [
+          {
+            amountMinor: 30000,
+            categoryId: 'bills',
+            id: 'txn_monthly_bill_item_1',
+            label: 'Internet bill',
+          },
+        ],
+        merchant: 'Airtel Broadband',
+        sourceApp: 'Google Pay',
+        status: 'classified',
+      },
+      {
+        amountMinor: 50000,
+        capturedAt: '2026-04-22T20:00:00+05:30',
+        id: 'txn_blinkit_old',
+        items: [
+          {
+            amountMinor: 50000,
+            categoryId: 'groceries',
+            id: 'txn_blinkit_old_item_1',
+            label: 'Bulk pantry',
+          },
+        ],
+        merchant: 'Blinkit',
+        sourceApp: 'PhonePe',
+        status: 'classified',
+      },
+      {
+        amountMinor: 16000,
+        capturedAt: '2026-03-29T09:00:00+05:30',
+        id: 'txn_previous_salary_cycle',
+        items: [
+          {
+            amountMinor: 16000,
+            categoryId: 'food_drink',
+            id: 'txn_previous_salary_cycle_item_1',
+            label: 'Flat white',
+          },
+        ],
+        merchant: 'Blue Tokai Roasters',
+        sourceApp: 'Google Pay',
+        status: 'classified',
+      },
+    ];
+    const budgets: BudgetDefinition[] = [
+      {
+        createdAt: '2026-04-01T00:00:00+05:30',
+        id: 'budget_monthly_overall',
+        label: 'Monthly household',
+        period: 'monthly',
+        scope: 'overall',
+        targetMinor: 200000,
+        updatedAt: '2026-04-01T00:00:00+05:30',
+      },
+      {
+        categoryId: 'transport',
+        createdAt: '2026-04-01T00:00:00+05:30',
+        id: 'budget_weekly_transport',
+        label: 'Weekly commute',
+        period: 'weekly',
+        scope: 'category',
+        targetMinor: 60000,
+        updatedAt: '2026-04-01T00:00:00+05:30',
+        weekStartsOn: 1,
+      },
+      {
+        createdAt: '2026-04-01T00:00:00+05:30',
+        id: 'budget_rolling_blinkit',
+        label: 'Blinkit rolling',
+        merchantLabel: 'Blinkit',
+        merchantNormalizedLabel: 'blinkit',
+        period: 'rolling',
+        rollingWindowDays: 7,
+        scope: 'merchant',
+        targetMinor: 100000,
+        updatedAt: '2026-04-01T00:00:00+05:30',
+      },
+      {
+        createdAt: '2026-04-01T00:00:00+05:30',
+        id: 'budget_salary_cycle_coffee',
+        itemLabel: 'Flat white',
+        label: 'Salary-cycle coffee',
+        period: 'custom',
+        scope: 'item',
+        startsOnDay: 26,
+        targetMinor: 50000,
+        updatedAt: '2026-04-01T00:00:00+05:30',
+      },
+    ];
+
+    const summaries = summarizeBudgets(
+      transactions,
+      budgets,
+      '2026-04-30T10:00:00+05:30',
+    );
+
+    const monthlySummary = summaries.find(
+      (summary) => summary.budget.id === 'budget_monthly_overall',
+    );
+    const weeklySummary = summaries.find(
+      (summary) => summary.budget.id === 'budget_weekly_transport',
+    );
+    const rollingSummary = summaries.find(
+      (summary) => summary.budget.id === 'budget_rolling_blinkit',
+    );
+    const customSummary = summaries.find(
+      (summary) => summary.budget.id === 'budget_salary_cycle_coffee',
+    );
+
+    expect(monthlySummary).toEqual(
+      expect.objectContaining({
+        spentMinor: 162000,
+        thresholdState: 'warning',
+      }),
+    );
+    expect(new Date(monthlySummary?.cycleStart ?? '').toISOString()).toBe(
+      new Date('2026-04-01T00:00:00+05:30').toISOString(),
+    );
+    expect(new Date(monthlySummary?.cycleEnd ?? '').toISOString()).toBe(
+      new Date('2026-05-01T00:00:00+05:30').toISOString(),
+    );
+
+    expect(weeklySummary).toEqual(
+      expect.objectContaining({
+        matchedItemCount: 1,
+        spentMinor: 22000,
+        thresholdState: 'on_track',
+      }),
+    );
+    expect(new Date(weeklySummary?.cycleStart ?? '').toISOString()).toBe(
+      new Date('2026-04-27T00:00:00+05:30').toISOString(),
+    );
+
+    expect(rollingSummary).toEqual(
+      expect.objectContaining({
+        matchedTransactionCount: 1,
+        spentMinor: 42000,
+        thresholdState: 'on_track',
+      }),
+    );
+    expect(new Date(rollingSummary?.cycleStart ?? '').toISOString()).toBe(
+      new Date('2026-04-24T00:00:00+05:30').toISOString(),
+    );
+
+    expect(customSummary).toEqual(
+      expect.objectContaining({
+        matchedItemCount: 1,
+        spentMinor: 18000,
+        thresholdState: 'at_risk',
+      }),
+    );
+    expect(new Date(customSummary?.cycleStart ?? '').toISOString()).toBe(
+      new Date('2026-04-26T00:00:00+05:30').toISOString(),
+    );
+  });
+
+  it('uses the canonical budget engine for dashboard budget progress', () => {
+    const budgets: BudgetDefinition[] = [
+      {
+        createdAt: '2026-03-01T00:00:00+05:30',
+        id: 'budget_overall_salary_cycle',
+        label: 'Salary-cycle plan',
+        period: 'custom',
+        scope: 'overall',
+        startsOnDay: 26,
+        targetMinor: 150000,
+        updatedAt: '2026-03-01T00:00:00+05:30',
+      },
+    ];
+    const budgetSummary = summarizeBudgets(
+      seededTransactions,
+      budgets,
+      '2026-03-25T10:00:00+05:30',
+    )[0];
+    const dashboardSummary = summarizeDashboard(
+      seededTransactions,
+      {
+        budgetTargetMinor: 500000,
+        budgets,
+        cycleStartDay: 1,
+        now: '2026-03-25T10:00:00+05:30',
+      },
+      getDefaultCategories(),
+    );
+
+    expect(dashboardSummary.budgetLabel).toBe('Salary-cycle plan');
+    expect(dashboardSummary.budgetProjectedSpendMinor).toBe(
+      budgetSummary?.projectedSpendMinor,
+    );
+    expect(dashboardSummary.budgetTargetMinor).toBe(budgetSummary?.budget.targetMinor);
+    expect(dashboardSummary.budgetThresholdState).toBe(budgetSummary?.thresholdState);
+    expect(dashboardSummary.budgetRemainingMinor).toBe(budgetSummary?.remainingMinor);
+  });
+
+  it('updates category budget progress immediately after classification changes', () => {
+    const categoryBudget: BudgetDefinition[] = [
+      {
+        categoryId: 'food_drink',
+        createdAt: '2026-03-01T00:00:00+05:30',
+        id: 'budget_food_drink_monthly',
+        label: 'Coffee and snacks',
+        period: 'monthly',
+        scope: 'category',
+        targetMinor: 50000,
+        updatedAt: '2026-03-01T00:00:00+05:30',
+      },
+    ];
+    const beforeClassification = summarizeBudgets(
+      seededTransactions,
+      categoryBudget,
+      '2026-03-25T10:00:00+05:30',
+    )[0];
+    const afterClassificationTransactions = classifyTransaction(
+      seededTransactions,
+      'txn_blue_tokai',
+      {
+        autoApplyRule: false,
+        categoryId: 'food_drink',
+        itemLabel: 'Cold brew',
+        saveAsRule: false,
+      },
+      getDefaultCategories(),
+    );
+    const afterClassification = summarizeBudgets(
+      afterClassificationTransactions,
+      categoryBudget,
+      '2026-03-25T10:00:00+05:30',
+    )[0];
+
+    expect(beforeClassification?.spentMinor).toBe(21500);
+    expect(afterClassification?.spentMinor).toBe(39500);
+    expect(afterClassification?.matchedItemCount).toBeGreaterThan(
+      beforeClassification?.matchedItemCount ?? 0,
+    );
   });
 
   it('filters inbox review items by status, merchant, source app, amount, and age', () => {

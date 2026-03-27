@@ -665,12 +665,12 @@
       ],
       "tests": "Date-boundary tests for month-end, week rollovers, and custom ranges.",
       "done": "Budget engine accepted by product and QA.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-28",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: the client now has a canonical local budget engine supporting overall, category, merchant, and item scopes across monthly, weekly, rolling, and custom cycles, with deterministic spent/remaining/projected/threshold calculations and dashboard integration through the same shared engine. Home no longer uses demo-target math; it now shows projected spend and threshold state from the canonical engine, and domain tests cover monthly, weekly, rolling, and custom cycle boundaries plus immediate updates after classification changes. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28. Status remains `in_progress` because the backlog done-when still requires product and QA acceptance, which was not available in this environment."
     },
     {
       "id": "INT-006",

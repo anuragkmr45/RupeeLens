@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### INT-005 — Build Budget Engine With Monthly, Weekly, Rolling, And Custom Cycles
+
+- **Status:** completed
+- **Ticket:** INT-005
+- **Goal:** Add a canonical local budget engine that supports overall, category, merchant, and item scopes across monthly, weekly, rolling, and custom cycles, and have Home consume that same engine instead of hardcoded budget math.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `client/src/features/spend-tracker/domain.ts`, focused client tests, `client/src/app/SpendTrackerApp.tsx`, `client/src/lib/app-info.ts`, and repo-truth docs only if ticket status changes.
+- **Rationale:** A fresh Android closeout probe on 2026-03-28 still leaves `CAP-003` blocked because `adb devices` shows the physical device `e342703` but `cd client/android && ./gradlew :app:connectedDebugAndroidTest` again failed to install `app-debug.apk` on `M2102J20SI - 13` with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`. `SET-002` remains externally blocked, `UX-005` still depends on external QA/design acceptance, and `INT-005` is now the earliest unblocked canonical `todo` with satisfied dependencies.
+- **Risks:** Budget work can sprawl into budget-setup UI, persistence, alerts, or reports. This pass must stay inside canonical local budget calculations, cycle-boundary correctness, scope matching, and Home using the shared engine. It must not spill into create/edit budget screens, alert scheduling, or sync.
+- **API / schema impact:** No backend/API changes expected. The preferred implementation path is domain-first without adding local DB tables unless they are truly required for canonical engine behavior in this ticket.
+- **Rollout / flag plan:** No new rollout flag. Keep budget setup UI behind the existing placeholder while landing the engine and Home integration underneath it.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus focused client tests for monthly, weekly, rolling, and custom cycle math and dashboard integration. Run `pnpm db:validate` only if implementation ends up changing local persistence or migrations.
+- **Done when:** Budget summaries support all required scope and period types, threshold/projection math is deterministic and local-first, Home uses the canonical budget engine instead of hardcoded target math, classification-driven transaction changes immediately affect budget summaries, and backlog tracking can move to `done` truthfully.
+- **Outcome:** Added a canonical local budget engine to the spend-tracker domain with support for overall, category, merchant, and item scopes across monthly, weekly, rolling, and custom cycles, including deterministic spent/remaining/projected/threshold calculations. Home now consumes that engine for its budget-progress card instead of the old demo-target math and shows projected spend plus threshold state, while budget creation/editing and alerts remain explicitly deferred to the next ticket. Added domain coverage for all supported cycle types, dashboard integration against the canonical engine, and immediate budget updates after classification changes, plus an app-level assertion that Home renders the projected budget summary. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-28. The execution is complete, but the canonical backlog ticket stays `in_progress` because its own done-when still requires product and QA acceptance that was not available in this environment.
+
 ### INT-004 — Implement History-Based Suggestion Ranker
 
 - **Status:** completed

@@ -127,7 +127,7 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `INT-005 — Build budget engine with monthly, weekly, rolling, and custom cycles`
+- `INT-006 — Implement budget setup screens and threshold alerts`
 
 Reason:
 
@@ -137,4 +137,5 @@ Reason:
 - `UX-007` is not yet actionable because it depends on `CAP-007`.
 - `INT-003` is now done with deterministic local rules, SQLite-backed rule persistence, explanation metadata, and explicit auto-apply only for user-approved matches in the client.
 - `INT-004` is now done with a weighted local history ranker that aggregates repeated confirmations, uses recency and frequency, and exposes explainable suggestion factors without silently auto-applying heuristics.
-- `INT-005` is now the earliest unblocked `todo` ticket with satisfied dependencies because it depends on `INT-001` and `UX-002`, both of which are already complete in repo truth.
+- `INT-005` is now repo-side implemented with canonical local budget math and Home integration, but it remains `in_progress` in backlog tracking because the ticket's done-when still requires product and QA acceptance that was not available in this environment.
+- `INT-006` is now the earliest unblocked `todo` ticket with satisfied dependencies because it depends on `INT-005`, whose repo-side implementation is now complete enough to support budget setup screens and local alert logic.
