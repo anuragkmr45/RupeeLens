@@ -14,6 +14,20 @@ Protocol notes:
 
 - **Status:** blocked
 - **Ticket:** CAP-001
+- **Goal:** Close the Android-native listener ticket by using the newly attached device to validate real permission reflection, allowlist behavior, and listener stability before moving on to parser work.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, Android test or capture files only if closeout validation exposes a real gap, and repo-truth docs if CAP-001 can now be closed.
+- **Rationale:** `CAP-001` was blocked only because no emulator or phone was attached. `adb devices` now shows a connected Android device, so the workflow requires preferring this closeout pass before starting `CAP-002`.
+- **Risks:** Device-level validation may expose listener-permission, manifest, bridge, or lifecycle gaps that unit tests did not catch. The pass must stay scoped to CAP-001 closeout and should not spill into parser, dedupe, or domain-import work.
+- **API / schema impact:** No backend/API changes expected. Closeout may add Android validation tests or tighten native-client wiring only if needed.
+- **Rollout / flag plan:** Keep respecting the existing remote capture kill switch. Any device validation should confirm the app remains local-first and Android-only for native capture.
+- **Validation commands:** `adb devices`, targeted Android install/launch/validation commands, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `pnpm db:validate` if client persistence or DB-touching code changes.
+- **Done when:** CAP-001 acceptance is proven on a connected Android target, backlog tracking can be truthfully moved from blocked to done, and repo quality gates remain green.
+- **Outcome:** Reopened CAP-001 once `adb devices` showed a physical Android 13 device, verified the listener service can be approved from adb and is present in `dumpsys notification`, confirmed supported packages like Google Pay and PhonePe exist on the device, and added a new `NotificationCaptureProcessor` plus connected-Android instrumentation coverage for allowlist filtering and snapshot persistence. Repo lint/typecheck/test/build stayed green, and Android unit-test plus debug/androidTest packaging passed. The ticket remains blocked because MIUI rejects the androidTest APK install with `INSTALL_FAILED_USER_RESTRICTED`, and the phone stays pattern-locked for UI inspection, so the connected instrumentation suite and direct UI validation still cannot complete on this target.
+
+### CAP-001 — Build Android NotificationListenerService and Allowlist Controls
+
+- **Status:** blocked
+- **Ticket:** CAP-001
 - **Goal:** Add the first Android-native capture layer so notification-listener permission state, per-app allowlist filtering, raw snapshot persistence, and app-visible diagnostics all exist before parser work starts.
 - **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, Android native files under `client/android/app/src/main/java/com/upispendtracker/client/*`, `client/android/app/src/main/AndroidManifest.xml`, new client-side capture bridge/helpers, `client/src/app/SpendTrackerApp.tsx`, related app/native tests, and repo-truth docs if the implementation changes current scope/status.
 - **Rationale:** `SET-002` remains blocked, `SET-006` is now closed, and `CAP-001` is the earliest remaining `P0` canonical ticket with satisfied dependencies. The Android app currently has no listener service, no native snapshot store, no allowlist enforcement, and no real permission reflection in UI.

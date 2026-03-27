@@ -213,7 +213,7 @@
       "started_at": "2026-03-26",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth now includes an Android `NotificationListenerService`, native allowlist persistence, raw snapshot storage, a React Native diagnostics bridge, and UI permission reflection tied to the native service. Client tests, root quality gates, and Android unit-test/debug-assemble validation passed, but the ticket remains blocked because `adb devices` shows no attached emulator or phone for listener callback and sample-app validation on supported Android versions."
+      "tracking_notes": "Repo truth now also includes a dedicated `NotificationCaptureProcessor` and connected-Android instrumentation coverage for allowlist filtering and snapshot persistence. On 2026-03-27, a physical Android 13 device was connected, the listener service was approved and visible in `dumpsys notification`, and supported packages like Google Pay and PhonePe were confirmed on-device. CAP-001 still remains blocked because MIUI rejects the androidTest APK install with `INSTALL_FAILED_USER_RESTRICTED`, and the phone remains pattern-locked for direct UI inspection."
     },
     {
       "id": "CAP-002",
