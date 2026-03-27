@@ -104,6 +104,8 @@ export type InboxStatusFilter =
   | 'skipped';
 export type InboxAmountFilter = 'all' | 'under_250' | 'between_250_and_500' | 'over_500';
 export type InboxAgeFilter = 'all' | 'today' | 'last_3_days' | 'older';
+export type TimelineStatusFilter = 'all' | TransactionStatus;
+export type TimelineDateFilter = 'all' | 'today' | 'last_7_days' | 'last_30_days' | 'older';
 
 export interface InboxFilters {
   ageFilter: InboxAgeFilter;
@@ -116,6 +118,20 @@ export interface InboxFilters {
 export interface InboxReviewItem {
   reviewStatus: Exclude<TransactionStatus, 'classified'>;
   transaction: Transaction;
+}
+
+export interface TimelineFilters {
+  amountFilter: InboxAmountFilter;
+  dateFilter: TimelineDateFilter;
+  query: string;
+  sourceApp: string | 'all';
+  statusFilter: TimelineStatusFilter;
+}
+
+export interface TimelineDayGroup {
+  dayKey: string;
+  label: string;
+  transactions: Transaction[];
 }
 
 export interface ClassificationSuggestion {
@@ -147,6 +163,14 @@ export const DEFAULT_INBOX_FILTERS: InboxFilters = {
   merchantQuery: '',
   sourceApp: 'all',
   statusFilter: 'needs_review',
+};
+
+export const DEFAULT_TIMELINE_FILTERS: TimelineFilters = {
+  amountFilter: 'all',
+  dateFilter: 'all',
+  query: '',
+  sourceApp: 'all',
+  statusFilter: 'all',
 };
 
 export const SPLIT_REMAINDER_OPTIONS: Array<{
@@ -602,11 +626,73 @@ export function getInboxSourceAppOptions(transactions: Transaction[]): string[] 
   )].sort((left, right) => left.localeCompare(right));
 }
 
+export function getTimelineTransactions(
+  transactions: Transaction[],
+  filters: TimelineFilters,
+  now = new Date().toISOString(),
+): Transaction[] {
+  return sortTransactionsByCapturedAtDesc(transactions)
+    .filter((transaction) => matchesTimelineStatusFilter(transaction, filters.statusFilter))
+    .filter((transaction) => matchesSourceAppFilter(transaction, filters.sourceApp))
+    .filter((transaction) => matchesAmountFilter(transaction, filters.amountFilter))
+    .filter((transaction) => matchesTimelineDateFilter(transaction, filters.dateFilter, now))
+    .filter((transaction) => matchesTimelineQuery(transaction, filters.query));
+}
+
+export function getTimelineSourceAppOptions(transactions: Transaction[]): string[] {
+  return [...new Set(transactions.map((transaction) => transaction.sourceApp))].sort(
+    (left, right) => left.localeCompare(right),
+  );
+}
+
+export function getTimelineDayGroups(
+  transactions: Transaction[],
+  filters: TimelineFilters,
+  now = new Date().toISOString(),
+): TimelineDayGroup[] {
+  const groupedTransactions = new Map<string, Transaction[]>();
+  const filteredTransactions = getTimelineTransactions(transactions, filters, now);
+
+  for (const transaction of filteredTransactions) {
+    const dayKey = transaction.capturedAt.slice(0, 10);
+    const existingGroup = groupedTransactions.get(dayKey) ?? [];
+
+    groupedTransactions.set(dayKey, [...existingGroup, transaction]);
+  }
+
+  return [...groupedTransactions.entries()].map(([dayKey, dayTransactions]) => ({
+    dayKey,
+    label: formatTimelineDayLabel(dayKey, now),
+    transactions: dayTransactions,
+  }));
+}
+
 export function getTransactionById(
   transactions: Transaction[],
   transactionId: string,
 ): Transaction | null {
   return transactions.find((transaction) => transaction.id === transactionId) ?? null;
+}
+
+export function getTransactionStatusLabel(status: TransactionStatus): string {
+  switch (status) {
+    case 'classified':
+      return 'Classified';
+    case 'partially_classified':
+      return 'Partially classified';
+    case 'skipped':
+      return 'Skipped';
+    case 'uncategorized':
+    default:
+      return 'Needs review';
+  }
+}
+
+export function getUnresolvedAmountMinor(transaction: Transaction): number {
+  return Math.max(
+    transaction.amountMinor - transaction.items.reduce((sum, item) => sum + item.amountMinor, 0),
+    0,
+  );
 }
 
 export function getClassificationSuggestions(
@@ -835,6 +921,13 @@ function matchesInboxStatusFilter(
   return transaction.status === 'skipped';
 }
 
+function matchesTimelineStatusFilter(
+  transaction: Transaction,
+  statusFilter: TimelineStatusFilter,
+): boolean {
+  return statusFilter === 'all' || transaction.status === statusFilter;
+}
+
 function getMerchantKeywordSuggestions(
   normalizedMerchant: string,
 ): ClassificationSuggestion[] {
@@ -902,6 +995,33 @@ function matchesMerchantFilter(
   );
 }
 
+function matchesTimelineQuery(
+  transaction: Transaction,
+  query: string,
+): boolean {
+  const normalizedTokens = query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (normalizedTokens.length === 0) {
+    return true;
+  }
+
+  const searchHaystacks = [
+    transaction.merchant,
+    transaction.sourceApp,
+    getTransactionStatusLabel(transaction.status),
+    ...transaction.items.map((item) => item.label),
+    ...transaction.items.map((item) => getCategoryLabel(item.categoryId)),
+  ].map((value) => value.toLowerCase());
+
+  return normalizedTokens.every((token) =>
+    searchHaystacks.some((haystack) => haystack.includes(token)),
+  );
+}
+
 function matchesAmountFilter(
   transaction: Transaction,
   amountFilter: InboxAmountFilter,
@@ -944,6 +1064,40 @@ function matchesAgeFilter(
   }
 
   return transactionDate < threeDaysAgoStart;
+}
+
+function matchesTimelineDateFilter(
+  transaction: Transaction,
+  dateFilter: TimelineDateFilter,
+  now: string,
+): boolean {
+  if (dateFilter === 'all') {
+    return true;
+  }
+
+  const transactionDate = new Date(transaction.capturedAt);
+  const referenceDate = new Date(now);
+  const todayStart = getStartOfDay(referenceDate);
+
+  if (dateFilter === 'today') {
+    return transactionDate >= todayStart;
+  }
+
+  const sevenDaysAgoStart = new Date(todayStart);
+  sevenDaysAgoStart.setDate(sevenDaysAgoStart.getDate() - 6);
+
+  if (dateFilter === 'last_7_days') {
+    return transactionDate >= sevenDaysAgoStart;
+  }
+
+  const thirtyDaysAgoStart = new Date(todayStart);
+  thirtyDaysAgoStart.setDate(thirtyDaysAgoStart.getDate() - 29);
+
+  if (dateFilter === 'last_30_days') {
+    return transactionDate >= thirtyDaysAgoStart;
+  }
+
+  return transactionDate < thirtyDaysAgoStart;
 }
 
 function getCycleWindow(
@@ -1064,6 +1218,38 @@ function getTopMerchantLabel(merchantSpend: Map<string, number>): string {
   }
 
   return topMerchantLabel;
+}
+
+function getCategoryLabel(categoryId: CategoryId): string {
+  return (
+    categoryOptions.find((category) => category.id === categoryId)?.label ??
+    'Needs category'
+  );
+}
+
+function formatTimelineDayLabel(dayKey: string, now: string): string {
+  const dayDate = new Date(`${dayKey}T00:00:00`);
+  const referenceDate = new Date(now);
+  const todayStart = getStartOfDay(referenceDate);
+  const yesterdayStart = new Date(todayStart);
+
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+  if (dayDate.getTime() === todayStart.getTime()) {
+    return 'Today';
+  }
+
+  if (dayDate.getTime() === yesterdayStart.getTime()) {
+    return 'Yesterday';
+  }
+
+  const month = MONTH_LABELS[dayDate.getMonth()] ?? 'Date';
+
+  if (dayDate.getFullYear() === referenceDate.getFullYear()) {
+    return `${month} ${dayDate.getDate()}`;
+  }
+
+  return `${month} ${dayDate.getDate()}, ${dayDate.getFullYear()}`;
 }
 
 const MONTH_LABELS = [

@@ -4,10 +4,15 @@ import {
   classifyTransaction,
   createSplitDraftRow,
   DEFAULT_INBOX_FILTERS,
+  DEFAULT_TIMELINE_FILTERS,
   deleteTransaction,
   getClassificationSuggestions,
   getInboxReviewTransactions,
   getPendingTransactions,
+  getTimelineDayGroups,
+  getTimelineTransactions,
+  getTransactionStatusLabel,
+  getUnresolvedAmountMinor,
   isClassificationReady,
   isSplitDraftReady,
   moveSplitDraftRow,
@@ -152,6 +157,101 @@ describe('spend-tracker dashboard summary', () => {
         '2026-03-25T10:00:00+05:30',
       ).map((item) => item.transaction.id),
     ).toEqual(['txn_pharmacy']);
+  });
+
+  it('searches timeline transactions by merchant, item, category, source app, status, and date filters', () => {
+    const transactions: Transaction[] = [
+      ...seededTransactions,
+      {
+        amountMinor: 49900,
+        capturedAt: '2026-02-10T10:00:00+05:30',
+        id: 'txn_airtel',
+        items: [
+          {
+            amountMinor: 49900,
+            categoryId: 'bills',
+            id: 'txn_airtel_item_1',
+            label: 'Fiber bill',
+          },
+        ],
+        merchant: 'Airtel Broadband',
+        sourceApp: 'Google Pay',
+        status: 'classified',
+      },
+    ];
+
+    expect(
+      getTimelineTransactions(
+        transactions,
+        {
+          ...DEFAULT_TIMELINE_FILTERS,
+          query: 'transport',
+          statusFilter: 'classified',
+        },
+        '2026-03-25T10:00:00+05:30',
+      ).map((transaction) => transaction.id),
+    ).toEqual(['txn_metro']);
+
+    expect(
+      getTimelineTransactions(
+        transactions,
+        {
+          ...DEFAULT_TIMELINE_FILTERS,
+          amountFilter: 'over_500',
+          query: 'phonepe',
+          sourceApp: 'PhonePe',
+        },
+        '2026-03-25T10:00:00+05:30',
+      ).map((transaction) => transaction.id),
+    ).toEqual(['txn_blinkit']);
+
+    expect(
+      getTimelineTransactions(
+        transactions,
+        {
+          ...DEFAULT_TIMELINE_FILTERS,
+          dateFilter: 'older',
+          query: 'fiber',
+        },
+        '2026-03-25T10:00:00+05:30',
+      ).map((transaction) => transaction.id),
+    ).toEqual(['txn_airtel']);
+  });
+
+  it('groups timeline results by day and exposes honest status helpers', () => {
+    const timelineGroups = getTimelineDayGroups(
+      seededTransactions,
+      DEFAULT_TIMELINE_FILTERS,
+      '2026-03-25T10:00:00+05:30',
+    );
+
+    expect(timelineGroups.map((group) => ({
+      count: group.transactions.length,
+      label: group.label,
+    }))).toEqual([
+      { count: 3, label: 'Today' },
+      { count: 1, label: 'Yesterday' },
+      { count: 1, label: 'Mar 23' },
+    ]);
+
+    expect(getTransactionStatusLabel('uncategorized')).toBe('Needs review');
+    expect(getTransactionStatusLabel('partially_classified')).toBe('Partially classified');
+    expect(getUnresolvedAmountMinor({
+      amountMinor: 18_000,
+      capturedAt: '2026-03-25T09:12:00+05:30',
+      id: 'txn_partial',
+      items: [
+        {
+          amountMinor: 12_000,
+          categoryId: 'food_drink',
+          id: 'txn_partial_item_1',
+          label: 'Coffee',
+        },
+      ],
+      merchant: 'Blue Tokai Roasters',
+      sourceApp: 'Google Pay',
+      status: 'partially_classified',
+    })).toBe(6_000);
   });
 
   it('supports classify, skip, restore, and delete inbox actions', () => {

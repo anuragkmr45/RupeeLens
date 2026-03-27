@@ -54,7 +54,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 **Remaining**
 
 - Notification-driven quick-classify flow
-- Budget creation flow, search screen, and partial/conflict Inbox views beyond the new split path
+- Budget creation flow and partial/conflict Inbox views beyond the new split path
 - Durable create-rule actions
 
 ## Sprint 3 — Core UX And Intelligence
@@ -64,13 +64,15 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Manual add flow
 - Bottom-sheet quick classify flow with explicit suggestion chips, shared form primitives, save/skip controls, and a save-as-rule intent toggle
 - Full-screen split-items flow with add/remove/reorder controls, running totals, explicit remainder handling, and partial-save visibility back in Inbox
+- Local timeline/history flow with grouped day sections, search/filter chips, transaction detail, and local edit/delete handoff
 - Hardcoded default category options inside the client shell
 
 **Remaining**
 
 - External QA/design acceptance for the split flow
+- Durable parser metadata and classification/audit history are still not attached to local transaction detail records
 - Durable rule creation via `INT-003`
-- Timeline, detail, search/filter, settings/privacy/export screens, and captured-spend classify integration
+- Settings/privacy/export screens and captured-spend classify integration
 - Category CRUD, merchant normalization, and rule engine
 
 ## Sprint 4 — Budgets And Sync Foundation

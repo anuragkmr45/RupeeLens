@@ -34,13 +34,19 @@ import {
   getClassificationSuggestions,
   createManualTransaction,
   DEFAULT_INBOX_FILTERS,
+  DEFAULT_TIMELINE_FILTERS,
   deleteTransaction,
   formatCaptureMoment,
   formatCurrency,
   getInboxReviewTransactions,
   getInboxSourceAppOptions,
   getPendingTransactions,
+  getTimelineDayGroups,
+  getTimelineSourceAppOptions,
+  getTimelineTransactions,
   getTransactionById,
+  getTransactionStatusLabel,
+  getUnresolvedAmountMinor,
   isClassificationReady,
   isSplitDraftReady,
   moveSplitDraftRow,
@@ -62,6 +68,8 @@ import {
   type InboxReviewItem,
   type SplitDraft,
   type SplitRemainderDisposition,
+  type TimelineDayGroup,
+  type TimelineFilters,
   type Transaction,
 } from '../features/spend-tracker/domain';
 import {
@@ -100,14 +108,17 @@ import { DesignSystemShowcaseScreen } from './DesignSystemShowcaseScreen';
 
 type Screen =
   | 'classify'
+  | 'detail'
   | 'home'
   | 'inbox'
   | 'manual'
   | 'onboarding'
   | 'showcase'
-  | 'split';
-type TabScreen = 'home' | 'inbox';
-type SplitReturnScreen = 'classify' | 'inbox';
+  | 'split'
+  | 'timeline';
+type PrimaryScreen = 'home' | 'inbox' | 'timeline';
+type ScreenReturnTarget = 'detail' | PrimaryScreen;
+type SplitReturnScreen = 'classify' | 'detail' | 'inbox';
 
 const EMPTY_DRAFT: ClassificationDraft = {
   categoryId: null,
@@ -202,7 +213,13 @@ export function SpendTrackerApp() {
   const [manualDraft, setManualDraft] =
     useState<ManualEntryDraft>(EMPTY_MANUAL_ENTRY_DRAFT);
   const [inboxFilters, setInboxFilters] = useState<InboxFilters>(DEFAULT_INBOX_FILTERS);
-  const [manualReturnScreen, setManualReturnScreen] = useState<TabScreen>('home');
+  const [timelineFilters, setTimelineFilters] =
+    useState<TimelineFilters>(DEFAULT_TIMELINE_FILTERS);
+  const [detailTransactionId, setDetailTransactionId] = useState<string | null>(null);
+  const [detailReturnScreen, setDetailReturnScreen] = useState<PrimaryScreen>('timeline');
+  const [classifyReturnScreen, setClassifyReturnScreen] =
+    useState<ScreenReturnTarget | null>(null);
+  const [manualReturnScreen, setManualReturnScreen] = useState<PrimaryScreen>('home');
   const [splitReturnScreen, setSplitReturnScreen] =
     useState<SplitReturnScreen>('inbox');
   const [captureDiagnostics, setCaptureDiagnostics] = useState<NativeCaptureDiagnostics>(
@@ -219,12 +236,18 @@ export function SpendTrackerApp() {
   });
   const filteredReviewTransactions = getInboxReviewTransactions(transactions, inboxFilters);
   const inboxSourceAppOptions = getInboxSourceAppOptions(transactions);
+  const timelineTransactions = getTimelineTransactions(transactions, timelineFilters);
+  const timelineDayGroups = getTimelineDayGroups(transactions, timelineFilters);
+  const timelineSourceAppOptions = getTimelineSourceAppOptions(transactions);
   const summary = summarizeDashboard(transactions, {
     budgetTargetMinor: DASHBOARD_BUDGET_TARGET_MINOR,
     cycleStartDay: getBudgetCycleStartDay(onboardingPreferences.budgetCycleId),
   });
   const activeTransaction = activeTransactionId
     ? getTransactionById(transactions, activeTransactionId)
+    : null;
+  const detailTransaction = detailTransactionId
+    ? getTransactionById(transactions, detailTransactionId)
     : null;
   const activeTransactionSuggestions = activeTransaction
     ? getClassificationSuggestions(transactions, activeTransaction.merchant, activeTransaction.id)
@@ -434,7 +457,7 @@ export function SpendTrackerApp() {
     setCaptureDiagnostics(await getNativeCaptureDiagnostics());
   }
 
-  function getPostReviewScreen(nextTransactions: Transaction[]): TabScreen {
+  function getPostReviewScreen(nextTransactions: Transaction[]): PrimaryScreen {
     return getInboxReviewTransactions(nextTransactions, {
       ...DEFAULT_INBOX_FILTERS,
       statusFilter: 'all',
@@ -443,7 +466,10 @@ export function SpendTrackerApp() {
       : 'home';
   }
 
-  function handleStartClassification(transactionId: string) {
+  function handleStartClassification(
+    transactionId: string,
+    returnScreen: ScreenReturnTarget | null = null,
+  ) {
     const transaction = getTransactionById(transactions, transactionId);
 
     if (!transaction) {
@@ -451,6 +477,7 @@ export function SpendTrackerApp() {
     }
 
     setActiveTransactionId(transaction.id);
+    setClassifyReturnScreen(returnScreen);
     setDraft(buildClassificationDraft(transaction));
     setSplitDraft(EMPTY_SPLIT_DRAFT);
     setScreen('classify');
@@ -465,16 +492,26 @@ export function SpendTrackerApp() {
 
     setTransactions(nextTransactions);
     setActiveTransactionId(null);
+    setClassifyReturnScreen(null);
     setDraft({ ...EMPTY_DRAFT });
     setSplitDraft(EMPTY_SPLIT_DRAFT);
+
+    if (classifyReturnScreen) {
+      setScreen(classifyReturnScreen);
+      return;
+    }
+
     setScreen(getPostReviewScreen(nextTransactions));
   }
 
   function handleCancelClassification() {
     setActiveTransactionId(null);
+    const nextScreen = classifyReturnScreen ?? 'inbox';
+
+    setClassifyReturnScreen(null);
     setDraft({ ...EMPTY_DRAFT });
     setSplitDraft(EMPTY_SPLIT_DRAFT);
-    setScreen('inbox');
+    setScreen(nextScreen);
   }
 
   function handleToggleSaveAsRule() {
@@ -501,12 +538,13 @@ export function SpendTrackerApp() {
       skipTransaction(currentTransactions, activeTransactionId),
     );
     setActiveTransactionId(null);
+    setClassifyReturnScreen(null);
     setDraft({ ...EMPTY_DRAFT });
     setSplitDraft(EMPTY_SPLIT_DRAFT);
     setScreen('inbox');
   }
 
-  function handleOpenManualEntry(returnScreen: TabScreen) {
+  function handleOpenManualEntry(returnScreen: PrimaryScreen) {
     setManualReturnScreen(returnScreen);
     setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
     setScreen('manual');
@@ -519,10 +557,85 @@ export function SpendTrackerApp() {
     );
   }
 
-  function handleOpenSearchPlaceholder() {
+  function handleOpenTimeline() {
+    setScreen('timeline');
+  }
+
+  function handleUpdateTimelineFilters(nextFilters: Partial<TimelineFilters>) {
+    setTimelineFilters((currentFilters) => ({
+      ...currentFilters,
+      ...nextFilters,
+    }));
+  }
+
+  function handleClearTimelineFilters() {
+    setTimelineFilters({ ...DEFAULT_TIMELINE_FILTERS });
+  }
+
+  function handleOpenTransactionDetail(
+    transactionId: string,
+    returnScreen: PrimaryScreen = 'timeline',
+  ) {
+    if (!getTransactionById(transactions, transactionId)) {
+      return;
+    }
+
+    setDetailTransactionId(transactionId);
+    setDetailReturnScreen(returnScreen);
+    setScreen('detail');
+  }
+
+  function handleCloseTransactionDetail() {
+    setDetailTransactionId(null);
+    setScreen(detailReturnScreen);
+  }
+
+  function handleOpenDetailClassification() {
+    if (!detailTransactionId) {
+      return;
+    }
+
+    handleStartClassification(detailTransactionId, 'detail');
+  }
+
+  function handleOpenSplitFromDetail() {
+    if (!detailTransactionId) {
+      return;
+    }
+
+    handleStartSplit(detailTransactionId, 'detail');
+  }
+
+  function handleConfirmDeleteTransaction(transactionId: string, returnScreen: PrimaryScreen) {
+    const transaction = getTransactionById(transactions, transactionId);
+
+    if (!transaction) {
+      return;
+    }
+
     Alert.alert(
-      'Search comes next',
-      'Search and full-history browsing are still queued behind the current dashboard and Inbox work.',
+      'Delete transaction locally?',
+      `${transaction.merchant} will be removed from the local timeline and dashboard on this device.`,
+      [
+        {
+          style: 'cancel',
+          text: 'Cancel',
+        },
+        {
+          style: 'destructive',
+          text: 'Delete',
+          onPress: () => {
+            setTransactions((currentTransactions) =>
+              deleteTransaction(currentTransactions, transactionId),
+            );
+
+            if (detailTransactionId === transactionId) {
+              setDetailTransactionId(null);
+              setScreen(returnScreen);
+            }
+          },
+        },
+      ],
     );
   }
 
@@ -607,6 +720,12 @@ export function SpendTrackerApp() {
       return;
     }
 
+    if (splitReturnScreen === 'detail' && detailTransactionId) {
+      setActiveTransactionId(null);
+      setScreen('detail');
+      return;
+    }
+
     setActiveTransactionId(null);
     setDraft({ ...EMPTY_DRAFT });
     setScreen('inbox');
@@ -627,6 +746,12 @@ export function SpendTrackerApp() {
     setActiveTransactionId(null);
     setDraft({ ...EMPTY_DRAFT });
     setSplitDraft(EMPTY_SPLIT_DRAFT);
+
+    if (splitReturnScreen === 'detail' && detailTransactionId) {
+      setScreen('detail');
+      return;
+    }
+
     setScreen(getPostReviewScreen(nextTransactions));
   }
 
@@ -704,7 +829,7 @@ export function SpendTrackerApp() {
 
     setTransactions(nextTransactions);
     setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
-    setScreen('home');
+    setScreen(manualReturnScreen === 'timeline' ? 'timeline' : 'home');
   }
 
   function handleCancelManualEntry() {
@@ -751,9 +876,11 @@ export function SpendTrackerApp() {
 
   async function handleResetDemoData() {
     setActiveTransactionId(null);
+    setDetailTransactionId(null);
     setDraft({ ...EMPTY_DRAFT });
     setSplitDraft(EMPTY_SPLIT_DRAFT);
     setInboxFilters({ ...DEFAULT_INBOX_FILTERS });
+    setTimelineFilters({ ...DEFAULT_TIMELINE_FILTERS });
     setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
     setOnboardingPreferences(DEFAULT_ONBOARDING_PREFERENCES);
     setNotificationAccessState('not_started');
@@ -810,6 +937,32 @@ export function SpendTrackerApp() {
             onStartClassification={handleStartClassification}
             onStartSplit={handleOpenSplitFromInbox}
             onUpdateFilters={handleUpdateInboxFilters}
+          />
+        ) : !isHydrating && screen === 'timeline' ? (
+          <TimelineScreen
+            allTransactionsCount={transactions.length}
+            filteredTransactionsCount={timelineTransactions.length}
+            filters={timelineFilters}
+            hasActiveFilters={hasActiveTimelineFilters(timelineFilters)}
+            onClearFilters={handleClearTimelineFilters}
+            onOpenHome={() => setScreen('home')}
+            onOpenInbox={() => setScreen('inbox')}
+            onOpenManualEntry={() => handleOpenManualEntry('timeline')}
+            onOpenTransaction={handleOpenTransactionDetail}
+            onSelectTab={(nextScreen) => setScreen(nextScreen)}
+            onUpdateFilters={handleUpdateTimelineFilters}
+            timelineDayGroups={timelineDayGroups}
+            timelineSourceAppOptions={timelineSourceAppOptions}
+          />
+        ) : !isHydrating && screen === 'detail' && detailTransaction ? (
+          <TransactionDetailScreen
+            onBack={handleCloseTransactionDetail}
+            onDelete={() =>
+              handleConfirmDeleteTransaction(detailTransaction.id, detailReturnScreen)
+            }
+            onOpenClassification={handleOpenDetailClassification}
+            onOpenSplit={handleOpenSplitFromDetail}
+            transaction={detailTransaction}
           />
         ) : !isHydrating && screen === 'classify' && activeTransaction ? (
           <ClassifyScreen
@@ -881,11 +1034,13 @@ export function SpendTrackerApp() {
                 onOpenManualEntry={() => handleOpenManualEntry('home')}
                 onOpenNotificationAccess={handleOpenNotificationAccess}
                 onRefreshCaptureDiagnostics={handleRefreshCaptureDiagnostics}
-                onOpenSearchPlaceholder={handleOpenSearchPlaceholder}
+                onOpenTimeline={handleOpenTimeline}
                 onOpenShowcase={() => setScreen('showcase')}
                 onResetDemoData={handleResetDemoData}
                 onSelectTab={(nextScreen) => setScreen(nextScreen)}
-                onStartClassification={handleStartClassification}
+                onStartClassification={(transactionId) =>
+                  handleStartClassification(transactionId, 'home')
+                }
                 summary={summary}
               />
             ) : null}
@@ -1181,7 +1336,7 @@ function HomeScreen({
   onOpenManualEntry,
   onOpenNotificationAccess,
   onRefreshCaptureDiagnostics,
-  onOpenSearchPlaceholder,
+  onOpenTimeline,
   onOpenShowcase,
   onResetDemoData,
   onSelectTab,
@@ -1198,10 +1353,10 @@ function HomeScreen({
   onOpenManualEntry: () => void;
   onOpenNotificationAccess: () => Promise<void>;
   onRefreshCaptureDiagnostics: () => Promise<void>;
-  onOpenSearchPlaceholder: () => void;
+  onOpenTimeline: () => void;
   onOpenShowcase: () => void;
   onResetDemoData: () => Promise<void>;
-  onSelectTab: (screen: TabScreen) => void;
+  onSelectTab: (screen: PrimaryScreen) => void;
   onStartClassification: (transactionId: string) => void;
   summary: DashboardSummary;
 }) {
@@ -1302,7 +1457,7 @@ function HomeScreen({
           <ActionButton
             disabled={!searchEnabled}
             label="Search"
-            onPress={onOpenSearchPlaceholder}
+            onPress={onOpenTimeline}
             tone="secondary"
           />
         </View>
@@ -1607,7 +1762,7 @@ function InboxScreen({
   onOpenHome: () => void;
   onOpenManualEntry: () => void;
   onRestoreTransaction: (transactionId: string) => void;
-  onSelectTab: (screen: TabScreen) => void;
+  onSelectTab: (screen: PrimaryScreen) => void;
   onSkipTransaction: (transactionId: string) => void;
   onStartClassification: (transactionId: string) => void;
   onStartSplit: (transactionId: string) => void;
@@ -1822,6 +1977,392 @@ function InboxScreen({
       updateCellsBatchingPeriod={50}
       windowSize={7}
     />
+  );
+}
+
+function TimelineScreen({
+  allTransactionsCount,
+  filteredTransactionsCount,
+  filters,
+  hasActiveFilters,
+  onClearFilters,
+  onOpenHome,
+  onOpenInbox,
+  onOpenManualEntry,
+  onOpenTransaction,
+  onSelectTab,
+  onUpdateFilters,
+  timelineDayGroups,
+  timelineSourceAppOptions,
+}: {
+  allTransactionsCount: number;
+  filteredTransactionsCount: number;
+  filters: TimelineFilters;
+  hasActiveFilters: boolean;
+  onClearFilters: () => void;
+  onOpenHome: () => void;
+  onOpenInbox: () => void;
+  onOpenManualEntry: () => void;
+  onOpenTransaction: (transactionId: string, returnScreen?: PrimaryScreen) => void;
+  onSelectTab: (screen: PrimaryScreen) => void;
+  onUpdateFilters: (nextFilters: Partial<TimelineFilters>) => void;
+  timelineDayGroups: TimelineDayGroup[];
+  timelineSourceAppOptions: string[];
+}) {
+  return (
+    <FlatList
+      contentContainerStyle={styles.inboxListContent}
+      data={timelineDayGroups}
+      initialNumToRender={8}
+      ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+      keyboardShouldPersistTaps="handled"
+      keyExtractor={(group) => group.dayKey}
+      ListEmptyComponent={
+        <EmptyState
+          description={
+            hasActiveFilters
+              ? 'Clear or relax the active search filters to bring hidden transactions back into the local timeline.'
+              : 'Add a manual spend or classify Inbox items to populate the historical timeline.'
+          }
+          title={hasActiveFilters ? 'No matching transactions' : 'No saved history yet'}
+          actions={
+            <View style={styles.actionRow}>
+              {hasActiveFilters ? (
+                <ActionButton label="Clear filters" onPress={onClearFilters} tone="primary" />
+              ) : (
+                <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
+              )}
+              <ActionButton label="Back to home" onPress={onOpenHome} tone="secondary" />
+            </View>
+          }
+        />
+      }
+      ListHeaderComponent={
+        <View style={styles.inboxHeaderStack}>
+          <View style={styles.tabs}>
+            <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
+            <TabButton isActive={false} label="Inbox" onPress={() => onSelectTab('inbox')} />
+            <TabButton isActive={true} label="Timeline" onPress={() => onSelectTab('timeline')} />
+          </View>
+
+          <SectionCard accentColor={colors.successSoft}>
+            <Text style={styles.sectionEyebrow}>Timeline</Text>
+            <Text style={styles.sectionTitle}>Search local history and audit what changed</Text>
+            <Text style={styles.bodyCopy}>
+              Search stays local and scans merchant names, item labels, and saved categories. Open
+              any row to inspect the current local state and correct mistakes.
+            </Text>
+            <View style={styles.helperStack}>
+              <Text style={styles.helperCopy}>
+                Showing {filteredTransactionsCount} of {allTransactionsCount} local transactions
+              </Text>
+              <Text style={styles.helperCopy}>
+                Parser metadata and durable audit logs still appear only when the current local
+                model actually has them.
+              </Text>
+            </View>
+            <View style={styles.actionRow}>
+              <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
+              <ActionButton label="Open inbox" onPress={onOpenInbox} tone="secondary" />
+            </View>
+          </SectionCard>
+
+          <SectionCard accentColor={colors.panel}>
+            <Text style={styles.cardTitle}>Search and filters</Text>
+            <Text style={styles.bodyCopy}>
+              Narrow history by merchant, item, category, status, source app, amount, or date.
+            </Text>
+
+            <View style={styles.fieldStack}>
+              <TextField
+                label="Search local history"
+                onChangeText={(query) => onUpdateFilters({ query })}
+                placeholder="Merchant, item, or category"
+                value={filters.query}
+              />
+            </View>
+
+            <View style={styles.filterStack}>
+              <View style={styles.fieldStack}>
+                <Text style={styles.fieldLabel}>Status</Text>
+                <View style={styles.categoryGrid}>
+                  <CategoryChip
+                    isActive={filters.statusFilter === 'all'}
+                    label="All statuses"
+                    onPress={() => onUpdateFilters({ statusFilter: 'all' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.statusFilter === 'classified'}
+                    label="Classified"
+                    onPress={() => onUpdateFilters({ statusFilter: 'classified' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.statusFilter === 'uncategorized'}
+                    label="Needs review"
+                    onPress={() => onUpdateFilters({ statusFilter: 'uncategorized' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.statusFilter === 'partially_classified'}
+                    label="Partial"
+                    onPress={() => onUpdateFilters({ statusFilter: 'partially_classified' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.statusFilter === 'skipped'}
+                    label="Skipped"
+                    onPress={() => onUpdateFilters({ statusFilter: 'skipped' })}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.fieldStack}>
+                <Text style={styles.fieldLabel}>Source app</Text>
+                <View style={styles.categoryGrid}>
+                  <CategoryChip
+                    isActive={filters.sourceApp === 'all'}
+                    label="All sources"
+                    onPress={() => onUpdateFilters({ sourceApp: 'all' })}
+                  />
+                  {timelineSourceAppOptions.map((sourceApp) => (
+                    <CategoryChip
+                      isActive={filters.sourceApp === sourceApp}
+                      key={sourceApp}
+                      label={sourceApp}
+                      onPress={() => onUpdateFilters({ sourceApp })}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.fieldStack}>
+                <Text style={styles.fieldLabel}>Amount</Text>
+                <View style={styles.categoryGrid}>
+                  <CategoryChip
+                    isActive={filters.amountFilter === 'all'}
+                    label="Any amount"
+                    onPress={() => onUpdateFilters({ amountFilter: 'all' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.amountFilter === 'under_250'}
+                    label="Under Rs 250"
+                    onPress={() => onUpdateFilters({ amountFilter: 'under_250' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.amountFilter === 'between_250_and_500'}
+                    label="Rs 250 to 500"
+                    onPress={() => onUpdateFilters({ amountFilter: 'between_250_and_500' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.amountFilter === 'over_500'}
+                    label="Over Rs 500"
+                    onPress={() => onUpdateFilters({ amountFilter: 'over_500' })}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.fieldStack}>
+                <Text style={styles.fieldLabel}>Date</Text>
+                <View style={styles.categoryGrid}>
+                  <CategoryChip
+                    isActive={filters.dateFilter === 'all'}
+                    label="Any time"
+                    onPress={() => onUpdateFilters({ dateFilter: 'all' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.dateFilter === 'today'}
+                    label="Today"
+                    onPress={() => onUpdateFilters({ dateFilter: 'today' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.dateFilter === 'last_7_days'}
+                    label="Last 7 days"
+                    onPress={() => onUpdateFilters({ dateFilter: 'last_7_days' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.dateFilter === 'last_30_days'}
+                    label="Last 30 days"
+                    onPress={() => onUpdateFilters({ dateFilter: 'last_30_days' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.dateFilter === 'older'}
+                    label="Older"
+                    onPress={() => onUpdateFilters({ dateFilter: 'older' })}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.actionRow}>
+              <ActionButton label="Clear filters" onPress={onClearFilters} tone="secondary" />
+            </View>
+          </SectionCard>
+        </View>
+      }
+      renderItem={({ item }) => (
+        <SectionCard accentColor={colors.panelWarm}>
+          <Text style={styles.cardTitle}>{item.label}</Text>
+          <View style={styles.timelineGroupStack}>
+            {item.transactions.map((transaction) => (
+              <TimelineTransactionRow
+                key={transaction.id}
+                onPress={() => onOpenTransaction(transaction.id, 'timeline')}
+                transaction={transaction}
+              />
+            ))}
+          </View>
+        </SectionCard>
+      )}
+      showsVerticalScrollIndicator={false}
+    />
+  );
+}
+
+function TimelineTransactionRow({
+  onPress,
+  transaction,
+}: {
+  onPress: () => void;
+  transaction: Transaction;
+}) {
+  const itemSummary =
+    transaction.items.length > 0
+      ? transaction.items
+          .map((item) => `${item.label} · ${getCategoryLabel(item.categoryId)}`)
+          .join(', ')
+      : 'No saved items yet';
+
+  return (
+    <ListItem
+      accessibilityLabel={`Open transaction details for ${transaction.merchant}`}
+      onPress={onPress}
+      subtitle={`${transaction.sourceApp} · ${formatCaptureMoment(transaction.capturedAt)}`}
+      title={transaction.merchant}
+      trailing={<Text style={styles.transactionAmount}>{formatCurrency(transaction.amountMinor)}</Text>}
+    >
+      <StatusChip label={getTransactionStatusLabel(transaction.status)} tone={getStatusTone(transaction.status)} />
+      <Text style={styles.bodyCopy}>{itemSummary}</Text>
+    </ListItem>
+  );
+}
+
+function TransactionDetailScreen({
+  onBack,
+  onDelete,
+  onOpenClassification,
+  onOpenSplit,
+  transaction,
+}: {
+  onBack: () => void;
+  onDelete: () => void;
+  onOpenClassification: () => void;
+  onOpenSplit: () => void;
+  transaction: Transaction;
+}) {
+  const unresolvedAmountMinor = getUnresolvedAmountMinor(transaction);
+  const shouldEditSplit =
+    transaction.items.length > 1 || transaction.status === 'partially_classified';
+  const primaryActionLabel = shouldEditSplit
+    ? 'Edit split items'
+    : transaction.status === 'classified'
+      ? 'Edit classification'
+      : 'Classify transaction';
+
+  return (
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <SectionCard accentColor={colors.accentSoft}>
+        <Text style={styles.sectionEyebrow}>Transaction detail</Text>
+        <Text style={styles.sectionTitle}>Inspect the local record before changing it</Text>
+        <Text style={styles.bodyCopy}>
+          This screen shows the current local transaction state. Parser and audit metadata appear
+          only when the record actually carries them.
+        </Text>
+        <View style={styles.actionRow}>
+          <ActionButton label="Back to timeline" onPress={onBack} tone="secondary" />
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.cardTitle}>{transaction.merchant}</Text>
+        <Text style={styles.amountLabel}>{formatCurrency(transaction.amountMinor)}</Text>
+        <Text style={styles.bodyCopy}>
+          {transaction.sourceApp} · {formatCaptureMoment(transaction.capturedAt)}
+        </Text>
+        <StatusChip label={getTransactionStatusLabel(transaction.status)} tone={getStatusTone(transaction.status)} />
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Items and classification</Text>
+        {transaction.items.length > 0 ? (
+          <View style={styles.detailItemStack}>
+            {transaction.items.map((item) => (
+              <View key={item.id} style={styles.detailItemRow}>
+                <View style={styles.summaryCopy}>
+                  <Text style={styles.summaryPrimary}>{item.label}</Text>
+                  <Text style={styles.summarySecondary}>{getCategoryLabel(item.categoryId)}</Text>
+                </View>
+                <Text style={styles.summaryAmount}>{formatCurrency(item.amountMinor)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.bodyCopy}>
+            No saved item rows yet. This payment still needs classification before it can leave the
+            review loop.
+          </Text>
+        )}
+        {unresolvedAmountMinor > 0 && transaction.status === 'partially_classified' ? (
+          <Text style={styles.helperCopy}>
+            {formatCurrency(unresolvedAmountMinor)} still remains unresolved, so this transaction
+            stays visible in Inbox until the split is finished or the remainder is saved.
+          </Text>
+        ) : null}
+      </SectionCard>
+
+      <SectionCard accentColor={colors.successSoft}>
+        <Text style={styles.cardTitle}>Source and parser context</Text>
+        <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>Source app: {transaction.sourceApp}</Text>
+          <Text style={styles.helperCopy}>Local status: {getTransactionStatusLabel(transaction.status)}</Text>
+          <Text style={styles.helperCopy}>Local record ID: {transaction.id}</Text>
+          <Text style={styles.helperCopy}>
+            Parser metadata: not yet attached to this local transaction record in the current app
+            model.
+          </Text>
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.cardTitle}>History and edits</Text>
+        <Text style={styles.bodyCopy}>
+          Durable classification history and audit logs are not stored yet in this local shell. The
+          fields above show the latest saved state only.
+        </Text>
+        <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>Recorded at: {formatCaptureMoment(transaction.capturedAt)}</Text>
+          <Text style={styles.helperCopy}>
+            Current state: {transaction.items.length > 0 ? `${transaction.items.length} saved item rows` : 'No saved item rows'}
+          </Text>
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.successSoft}>
+        <Text style={styles.cardTitle}>Actions</Text>
+        <Text style={styles.bodyCopy}>
+          Edit the current local classification, reopen split items when one payment needs multiple
+          rows, or delete the record with confirmation.
+        </Text>
+        <View style={styles.actionRow}>
+          <ActionButton
+            label={primaryActionLabel}
+            onPress={shouldEditSplit ? onOpenSplit : onOpenClassification}
+            tone="primary"
+          />
+          {!shouldEditSplit ? (
+            <ActionButton label="Split items" onPress={onOpenSplit} tone="secondary" />
+          ) : null}
+          <ActionButton label="Delete transaction locally" onPress={onDelete} tone="secondary" />
+        </View>
+      </SectionCard>
+    </ScrollView>
   );
 }
 
@@ -2552,9 +3093,7 @@ function TransactionCard({
 }) {
   const { reviewStatus, transaction } = reviewItem;
   const hasSavedItemPreview = transaction.items[0]?.label?.trim().length;
-  const unresolvedRemainderMinor =
-    transaction.amountMinor -
-    transaction.items.reduce((sum, item) => sum + item.amountMinor, 0);
+  const unresolvedRemainderMinor = getUnresolvedAmountMinor(transaction);
 
   return (
     <ListItem
@@ -2708,6 +3247,10 @@ function getCategoryLabel(categoryId: CategoryId): string {
   );
 }
 
+function getStatusTone(status: Transaction['status']): 'pending' | 'ready' {
+  return status === 'classified' ? 'ready' : 'pending';
+}
+
 function getSplitRemainderLabel(
   remainderDisposition: SplitRemainderDisposition,
 ): string {
@@ -2744,6 +3287,16 @@ function hasActiveInboxFilters(filters: InboxFilters): boolean {
     filters.merchantQuery.trim().length > 0 ||
     filters.sourceApp !== DEFAULT_INBOX_FILTERS.sourceApp ||
     filters.statusFilter !== DEFAULT_INBOX_FILTERS.statusFilter
+  );
+}
+
+function hasActiveTimelineFilters(filters: TimelineFilters): boolean {
+  return (
+    filters.amountFilter !== DEFAULT_TIMELINE_FILTERS.amountFilter ||
+    filters.dateFilter !== DEFAULT_TIMELINE_FILTERS.dateFilter ||
+    filters.query.trim().length > 0 ||
+    filters.sourceApp !== DEFAULT_TIMELINE_FILTERS.sourceApp ||
+    filters.statusFilter !== DEFAULT_TIMELINE_FILTERS.statusFilter
   );
 }
 
@@ -2852,6 +3405,15 @@ const styles = StyleSheet.create({
   },
   helperStack: {
     gap: 4,
+  },
+  detailItemRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  detailItemStack: {
+    gap: 12,
   },
   fieldLabel: {
     color: colors.ink,
@@ -3224,6 +3786,9 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: 'row',
     gap: 10,
+  },
+  timelineGroupStack: {
+    gap: 12,
   },
   transactionAmount: {
     color: colors.ink,

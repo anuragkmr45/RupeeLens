@@ -361,12 +361,12 @@
       ],
       "tests": "Manual QA checklist with forced failure scenarios.",
       "done": "Support-ready diagnostics available.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-27",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: the client now has a local-first Timeline flow reachable from Home search, grouped day sections, local search across merchant/item/category, source-status-amount-date filters, transaction detail, and clear edit/delete handoff with confirmation. `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27. Status stays `in_progress` because the current mobile transaction model still does not attach durable parser metadata or classification/audit history to each record, so the full transaction-detail acceptance criteria are not closed yet."
     },
     {
       "id": "UX-001",

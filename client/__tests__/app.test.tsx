@@ -1,4 +1,5 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 import App from '../App';
 import { seededTransactions, type Transaction } from '../src/features/spend-tracker/domain';
@@ -925,5 +926,95 @@ describe('App', () => {
         }),
       ),
     );
+  });
+
+  it('opens timeline search, shows local transaction detail, and edits a transaction from detail', async () => {
+    const screen = render(<App />);
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+    expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Search' }));
+
+    expect(await screen.findByText('Search local history and audit what changed')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Merchant, item, or category'), 'transport');
+
+    expect(screen.getByText('Showing 1 of 5 local transactions')).toBeTruthy();
+    expect(screen.getByText('Bangalore Metro')).toBeTruthy();
+    expect(screen.queryByText('Blinkit')).toBeNull();
+
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Open transaction details for Bangalore Metro' }),
+    );
+
+    expect(await screen.findByText('Inspect the local record before changing it')).toBeTruthy();
+    expect(screen.getByText('Parser metadata: not yet attached to this local transaction record in the current app model.')).toBeTruthy();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Edit classification' }));
+    expect(await screen.findByText('Quick classify sheet')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByPlaceholderText('What did you buy?'), 'Metro day pass');
+    fireEvent.press(screen.getByRole('button', { name: 'Save classification' }));
+
+    expect(await screen.findByText('Inspect the local record before changing it')).toBeTruthy();
+    expect(screen.getByText('Metro day pass')).toBeTruthy();
+
+    await waitFor(() =>
+      expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          transactions: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'txn_metro',
+              items: [
+                expect.objectContaining({
+                  categoryId: 'transport',
+                  label: 'Metro day pass',
+                }),
+              ],
+              status: 'classified',
+            }),
+          ]),
+        }),
+      ),
+    );
+  });
+
+  it('confirms before deleting a transaction from detail and returns to timeline', async () => {
+    const deleteAlertSpy = jest.spyOn(Alert, 'alert').mockImplementation(
+      (
+        _title: string,
+        _message?: string,
+        buttons?: Parameters<typeof Alert.alert>[2],
+      ) => {
+        const destructiveButton = buttons?.find((button) => button.style === 'destructive');
+        destructiveButton?.onPress?.();
+      },
+    );
+
+    try {
+      const screen = render(<App />);
+
+      fireEvent.press(await screen.findByText('Continue in local-only mode'));
+      fireEvent.press(screen.getByRole('button', { name: 'Search' }));
+      fireEvent.changeText(screen.getByPlaceholderText('Merchant, item, or category'), 'blue');
+      fireEvent.press(
+        screen.getByRole('button', { name: 'Open transaction details for Blue Tokai Roasters' }),
+      );
+
+      expect(await screen.findByText('Inspect the local record before changing it')).toBeTruthy();
+
+      fireEvent.press(screen.getByRole('button', { name: 'Delete transaction locally' }));
+
+      expect(deleteAlertSpy).toHaveBeenCalledWith(
+        'Delete transaction locally?',
+        expect.stringContaining('Blue Tokai Roasters will be removed'),
+        expect.any(Array),
+      );
+      expect(await screen.findByText('Search local history and audit what changed')).toBeTruthy();
+      expect(screen.queryByText('Blue Tokai Roasters')).toBeNull();
+    } finally {
+      deleteAlertSpy.mockRestore();
+    }
   });
 });

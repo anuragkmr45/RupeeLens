@@ -529,7 +529,7 @@ Split-flow accepted by QA and design.
 - **Story points:** 5
 - **Goal:** Let users audit history and correct mistakes confidently.
 - **Dependencies:** UX-003
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-27 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the client now has a local-first Timeline flow reachable from Home search, grouped day sections, local search across merchant/item/category, source-status-amount-date filters, transaction detail, and clear edit/delete handoff with confirmation. `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27. Status stays `in_progress` because the current mobile transaction model still does not attach durable parser metadata or classification/audit history to each record, so the full transaction-detail acceptance criteria are not closed yet.
 
 **Description**  
 Create daily timeline list, transaction detail view with audit history, and search by merchant, item, category, or note. Add filters for date, amount, source app, and status.

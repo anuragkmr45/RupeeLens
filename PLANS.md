@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### UX-006 — Build Timeline, Transaction Detail, And Search/Filter Views
+
+- **Status:** completed
+- **Ticket:** UX-006
+- **Goal:** Add a local-first history flow with searchable timeline browsing, transaction detail, and edit/delete handoff that works entirely from the current device data.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/domain.ts`, `client/src/lib/app-info.ts`, and focused client tests.
+- **Rationale:** `CAP-003` and `CAP-004` remain blocked by connected-Android validation because the attached device still cancels debug APK installation with `INSTALL_FAILED_USER_RESTRICTED`. `UX-005` already has its repo-side split implementation, so `UX-006` is now the earliest actionable `todo` ticket with satisfied dependencies.
+- **Risks:** The current local transaction model does not yet store real parser metadata or a durable audit log. This pass must not fake unavailable history. It should land a truthful local timeline/search/detail flow, make edit/delete reachable with clear confirmation, and leave parser/audit-history richness explicitly open if the current model cannot support full closeout.
+- **API / schema impact:** No backend/API changes planned. Avoid DB schema changes unless a narrow, justified local history field becomes necessary.
+- **Rollout / flag plan:** Reuse the existing search feature flag and keep the flow local-first with no network dependency.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus focused client tests for timeline search, detail rendering, and edit/delete flows. Run `pnpm db:validate` only if persistence or migration code changes.
+- **Done when:** Users can open a real history/search flow from Home, find transactions with local filters quickly, open a transaction detail view, and reach edit/delete actions with clear confirmation, while tracking remains truthful about any still-missing parser/audit-history depth.
+- **Outcome:** Added a local-first Timeline screen reachable from Home search, with grouped day sections, local search across merchant/item/category, source/status/amount/date filters, and transaction-detail navigation. Added a transaction-detail screen with truthful local-state copy, current item rows, source/status context, clear edit handoff back into quick classify or split, and confirmed local delete with explicit confirmation. Expanded domain helpers and tests for grouped history/search plus app-level timeline/detail/edit/delete flows. `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed. The ticket remains `in_progress` in backlog tracking because the current mobile transaction model still does not attach durable parser metadata or classification/audit history to each record, so full acceptance cannot be claimed yet.
+
 ### CAP-003 — Implement Capture Dedupe And Replay Protection
 
 - **Status:** blocked
