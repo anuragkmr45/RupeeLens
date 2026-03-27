@@ -1,6 +1,7 @@
 import type {
   BootstrapConfigRequestQuery,
   BootstrapConfigResponse,
+  CaptureDedupeConfig,
   BootstrapParserConfig,
   ParserTemplateConfig,
   RolloutChannel,
@@ -35,6 +36,20 @@ function mergeParserConfig(
   };
 }
 
+function mergeDedupeConfig(
+  base: CaptureDedupeConfig,
+  override: BootstrapConfigOverride['dedupeConfig'],
+): CaptureDedupeConfig {
+  return {
+    exactMatchWindowSeconds:
+      override?.exactMatchWindowSeconds ?? base.exactMatchWindowSeconds,
+    fuzzyMatchWindowSeconds:
+      override?.fuzzyMatchWindowSeconds ?? base.fuzzyMatchWindowSeconds,
+    merchantSimilarityThreshold:
+      override?.merchantSimilarityThreshold ?? base.merchantSimilarityThreshold,
+  };
+}
+
 function mergeDefinition(
   base: BootstrapConfigDefinition,
   override: BootstrapConfigOverride,
@@ -45,6 +60,7 @@ function mergeDefinition(
       ...base.copyOverrides,
       ...(override.copyOverrides ?? {}),
     },
+    dedupeConfig: mergeDedupeConfig(base.dedupeConfig, override.dedupeConfig),
     featureFlags: {
       ...base.featureFlags,
       ...(override.featureFlags ?? {}),
@@ -89,6 +105,7 @@ function buildConfigVersion(
     featureFlags: definition.featureFlags,
     minSupportedVersion: definition.minSupportedVersion,
     parserConfig: definition.parserConfig,
+    dedupeConfig: definition.dedupeConfig,
     platform: query.platform,
     softUpgradeVersion: definition.softUpgradeVersion,
   });
@@ -123,6 +140,7 @@ export function createBootstrapConfigService(
         cacheTtlSeconds: definition.cacheTtlSeconds,
         configVersion: buildConfigVersion(query, definition, rolloutChannel),
         copyOverrides: definition.copyOverrides,
+        dedupeConfig: definition.dedupeConfig,
         featureFlags: definition.featureFlags,
         minSupportedVersion: definition.minSupportedVersion,
         parserConfig,

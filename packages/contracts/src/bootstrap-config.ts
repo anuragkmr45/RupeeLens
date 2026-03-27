@@ -25,10 +25,17 @@ export interface BootstrapParserConfig {
   templates: Record<string, ParserTemplateConfig>;
 }
 
+export interface CaptureDedupeConfig {
+  exactMatchWindowSeconds: number;
+  fuzzyMatchWindowSeconds: number;
+  merchantSimilarityThreshold: number;
+}
+
 export interface BootstrapConfigResponse {
   cacheTtlSeconds: number;
   configVersion: string;
   copyOverrides?: Record<string, string>;
+  dedupeConfig: CaptureDedupeConfig;
   featureFlags: Record<string, boolean>;
   minSupportedVersion: string;
   parserConfig: BootstrapParserConfig;

@@ -2,6 +2,7 @@ import type {
   BootstrapConfigRequestQuery,
   BootstrapConfigResponse,
   BootstrapPlatform,
+  CaptureDedupeConfig,
   ParserTemplateConfig,
   RolloutChannel,
 } from '@upi-spend-tracker/contracts';
@@ -44,6 +45,12 @@ const FALLBACK_TEMPLATE: ParserTemplateConfig = {
   version: '1.0.0',
 };
 
+const FALLBACK_DEDUPE_CONFIG: CaptureDedupeConfig = {
+  exactMatchWindowSeconds: 120,
+  fuzzyMatchWindowSeconds: 300,
+  merchantSimilarityThreshold: 0.88,
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -78,6 +85,22 @@ function isParserTemplateConfig(value: unknown): value is ParserTemplateConfig {
   );
 }
 
+function isCaptureDedupeConfig(value: unknown): value is CaptureDedupeConfig {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.exactMatchWindowSeconds === 'number' &&
+    value.exactMatchWindowSeconds > 0 &&
+    typeof value.fuzzyMatchWindowSeconds === 'number' &&
+    value.fuzzyMatchWindowSeconds > 0 &&
+    typeof value.merchantSimilarityThreshold === 'number' &&
+    value.merchantSimilarityThreshold > 0 &&
+    value.merchantSimilarityThreshold <= 1
+  );
+}
+
 function isBootstrapConfigResponse(value: unknown): value is BootstrapConfigResponse {
   if (!isRecord(value)) {
     return false;
@@ -86,6 +109,7 @@ function isBootstrapConfigResponse(value: unknown): value is BootstrapConfigResp
   if (
     typeof value.cacheTtlSeconds !== 'number' ||
     typeof value.configVersion !== 'string' ||
+    !isCaptureDedupeConfig(value.dedupeConfig) ||
     !isBooleanRecord(value.featureFlags) ||
     typeof value.minSupportedVersion !== 'string' ||
     !isRolloutChannel(value.rolloutChannel) ||
@@ -175,6 +199,7 @@ function buildFallbackBootstrapConfig(channel: RolloutChannel): BootstrapConfigR
       home_remote_config_status:
         'Using the built-in bootstrap fallback while the app refreshes feature flags and parser templates in the background.',
     },
+    dedupeConfig: FALLBACK_DEDUPE_CONFIG,
     featureFlags: getFeatureFlagsForChannel(channel),
     minSupportedVersion: '0.0.0',
     parserConfig: {

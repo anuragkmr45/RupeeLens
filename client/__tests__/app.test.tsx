@@ -2,7 +2,10 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import App from '../App';
 import { seededTransactions, type Transaction } from '../src/features/spend-tracker/domain';
-import type { NativeCaptureDiagnostics } from '../src/features/android-capture/native-capture';
+import type {
+  NativeCaptureDedupeConfig,
+  NativeCaptureDiagnostics,
+} from '../src/features/android-capture/native-capture';
 import type { BootstrapConfigState } from '../src/features/bootstrap-config/runtime-config';
 import {
   DEFAULT_ONBOARDING_PREFERENCES,
@@ -34,6 +37,11 @@ jest.mock('../src/features/bootstrap-config/runtime-config', () => ({
       configVersion: 'bootstrap-beta-fallback',
       copyOverrides: {
         home_remote_config_status: 'Using fallback config.',
+      },
+      dedupeConfig: {
+        exactMatchWindowSeconds: 120,
+        fuzzyMatchWindowSeconds: 300,
+        merchantSimilarityThreshold: 0.88,
       },
       featureFlags: {
         budgets_enabled: false,
@@ -89,6 +97,11 @@ jest.mock('../src/features/bootstrap-config/runtime-config', () => ({
       copyOverrides: {
         home_remote_config_status: 'Cached config ready.',
       },
+      dedupeConfig: {
+        exactMatchWindowSeconds: 120,
+        fuzzyMatchWindowSeconds: 300,
+        merchantSimilarityThreshold: 0.88,
+      },
       featureFlags: {
         budgets_enabled: false,
         notification_capture_enabled: true,
@@ -134,6 +147,11 @@ jest.mock('../src/features/bootstrap-config/runtime-config', () => ({
       configVersion: 'bootstrap-beta-network',
       copyOverrides: {
         home_remote_config_status: 'Fresh network config.',
+      },
+      dedupeConfig: {
+        exactMatchWindowSeconds: 90,
+        fuzzyMatchWindowSeconds: 420,
+        merchantSimilarityThreshold: 0.8,
       },
       featureFlags: {
         budgets_enabled: false,
@@ -183,28 +201,75 @@ jest.mock('../src/features/bootstrap-config/runtime-config', () => ({
 jest.mock('../src/features/android-capture/native-capture', () => ({
   clearStoredCaptureSnapshots: jest.fn().mockResolvedValue({
     allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    dedupeConfig: {
+      exactMatchWindowSeconds: 120,
+      fuzzyMatchWindowSeconds: 300,
+      merchantSimilarityThreshold: 0.88,
+    },
+    exactDuplicateCount: 0,
+    fuzzyDuplicateCount: 0,
     lastCapture: null,
+    lastDedupeDecision: null,
     listenerPermissionGranted: false,
     serviceAvailable: true,
     storedSnapshotCount: 0,
   }),
   DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS: {
     allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    dedupeConfig: {
+      exactMatchWindowSeconds: 120,
+      fuzzyMatchWindowSeconds: 300,
+      merchantSimilarityThreshold: 0.88,
+    },
+    exactDuplicateCount: 0,
+    fuzzyDuplicateCount: 0,
     lastCapture: null,
+    lastDedupeDecision: null,
     listenerPermissionGranted: false,
     serviceAvailable: true,
     storedSnapshotCount: 0,
   },
   getNativeCaptureDiagnostics: jest.fn().mockResolvedValue({
     allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    dedupeConfig: {
+      exactMatchWindowSeconds: 120,
+      fuzzyMatchWindowSeconds: 300,
+      merchantSimilarityThreshold: 0.88,
+    },
+    exactDuplicateCount: 0,
+    fuzzyDuplicateCount: 0,
     lastCapture: null,
+    lastDedupeDecision: null,
+    listenerPermissionGranted: false,
+    serviceAvailable: true,
+    storedSnapshotCount: 0,
+  }),
+  setNativeCaptureDedupeConfig: jest.fn().mockResolvedValue({
+    allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    dedupeConfig: {
+      exactMatchWindowSeconds: 120,
+      fuzzyMatchWindowSeconds: 300,
+      merchantSimilarityThreshold: 0.88,
+    },
+    exactDuplicateCount: 0,
+    fuzzyDuplicateCount: 0,
+    lastCapture: null,
+    lastDedupeDecision: null,
     listenerPermissionGranted: false,
     serviceAvailable: true,
     storedSnapshotCount: 0,
   }),
   setAllowedSourceApps: jest.fn().mockResolvedValue({
     allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    dedupeConfig: {
+      exactMatchWindowSeconds: 120,
+      fuzzyMatchWindowSeconds: 300,
+      merchantSimilarityThreshold: 0.88,
+    },
+    exactDuplicateCount: 0,
+    fuzzyDuplicateCount: 0,
     lastCapture: null,
+    lastDedupeDecision: null,
     listenerPermissionGranted: false,
     serviceAvailable: true,
     storedSnapshotCount: 0,
@@ -225,6 +290,10 @@ const mockedNativeCaptureModule = jest.requireMock(
   '../src/features/android-capture/native-capture'
 ) as {
   getNativeCaptureDiagnostics: jest.Mock<Promise<NativeCaptureDiagnostics>, []>;
+  setNativeCaptureDedupeConfig: jest.Mock<
+    Promise<NativeCaptureDiagnostics>,
+    [NativeCaptureDedupeConfig]
+  >;
   setAllowedSourceApps: jest.Mock<Promise<NativeCaptureDiagnostics>, [string[]]>;
 };
 
@@ -237,6 +306,11 @@ function buildMockBootstrapState(
       configVersion: 'bootstrap-beta-test',
       copyOverrides: {
         home_remote_config_status: 'Test config',
+      },
+      dedupeConfig: {
+        exactMatchWindowSeconds: 120,
+        fuzzyMatchWindowSeconds: 300,
+        merchantSimilarityThreshold: 0.88,
       },
       featureFlags: {
         budgets_enabled: false,
@@ -279,7 +353,15 @@ function buildMockCaptureDiagnostics(
 ): NativeCaptureDiagnostics {
   return {
     allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    dedupeConfig: {
+      exactMatchWindowSeconds: 120,
+      fuzzyMatchWindowSeconds: 300,
+      merchantSimilarityThreshold: 0.88,
+    },
+    exactDuplicateCount: 0,
+    fuzzyDuplicateCount: 0,
     lastCapture: null,
+    lastDedupeDecision: null,
     listenerPermissionGranted: false,
     serviceAvailable: true,
     storedSnapshotCount: 0,
@@ -323,6 +405,11 @@ describe('App', () => {
     mockedSaveStoredSpendTrackerState.mockResolvedValue(undefined);
     mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(
       buildMockCaptureDiagnostics(),
+    );
+    mockedNativeCaptureModule.setNativeCaptureDedupeConfig.mockImplementation(async (dedupeConfig) =>
+      buildMockCaptureDiagnostics({
+        dedupeConfig,
+      }),
     );
     mockedNativeCaptureModule.setAllowedSourceApps.mockImplementation(async (sourceAppIds) =>
       buildMockCaptureDiagnostics({
@@ -504,10 +591,20 @@ describe('App', () => {
   it('shows native capture diagnostics from the Android bridge', async () => {
     const diagnostics = buildMockCaptureDiagnostics({
       allowedSourceAppIds: ['google_pay'],
+      exactDuplicateCount: 2,
+      fuzzyDuplicateCount: 1,
       lastCapture: {
         capturedAtMs: new Date('2026-03-26T09:45:00.000Z').getTime(),
         packageName: 'com.google.android.apps.nbu.paisa.user',
         preview: 'title=Paid Rs 299 text=To Corner Store',
+        sourceAppId: 'google_pay',
+      },
+      lastDedupeDecision: {
+        amountMinor: 29900,
+        dedupeKind: 'exact_duplicate',
+        dedupedAtMs: new Date('2026-03-26T09:47:00.000Z').getTime(),
+        duplicateCount: 3,
+        merchantRaw: 'Corner Store',
         sourceAppId: 'google_pay',
       },
       listenerPermissionGranted: true,
@@ -515,6 +612,7 @@ describe('App', () => {
     });
 
     mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(diagnostics);
+    mockedNativeCaptureModule.setNativeCaptureDedupeConfig.mockResolvedValue(diagnostics);
     mockedNativeCaptureModule.setAllowedSourceApps.mockResolvedValue(diagnostics);
 
     const screen = render(<App />);
@@ -525,9 +623,26 @@ describe('App', () => {
     expect(screen.getByText('Listener permission: granted')).toBeTruthy();
     expect(screen.getByText('Allowed source apps: Google Pay')).toBeTruthy();
     expect(screen.getByText('Stored raw captures: 3')).toBeTruthy();
+    expect(screen.getByText('Suppressed duplicates: 2 exact, 1 fuzzy')).toBeTruthy();
+    expect(
+      screen.getByText('Dedupe config: 120s exact · 300s fuzzy · threshold 0.88'),
+    ).toBeTruthy();
     expect(
       screen.getByText('Snapshot preview: title=Paid Rs 299 text=To Corner Store'),
     ).toBeTruthy();
+    expect(screen.getByText(/Last dedupe: Exact duplicate/)).toBeTruthy();
+  });
+
+  it('syncs bootstrap dedupe config into the native module', async () => {
+    render(<App />);
+
+    await waitFor(() =>
+      expect(mockedNativeCaptureModule.setNativeCaptureDedupeConfig).toHaveBeenCalledWith({
+        exactMatchWindowSeconds: 120,
+        fuzzyMatchWindowSeconds: 300,
+        merchantSimilarityThreshold: 0.88,
+      }),
+    );
   });
 
   it('persists onboarding preferences before onboarding is completed', async () => {

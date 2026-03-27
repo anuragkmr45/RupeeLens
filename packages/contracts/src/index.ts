@@ -1,4 +1,5 @@
 export type {
+  CaptureDedupeConfig,
   BootstrapConfigRequestQuery,
   BootstrapConfigResponse,
   BootstrapParserConfig,

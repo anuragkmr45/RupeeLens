@@ -68,6 +68,7 @@ import {
   clearStoredCaptureSnapshots,
   DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS,
   getNativeCaptureDiagnostics,
+  setNativeCaptureDedupeConfig,
   setAllowedSourceApps,
   type NativeCaptureDiagnostics,
 } from '../features/android-capture/native-capture';
@@ -287,6 +288,30 @@ export function SpendTrackerApp() {
       isMounted = false;
     };
   }, [isHydrating, onboardingPreferences.selectedSourceAppIds]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function syncNativeDedupeConfig() {
+      const diagnostics = await setNativeCaptureDedupeConfig(bootstrapState.config.dedupeConfig);
+
+      if (!isMounted) {
+        return;
+      }
+
+      setCaptureDiagnostics(diagnostics);
+    }
+
+    void syncNativeDedupeConfig();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    bootstrapState.config.dedupeConfig.exactMatchWindowSeconds,
+    bootstrapState.config.dedupeConfig.fuzzyMatchWindowSeconds,
+    bootstrapState.config.dedupeConfig.merchantSimilarityThreshold,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1358,6 +1383,13 @@ function CaptureDiagnosticsCard({
           Stored raw captures: {captureDiagnostics.storedSnapshotCount}
         </Text>
         <Text style={styles.helperCopy}>
+          Suppressed duplicates: {captureDiagnostics.exactDuplicateCount} exact,{' '}
+          {captureDiagnostics.fuzzyDuplicateCount} fuzzy
+        </Text>
+        <Text style={styles.helperCopy}>
+          Dedupe config: {formatNativeDedupeConfig(captureDiagnostics)}
+        </Text>
+        <Text style={styles.helperCopy}>
           Last capture:{' '}
           {captureDiagnostics.lastCapture
             ? `${getSourceAppLabel(captureDiagnostics.lastCapture.sourceAppId)} · ${formatNativeCaptureMoment(captureDiagnostics.lastCapture.capturedAtMs)}`
@@ -1366,6 +1398,19 @@ function CaptureDiagnosticsCard({
         {captureDiagnostics.lastCapture ? (
           <Text style={styles.helperCopy}>
             Snapshot preview: {captureDiagnostics.lastCapture.preview}
+          </Text>
+        ) : null}
+        {captureDiagnostics.lastDedupeDecision ? (
+          <Text style={styles.helperCopy}>
+            Last dedupe: {formatDedupeKindLabel(captureDiagnostics.lastDedupeDecision.dedupeKind)}{' '}
+            · {getSourceAppLabel(captureDiagnostics.lastDedupeDecision.sourceAppId)} ·{' '}
+            {formatCurrency(captureDiagnostics.lastDedupeDecision.amountMinor)} ·{' '}
+            {captureDiagnostics.lastDedupeDecision.merchantRaw} · duplicate #
+            {captureDiagnostics.lastDedupeDecision.duplicateCount} ·{' '}
+            {formatNativeCaptureMoment(captureDiagnostics.lastDedupeDecision.dedupedAtMs)}
+            {captureDiagnostics.lastDedupeDecision.similarityScore !== undefined
+              ? ` · similarity ${captureDiagnostics.lastDedupeDecision.similarityScore.toFixed(2)}`
+              : ''}
           </Text>
         ) : null}
       </View>
@@ -2146,6 +2191,14 @@ function getBudgetCycleLabel(budgetCycleId: BudgetCycleId): string {
 
 function formatNativeCaptureMoment(capturedAtMs: number): string {
   return formatCaptureMoment(new Date(capturedAtMs).toISOString());
+}
+
+function formatDedupeKindLabel(dedupeKind: 'exact_duplicate' | 'fuzzy_duplicate'): string {
+  return dedupeKind === 'exact_duplicate' ? 'Exact duplicate' : 'Fuzzy duplicate';
+}
+
+function formatNativeDedupeConfig(captureDiagnostics: NativeCaptureDiagnostics): string {
+  return `${captureDiagnostics.dedupeConfig.exactMatchWindowSeconds}s exact · ${captureDiagnostics.dedupeConfig.fuzzyMatchWindowSeconds}s fuzzy · threshold ${captureDiagnostics.dedupeConfig.merchantSimilarityThreshold.toFixed(2)}`;
 }
 
 function getBudgetCycleStartDay(budgetCycleId: BudgetCycleId): number {

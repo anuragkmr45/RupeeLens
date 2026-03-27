@@ -1,4 +1,5 @@
 import type {
+  CaptureDedupeConfig,
   BootstrapParserConfig,
   ParserTemplateConfig,
   RolloutChannel,
@@ -7,6 +8,7 @@ import type {
 export interface BootstrapConfigDefinition {
   cacheTtlSeconds: number;
   copyOverrides: Record<string, string>;
+  dedupeConfig: CaptureDedupeConfig;
   featureFlags: Record<string, boolean>;
   minSupportedVersion: string;
   parserConfig: BootstrapParserConfig;
@@ -16,6 +18,7 @@ export interface BootstrapConfigDefinition {
 export interface BootstrapConfigOverride {
   cacheTtlSeconds?: number;
   copyOverrides?: Record<string, string>;
+  dedupeConfig?: Partial<CaptureDedupeConfig>;
   featureFlags?: Record<string, boolean>;
   parserConfig?: {
     parserKillSwitch?: boolean;
@@ -56,6 +59,11 @@ const BASE_DEFINITION: BootstrapConfigDefinition = {
     home_remote_config_status:
       'Using the stable production bootstrap config. Remote refresh keeps feature flags and parser templates current without a native release.',
   },
+  dedupeConfig: {
+    exactMatchWindowSeconds: 120,
+    fuzzyMatchWindowSeconds: 300,
+    merchantSimilarityThreshold: 0.88,
+  },
   featureFlags: {
     budgets_enabled: false,
     notification_capture_enabled: true,
@@ -79,6 +87,9 @@ const CHANNEL_OVERRIDES: Record<RolloutChannel, BootstrapConfigOverride> = {
       home_remote_config_status:
         'Beta rollout keeps the same safe defaults but enables more visibility for staged testing.',
     },
+    dedupeConfig: {
+      merchantSimilarityThreshold: 0.84,
+    },
     featureFlags: {
       search_enabled: true,
       showcase_enabled: true,
@@ -89,6 +100,11 @@ const CHANNEL_OVERRIDES: Record<RolloutChannel, BootstrapConfigOverride> = {
     copyOverrides: {
       home_remote_config_status:
         'Internal rollout enables showcase access and an experimental parser template for fast QA loops.',
+    },
+    dedupeConfig: {
+      exactMatchWindowSeconds: 90,
+      fuzzyMatchWindowSeconds: 420,
+      merchantSimilarityThreshold: 0.8,
     },
     featureFlags: {
       search_enabled: true,

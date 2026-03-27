@@ -44,6 +44,11 @@ function buildConfig(overrides: Partial<BootstrapConfigResponse> = {}): Bootstra
     copyOverrides: {
       home_remote_config_status: 'Remote config is current.',
     },
+    dedupeConfig: {
+      exactMatchWindowSeconds: 120,
+      fuzzyMatchWindowSeconds: 300,
+      merchantSimilarityThreshold: 0.88,
+    },
     featureFlags: {
       budgets_enabled: false,
       notification_capture_enabled: true,

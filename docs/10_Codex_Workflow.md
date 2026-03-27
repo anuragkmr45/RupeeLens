@@ -127,10 +127,10 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `CAP-003 — Implement capture dedupe and replay protection`
+- `CAP-004 — Create native capture database and repository layer`
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `CAP-002` is now done, with the native parser registry, parser-result persistence, and parser fixture coverage validated by Android unit tests plus `./gradlew :app:connectedDebugAndroidTest` on the attached Android 13 device.
-- `CAP-003` is the earliest remaining `P0` ticket that builds directly on the finished listener, parser, diagnostics, and raw-snapshot foundation.
+- `CAP-003` now has repo-side dedupe implementation and local validation, but its connected Android closeout is blocked because the attached device canceled debug APK installation with `INSTALL_FAILED_USER_RESTRICTED`.
+- `CAP-004` is the earliest remaining unblocked `P0` ticket if that device-policy blocker persists.

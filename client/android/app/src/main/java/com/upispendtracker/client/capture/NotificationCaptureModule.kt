@@ -6,6 +6,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableArray
+import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
 
@@ -41,12 +42,41 @@ class NotificationCaptureModule(
   }
 
   @ReactMethod
+  fun setDedupeConfig(config: ReadableMap, promise: Promise) {
+    val currentConfig = settingsStore.getDedupeConfig()
+    val nextConfig = CaptureDedupeConfig(
+      exactMatchWindowSeconds =
+        if (config.hasKey("exactMatchWindowSeconds")) {
+          config.getDouble("exactMatchWindowSeconds").toInt()
+        } else {
+          currentConfig.exactMatchWindowSeconds
+        },
+      fuzzyMatchWindowSeconds =
+        if (config.hasKey("fuzzyMatchWindowSeconds")) {
+          config.getDouble("fuzzyMatchWindowSeconds").toInt()
+        } else {
+          currentConfig.fuzzyMatchWindowSeconds
+        },
+      merchantSimilarityThreshold =
+        if (config.hasKey("merchantSimilarityThreshold")) {
+          config.getDouble("merchantSimilarityThreshold")
+        } else {
+          currentConfig.merchantSimilarityThreshold
+        },
+    )
+
+    settingsStore.setDedupeConfig(nextConfig)
+    promise.resolve(buildDiagnosticsMap())
+  }
+
+  @ReactMethod
   fun clearStoredSnapshots(promise: Promise) {
     snapshotStore.clearSnapshots()
     promise.resolve(buildDiagnosticsMap())
   }
 
   private fun buildDiagnosticsMap(): WritableMap {
+    val dedupeConfig = settingsStore.getDedupeConfig()
     val diagnostics = snapshotStore.getDiagnostics()
 
     return Arguments.createMap().apply {
@@ -59,6 +89,19 @@ class NotificationCaptureModule(
         NotificationCapturePermissionChecker.isListenerEnabled(reactApplicationContext),
       )
       putBoolean("serviceAvailable", true)
+      putMap(
+        "dedupeConfig",
+        Arguments.createMap().apply {
+          putInt("exactMatchWindowSeconds", dedupeConfig.exactMatchWindowSeconds)
+          putInt("fuzzyMatchWindowSeconds", dedupeConfig.fuzzyMatchWindowSeconds)
+          putDouble(
+            "merchantSimilarityThreshold",
+            dedupeConfig.merchantSimilarityThreshold,
+          )
+        },
+      )
+      putInt("exactDuplicateCount", diagnostics.exactDuplicateCount)
+      putInt("fuzzyDuplicateCount", diagnostics.fuzzyDuplicateCount)
       putInt("storedSnapshotCount", diagnostics.storedSnapshotCount)
 
       diagnostics.lastCapture?.let { lastCapture ->
@@ -69,6 +112,24 @@ class NotificationCaptureModule(
             putString("packageName", lastCapture.packageName)
             putString("preview", lastCapture.preview)
             putString("sourceAppId", lastCapture.sourceAppId)
+          },
+        )
+      }
+
+      diagnostics.lastDedupeDecision?.let { lastDedupeDecision ->
+        putMap(
+          "lastDedupeDecision",
+          Arguments.createMap().apply {
+            putDouble("amountMinor", lastDedupeDecision.amountMinor.toDouble())
+            putString("dedupeKind", lastDedupeDecision.dedupeKind)
+            putDouble("dedupedAtMs", lastDedupeDecision.dedupedAtMs.toDouble())
+            putInt("duplicateCount", lastDedupeDecision.duplicateCount)
+            putString("merchantRaw", lastDedupeDecision.merchantRaw)
+            putString("sourceAppId", lastDedupeDecision.sourceAppId)
+
+            lastDedupeDecision.similarityScore?.let { similarityScore ->
+              putDouble("similarityScore", similarityScore)
+            }
           },
         )
       }

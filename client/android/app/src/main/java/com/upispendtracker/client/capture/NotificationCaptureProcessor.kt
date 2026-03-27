@@ -6,6 +6,7 @@ import android.service.notification.StatusBarNotification
 class NotificationCaptureProcessor(
   private val settingsStore: CaptureSettingsStore,
   private val snapshotStore: CaptureSnapshotStore,
+  private val deduper: NotificationCaptureDeduper = NotificationCaptureDeduper(),
   private val parserRegistry: NotificationParserRegistry = NotificationParserRegistry.default(),
   private val nowProvider: () -> Long = { System.currentTimeMillis() },
 ) {
@@ -20,6 +21,50 @@ class NotificationCaptureProcessor(
 
     val snapshot = buildSnapshot(statusBarNotification, sourceAppId) ?: return false
     val parseResult = parserRegistry.parse(snapshot)
+
+    if (parseResult is NotificationParseResult.Success) {
+      val dedupeConfig = settingsStore.getDedupeConfig()
+      val candidates = snapshotStore.findSuccessfulDedupeCandidates(
+        sourceAppId = parseResult.event.sourceAppId,
+        amountMinor = parseResult.event.amountMinor,
+        minimumOccurredAtMs = parseResult.event.occurredAtMs - dedupeConfig.fuzzyMatchWindowMs,
+        maximumOccurredAtMs = parseResult.event.occurredAtMs + dedupeConfig.fuzzyMatchWindowMs,
+      )
+      val dedupeDecision = deduper.evaluate(
+        snapshot = snapshot,
+        event = parseResult.event,
+        dedupeConfig = dedupeConfig,
+        candidates = candidates,
+      )
+
+      when (dedupeDecision) {
+        is CaptureDedupeDecision.Unique -> {
+          snapshotStore.insertSnapshot(
+            snapshot = snapshot,
+            parseResult = parseResult,
+            dedupeMetadata =
+              PrimaryCaptureDedupeMetadata(
+                exactDedupeKey = dedupeDecision.exactDedupeKey,
+                fuzzyDedupeKey = dedupeDecision.fuzzyDedupeKey,
+              ),
+          )
+          return true
+        }
+
+        is CaptureDedupeDecision.Duplicate -> {
+          snapshotStore.recordDuplicateSuppression(
+            matchedSnapshotId = dedupeDecision.matchedSnapshotId,
+            dedupeKind = dedupeDecision.dedupeKind,
+            duplicateCapturedAtMs = snapshot.capturedAtMs,
+            exactDedupeKey = dedupeDecision.exactDedupeKey,
+            fuzzyDedupeKey = dedupeDecision.fuzzyDedupeKey,
+            similarityScore = dedupeDecision.similarityScore,
+          )
+          return false
+        }
+      }
+    }
+
     snapshotStore.insertSnapshot(snapshot, parseResult)
     return true
   }

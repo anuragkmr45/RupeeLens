@@ -25,13 +25,38 @@ data class LastCapturedSnapshot(
 )
 
 data class CaptureDiagnostics(
+  val exactDuplicateCount: Int,
+  val fuzzyDuplicateCount: Int,
   val lastCapture: LastCapturedSnapshot?,
+  val lastDedupeDecision: LastDedupeDecision?,
   val storedSnapshotCount: Int,
+)
+
+data class LastDedupeDecision(
+  val amountMinor: Long,
+  val dedupeKind: String,
+  val dedupedAtMs: Long,
+  val duplicateCount: Int,
+  val merchantRaw: String,
+  val similarityScore: Double?,
+  val sourceAppId: String,
+)
+
+data class PrimaryCaptureDedupeMetadata(
+  val exactDedupeKey: String,
+  val fuzzyDedupeKey: String,
 )
 
 data class StoredNotificationCaptureRecord(
   val amountProvenance: String?,
+  val exactDedupeKey: String?,
+  val exactDuplicateCount: Int,
   val failureReasonCode: String?,
+  val fuzzyDedupeKey: String?,
+  val fuzzyDuplicateCount: Int,
+  val lastDuplicateAtMs: Long?,
+  val lastDuplicateKind: String?,
+  val lastDuplicateSimilarity: Double?,
   val merchantRaw: String?,
   val merchantProvenance: String?,
   val notificationKey: String,
@@ -47,6 +72,7 @@ data class StoredNotificationCaptureRecord(
   val referenceHint: String?,
   val sourceAppId: String,
   val timestampProvenance: String?,
+  val totalDuplicateCount: Int,
 )
 
 class CaptureSnapshotStore(context: Context) :
@@ -77,9 +103,24 @@ class CaptureSnapshotStore(context: Context) :
       database.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN merchant_provenance TEXT")
       database.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN reference_hint TEXT")
     }
+
+    if (oldVersion < 3) {
+      database.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN exact_dedupe_key TEXT")
+      database.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN fuzzy_dedupe_key TEXT")
+      database.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN exact_duplicate_count INTEGER NOT NULL DEFAULT 0")
+      database.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN fuzzy_duplicate_count INTEGER NOT NULL DEFAULT 0")
+      database.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN total_duplicate_count INTEGER NOT NULL DEFAULT 0")
+      database.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN last_duplicate_kind TEXT")
+      database.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN last_duplicate_at_ms INTEGER")
+      database.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN last_duplicate_similarity REAL")
+    }
   }
 
-  fun insertSnapshot(snapshot: NotificationCaptureSnapshot, parseResult: NotificationParseResult) {
+  fun insertSnapshot(
+    snapshot: NotificationCaptureSnapshot,
+    parseResult: NotificationParseResult,
+    dedupeMetadata: PrimaryCaptureDedupeMetadata? = null,
+  ) {
     val database = writableDatabase
     val values = ContentValues().apply {
       put("source_app_id", snapshot.sourceAppId)
@@ -107,6 +148,14 @@ class CaptureSnapshotStore(context: Context) :
           put("amount_provenance", parseResult.event.amountProvenance)
           put("merchant_provenance", parseResult.event.merchantProvenance)
           put("reference_hint", parseResult.event.referenceHint)
+          put("exact_dedupe_key", dedupeMetadata?.exactDedupeKey)
+          put("fuzzy_dedupe_key", dedupeMetadata?.fuzzyDedupeKey)
+          put("exact_duplicate_count", 0)
+          put("fuzzy_duplicate_count", 0)
+          put("total_duplicate_count", 0)
+          putNull("last_duplicate_kind")
+          putNull("last_duplicate_at_ms")
+          putNull("last_duplicate_similarity")
         }
 
         is NotificationParseResult.Failure -> {
@@ -123,6 +172,14 @@ class CaptureSnapshotStore(context: Context) :
           putNull("amount_provenance")
           putNull("merchant_provenance")
           putNull("reference_hint")
+          putNull("exact_dedupe_key")
+          putNull("fuzzy_dedupe_key")
+          put("exact_duplicate_count", 0)
+          put("fuzzy_duplicate_count", 0)
+          put("total_duplicate_count", 0)
+          putNull("last_duplicate_kind")
+          putNull("last_duplicate_at_ms")
+          putNull("last_duplicate_similarity")
         }
       }
     }
@@ -140,9 +197,107 @@ class CaptureSnapshotStore(context: Context) :
     writableDatabase.delete(TABLE_NAME, null, null)
   }
 
+  fun findSuccessfulDedupeCandidates(
+    sourceAppId: String,
+    amountMinor: Long,
+    minimumOccurredAtMs: Long,
+    maximumOccurredAtMs: Long,
+  ): List<SuccessfulCaptureDedupeCandidate> {
+    val database = readableDatabase
+    val cursor = database.rawQuery(
+      """
+        SELECT id, source_app_id, parsed_amount_minor, parsed_merchant_raw, parsed_timestamp_ms, reference_hint
+        FROM $TABLE_NAME
+        WHERE parse_status = 'success'
+          AND source_app_id = ?
+          AND parsed_amount_minor = ?
+          AND parsed_timestamp_ms BETWEEN ? AND ?
+        ORDER BY parsed_timestamp_ms DESC, id DESC
+      """.trimIndent(),
+      arrayOf(
+        sourceAppId,
+        amountMinor.toString(),
+        minimumOccurredAtMs.toString(),
+        maximumOccurredAtMs.toString(),
+      ),
+    )
+
+    cursor.use { candidateCursor ->
+      val candidates = mutableListOf<SuccessfulCaptureDedupeCandidate>()
+
+      while (candidateCursor.moveToNext()) {
+        val merchantRaw = candidateCursor.getNullableString("parsed_merchant_raw") ?: continue
+        val occurredAtMs = candidateCursor.getNullableLong("parsed_timestamp_ms") ?: continue
+
+        candidates.add(
+          SuccessfulCaptureDedupeCandidate(
+            amountMinor = candidateCursor.getLong(candidateCursor.getColumnIndexOrThrow("parsed_amount_minor")),
+            merchantRaw = merchantRaw,
+            occurredAtMs = occurredAtMs,
+            referenceHint = candidateCursor.getNullableString("reference_hint"),
+            snapshotId = candidateCursor.getLong(candidateCursor.getColumnIndexOrThrow("id")),
+            sourceAppId = candidateCursor.getString(candidateCursor.getColumnIndexOrThrow("source_app_id")),
+          ),
+        )
+      }
+
+      return candidates
+    }
+  }
+
+  fun recordDuplicateSuppression(
+    matchedSnapshotId: Long,
+    dedupeKind: CaptureDedupeKind,
+    duplicateCapturedAtMs: Long,
+    exactDedupeKey: String,
+    fuzzyDedupeKey: String,
+    similarityScore: Double?,
+  ) {
+    val database = writableDatabase
+    val values = ContentValues().apply {
+      put("exact_dedupe_key", exactDedupeKey)
+      put("fuzzy_dedupe_key", fuzzyDedupeKey)
+      put("last_duplicate_kind", dedupeKind.wireValue)
+      put("last_duplicate_at_ms", duplicateCapturedAtMs)
+      put("last_duplicate_similarity", similarityScore)
+    }
+
+    database.update(
+      TABLE_NAME,
+      values,
+      "id = ?",
+      arrayOf(matchedSnapshotId.toString()),
+    )
+
+    val duplicateColumn =
+      when (dedupeKind) {
+        CaptureDedupeKind.EXACT -> "exact_duplicate_count"
+        CaptureDedupeKind.FUZZY -> "fuzzy_duplicate_count"
+      }
+
+    database.execSQL(
+      """
+        UPDATE $TABLE_NAME
+        SET $duplicateColumn = $duplicateColumn + 1,
+            total_duplicate_count = total_duplicate_count + 1
+        WHERE id = ?
+      """.trimIndent(),
+      arrayOf(matchedSnapshotId),
+    )
+  }
+
   fun getDiagnostics(): CaptureDiagnostics {
     val database = readableDatabase
     val countCursor = database.rawQuery("SELECT COUNT(*) FROM $TABLE_NAME", null)
+    val duplicateCountsCursor = database.rawQuery(
+      """
+        SELECT
+          COALESCE(SUM(exact_duplicate_count), 0),
+          COALESCE(SUM(fuzzy_duplicate_count), 0)
+        FROM $TABLE_NAME
+      """.trimIndent(),
+      null,
+    )
     val lastCaptureCursor = database.rawQuery(
       """
         SELECT source_app_id, package_name, raw_payload, captured_at_ms
@@ -152,9 +307,28 @@ class CaptureSnapshotStore(context: Context) :
       """.trimIndent(),
       null,
     )
+    val lastDedupeCursor = database.rawQuery(
+      """
+        SELECT source_app_id, parsed_merchant_raw, parsed_amount_minor, total_duplicate_count,
+               last_duplicate_kind, last_duplicate_at_ms, last_duplicate_similarity
+        FROM $TABLE_NAME
+        WHERE last_duplicate_at_ms IS NOT NULL
+        ORDER BY last_duplicate_at_ms DESC, id DESC
+        LIMIT 1
+      """.trimIndent(),
+      null,
+    )
 
     countCursor.use { cursor ->
       val storedSnapshotCount = if (cursor.moveToFirst()) cursor.getInt(0) else 0
+      val duplicateCounts =
+        duplicateCountsCursor.use { duplicateCursor ->
+          if (!duplicateCursor.moveToFirst()) {
+            0 to 0
+          } else {
+            duplicateCursor.getInt(0) to duplicateCursor.getInt(1)
+          }
+        }
       val lastCapture = lastCaptureCursor.use { lastCursor ->
         if (!lastCursor.moveToFirst()) {
           null
@@ -169,9 +343,27 @@ class CaptureSnapshotStore(context: Context) :
           )
         }
       }
+      val lastDedupeDecision = lastDedupeCursor.use { dedupeCursor ->
+        if (!dedupeCursor.moveToFirst()) {
+          null
+        } else {
+          LastDedupeDecision(
+            amountMinor = dedupeCursor.getLong(dedupeCursor.getColumnIndexOrThrow("parsed_amount_minor")),
+            dedupeKind = dedupeCursor.getString(dedupeCursor.getColumnIndexOrThrow("last_duplicate_kind")),
+            dedupedAtMs = dedupeCursor.getLong(dedupeCursor.getColumnIndexOrThrow("last_duplicate_at_ms")),
+            duplicateCount = dedupeCursor.getInt(dedupeCursor.getColumnIndexOrThrow("total_duplicate_count")),
+            merchantRaw = dedupeCursor.getString(dedupeCursor.getColumnIndexOrThrow("parsed_merchant_raw")),
+            similarityScore = dedupeCursor.getNullableDouble("last_duplicate_similarity"),
+            sourceAppId = dedupeCursor.getString(dedupeCursor.getColumnIndexOrThrow("source_app_id")),
+          )
+        }
+      }
 
       return CaptureDiagnostics(
+        exactDuplicateCount = duplicateCounts.first,
+        fuzzyDuplicateCount = duplicateCounts.second,
         lastCapture = lastCapture,
+        lastDedupeDecision = lastDedupeDecision,
         storedSnapshotCount = storedSnapshotCount,
       )
     }
@@ -196,7 +388,14 @@ class CaptureSnapshotStore(context: Context) :
 
       return StoredNotificationCaptureRecord(
         amountProvenance = latestCursor.getNullableString("amount_provenance"),
+        exactDedupeKey = latestCursor.getNullableString("exact_dedupe_key"),
+        exactDuplicateCount = latestCursor.getInt(latestCursor.getColumnIndexOrThrow("exact_duplicate_count")),
         failureReasonCode = latestCursor.getNullableString("failure_reason_code"),
+        fuzzyDedupeKey = latestCursor.getNullableString("fuzzy_dedupe_key"),
+        fuzzyDuplicateCount = latestCursor.getInt(latestCursor.getColumnIndexOrThrow("fuzzy_duplicate_count")),
+        lastDuplicateAtMs = latestCursor.getNullableLong("last_duplicate_at_ms"),
+        lastDuplicateKind = latestCursor.getNullableString("last_duplicate_kind"),
+        lastDuplicateSimilarity = latestCursor.getNullableDouble("last_duplicate_similarity"),
         merchantRaw = latestCursor.getNullableString("parsed_merchant_raw"),
         merchantProvenance = latestCursor.getNullableString("merchant_provenance"),
         notificationKey = latestCursor.getString(latestCursor.getColumnIndexOrThrow("notification_key")),
@@ -212,6 +411,7 @@ class CaptureSnapshotStore(context: Context) :
         referenceHint = latestCursor.getNullableString("reference_hint"),
         sourceAppId = latestCursor.getString(latestCursor.getColumnIndexOrThrow("source_app_id")),
         timestampProvenance = latestCursor.getNullableString("timestamp_provenance"),
+        totalDuplicateCount = latestCursor.getInt(latestCursor.getColumnIndexOrThrow("total_duplicate_count")),
       )
     }
   }
@@ -257,11 +457,19 @@ class CaptureSnapshotStore(context: Context) :
           amount_provenance TEXT,
           merchant_provenance TEXT,
           reference_hint TEXT,
+          exact_dedupe_key TEXT,
+          fuzzy_dedupe_key TEXT,
+          exact_duplicate_count INTEGER NOT NULL DEFAULT 0,
+          fuzzy_duplicate_count INTEGER NOT NULL DEFAULT 0,
+          total_duplicate_count INTEGER NOT NULL DEFAULT 0,
+          last_duplicate_kind TEXT,
+          last_duplicate_at_ms INTEGER,
+          last_duplicate_similarity REAL,
           UNIQUE(notification_key, posted_at_ms)
         )
       """
     private const val DATABASE_NAME = "notification_capture.db"
-    private const val DATABASE_VERSION = 2
+    private const val DATABASE_VERSION = 3
     private const val MAX_STORED_SNAPSHOTS = 200
     private const val TABLE_NAME = "notification_capture_snapshots"
   }

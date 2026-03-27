@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### CAP-003 — Implement Capture Dedupe And Replay Protection
+
+- **Status:** blocked
+- **Ticket:** CAP-003
+- **Goal:** Suppress exact and near-duplicate native capture events using tunable thresholds, while keeping dedupe decisions observable in Android diagnostics.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, shared bootstrap-config contracts if dedupe thresholds need transport, bootstrap API config files/tests, Android native capture files under `client/android/app/src/main/java/com/upispendtracker/client/capture/*`, the React Native diagnostics bridge and diagnostics card if new native fields are exposed, and focused Android/client tests only.
+- **Rationale:** `SET-002` remains externally blocked, `CAP-002` is now done, and `CAP-003` is the earliest remaining `P0` ticket whose dependencies are satisfied. The repo can now parse structured native captures, but it still lacks replay suppression, fuzzy duplicate linking, configurable thresholds, and duplicate-debug visibility in diagnostics.
+- **Risks:** Dedupe touches the native capture hot path and the snapshot store schema. This pass must stay inside dedupe scope only: exact/fuzzy duplicate decisions, threshold transport, duplicate counters, and diagnostics. It must not spill into CAP-004 Room/repository work or CAP-005 prompt/notification actions.
+- **API / schema impact:** Shared bootstrap config may gain dedupe-threshold fields. Native Android capture storage may gain dedupe metadata or counters needed to suppress duplicates and explain decisions in diagnostics.
+- **Rollout / flag plan:** Reuse the existing bootstrap-config delivery path for dedupe thresholds instead of inventing a separate remote-config channel.
+- **Validation commands:** `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, targeted bootstrap-config tests if contracts change, and targeted Android Gradle unit/instrumentation tests for duplicate suppression if the connected environment supports them.
+- **Done when:** Exact duplicates are suppressed automatically, near-duplicates are linked instead of creating another primary capture, dedupe thresholds are tunable through bootstrap config, duplicate counters/decisions appear in diagnostics, and repo quality gates plus feasible Android validation stay green.
+- **Outcome:** Added native exact and fuzzy dedupe with threshold transport through bootstrap config, duplicate counters and last-decision diagnostics in the Android bridge/UI, a JVM deduper test suite, and connected/instrumented replay coverage. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `./gradlew :app:testDebugUnitTest` passed. The remaining blocker is device-side: `./gradlew :app:connectedDebugAndroidTest` could not finish because the attached phone canceled installation of `app-debug.apk` with `INSTALL_FAILED_USER_RESTRICTED`, so the ticket stays blocked until the device accepts the debug APK install.
+
 ### CAP-002 — Implement Parser Registry With Package-Specific and Generic Parsers
 
 - **Status:** completed

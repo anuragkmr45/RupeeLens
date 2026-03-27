@@ -22,6 +22,11 @@ describe('GET /v1/bootstrap/config', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       cacheTtlSeconds: 300,
+      dedupeConfig: {
+        exactMatchWindowSeconds: 90,
+        fuzzyMatchWindowSeconds: 420,
+        merchantSimilarityThreshold: 0.8,
+      },
       featureFlags: expect.objectContaining({
         showcase_enabled: true,
       }),

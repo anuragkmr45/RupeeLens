@@ -23,6 +23,7 @@ class NotificationCaptureProcessorInstrumentedTest {
   private lateinit var processor: NotificationCaptureProcessor
   private lateinit var settingsStore: CaptureSettingsStore
   private lateinit var snapshotStore: CaptureSnapshotStore
+  private var capturedAtMs = FIXED_CAPTURED_AT_MS
 
   @Before
   fun setUp() {
@@ -33,10 +34,11 @@ class NotificationCaptureProcessorInstrumentedTest {
     snapshotStore = CaptureSnapshotStore(context)
     snapshotStore.clearSnapshots()
     settingsStore.setAllowedSourceAppIds(SourceAppRegistry.defaultAllowedSourceAppIds)
+    settingsStore.setDedupeConfig(CaptureDedupeConfig.DEFAULT)
     processor = NotificationCaptureProcessor(
       settingsStore = settingsStore,
       snapshotStore = snapshotStore,
-      nowProvider = { FIXED_CAPTURED_AT_MS },
+      nowProvider = { capturedAtMs },
     )
   }
 
@@ -44,6 +46,7 @@ class NotificationCaptureProcessorInstrumentedTest {
   fun tearDown() {
     snapshotStore.clearSnapshots()
     settingsStore.setAllowedSourceAppIds(SourceAppRegistry.defaultAllowedSourceAppIds)
+    settingsStore.setDedupeConfig(CaptureDedupeConfig.DEFAULT)
   }
 
   @Test
@@ -140,11 +143,93 @@ class NotificationCaptureProcessorInstrumentedTest {
     assertTrue(storedRecord?.parserTrace?.isNotBlank() == true)
   }
 
+  @Test
+  fun suppressesExactDuplicateReplaysAndIncrementsCounters() {
+    settingsStore.setAllowedSourceAppIds(setOf("phonepe"))
+
+    val firstCapture = processor.capture(
+      buildStatusBarNotification(
+        packageName = "com.phonepe.app",
+        title = "PhonePe",
+        bodyText = "Paid Rs 245.00 at Chai Point",
+        subText = "UPI",
+      ),
+    )
+
+    capturedAtMs += 60_000L
+
+    val duplicateCapture = processor.capture(
+      buildStatusBarNotification(
+        packageName = "com.phonepe.app",
+        title = "PhonePe",
+        bodyText = "Paid Rs 245.00 at Chai Point",
+        subText = "UPI",
+        postedAtMs = FIXED_POSTED_AT_MS + 30_000L,
+      ),
+    )
+
+    val diagnostics = snapshotStore.getDiagnostics()
+    val storedRecord = snapshotStore.getLatestStoredRecord()
+
+    assertTrue(firstCapture)
+    assertFalse(duplicateCapture)
+    assertEquals(1, diagnostics.storedSnapshotCount)
+    assertEquals(1, diagnostics.exactDuplicateCount)
+    assertEquals(0, diagnostics.fuzzyDuplicateCount)
+    assertNotNull(diagnostics.lastDedupeDecision)
+    assertEquals("exact_duplicate", diagnostics.lastDedupeDecision?.dedupeKind)
+    assertEquals(1, storedRecord?.exactDuplicateCount)
+    assertEquals(1, storedRecord?.totalDuplicateCount)
+    assertEquals("exact_duplicate", storedRecord?.lastDuplicateKind)
+  }
+
+  @Test
+  fun linksNearDuplicatesInsideFuzzyThresholdWithoutCreatingAnotherPrimaryRecord() {
+    settingsStore.setAllowedSourceAppIds(setOf("phonepe"))
+
+    val firstCapture = processor.capture(
+      buildStatusBarNotification(
+        packageName = "com.phonepe.app",
+        title = "PhonePe",
+        bodyText = "Paid Rs 245.00 to Blue Tokai",
+        subText = "UPI",
+      ),
+    )
+
+    capturedAtMs += 180_000L
+
+    val duplicateCapture = processor.capture(
+      buildStatusBarNotification(
+        packageName = "com.phonepe.app",
+        title = "PhonePe",
+        bodyText = "Paid Rs 245.00 to Blue Tokai Roasters",
+        subText = "UPI",
+        postedAtMs = FIXED_POSTED_AT_MS + 180_000L,
+      ),
+    )
+
+    val diagnostics = snapshotStore.getDiagnostics()
+    val storedRecord = snapshotStore.getLatestStoredRecord()
+
+    assertTrue(firstCapture)
+    assertFalse(duplicateCapture)
+    assertEquals(1, diagnostics.storedSnapshotCount)
+    assertEquals(0, diagnostics.exactDuplicateCount)
+    assertEquals(1, diagnostics.fuzzyDuplicateCount)
+    assertNotNull(diagnostics.lastDedupeDecision)
+    assertEquals("fuzzy_duplicate", diagnostics.lastDedupeDecision?.dedupeKind)
+    assertTrue((diagnostics.lastDedupeDecision?.similarityScore ?: 0.0) > 0.0)
+    assertEquals(1, storedRecord?.fuzzyDuplicateCount)
+    assertEquals(1, storedRecord?.totalDuplicateCount)
+    assertEquals("fuzzy_duplicate", storedRecord?.lastDuplicateKind)
+  }
+
   private fun buildStatusBarNotification(
     packageName: String,
     title: String,
     bodyText: String,
     subText: String? = null,
+    postedAtMs: Long = FIXED_POSTED_AT_MS,
   ): StatusBarNotification {
     val notification = Notification.Builder(context, TEST_CHANNEL_ID)
       .setSmallIcon(android.R.drawable.ic_dialog_info)
@@ -167,7 +252,7 @@ class NotificationCaptureProcessorInstrumentedTest {
       0,
       notification,
       Process.myUserHandle(),
-      FIXED_POSTED_AT_MS,
+      postedAtMs,
     )
   }
 

@@ -18,6 +18,9 @@ describe('bootstrap config service', () => {
 
     expect(response.rolloutChannel).toBe('internal');
     expect(response.featureFlags.showcase_enabled).toBe(true);
+    expect(response.dedupeConfig.exactMatchWindowSeconds).toBe(90);
+    expect(response.dedupeConfig.fuzzyMatchWindowSeconds).toBe(420);
+    expect(response.dedupeConfig.merchantSimilarityThreshold).toBe(0.8);
     expect(response.parserConfig.templates.experimental_upi_v2?.enabled).toBe(true);
   });
 

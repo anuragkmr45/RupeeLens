@@ -260,12 +260,12 @@
       ],
       "tests": "Replay same notification payloads and verify single capture record; near-duplicate simulation tests.",
       "done": "Duplicate prompts reduced to agreed threshold in QA.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "blocked",
+      "owner": "codex",
+      "started_at": "2026-03-27",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "CAP-003 now has repo-side exact/fuzzy dedupe, bootstrap-delivered thresholds, duplicate counters, Android diagnostics wiring, a JVM deduper test suite, and replay/integration coverage. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `./gradlew :app:testDebugUnitTest` passed, but `./gradlew :app:connectedDebugAndroidTest` is blocked on 2026-03-27 because the attached Android device canceled installation of `app-debug.apk` with `INSTALL_FAILED_USER_RESTRICTED`."
     },
     {
       "id": "CAP-004",
