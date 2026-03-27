@@ -43,6 +43,7 @@ import {
   formatCurrency,
   getInboxReviewTransactions,
   getInboxSourceAppOptions,
+  getMerchantReviewCandidates,
   getPendingTransactions,
   getTimelineDayGroups,
   getTimelineSourceAppOptions,
@@ -55,16 +56,22 @@ import {
   mergeCategories,
   moveSplitDraftRow,
   parseCurrencyInputToMinor,
+  reconcileMerchantState,
   removeSplitDraftRow,
   restoreSkippedTransaction,
+  seededMerchantAliases,
+  seededMerchants,
   seededTransactions,
   skipTransaction,
   splitTransaction,
   SPLIT_REMAINDER_OPTIONS,
   sortTransactionsByCapturedAtDesc,
+  splitMerchantAlias,
   summarizeCategoryUsage,
   summarizeSplitDraft,
   summarizeDashboard,
+  summarizeMerchantUsage,
+  mergeMerchants,
   type CategoryId,
   type CategoryOption,
   type CategoryUsageSummary,
@@ -73,6 +80,10 @@ import {
   type DashboardSummary,
   type InboxFilters,
   type InboxReviewItem,
+  type MerchantAliasRecord,
+  type MerchantReviewCandidate,
+  type MerchantUsageSummary,
+  type MerchantRecord,
   type SplitDraft,
   type SplitRemainderDisposition,
   type TimelineDayGroup,
@@ -124,6 +135,7 @@ type Screen =
   | 'home'
   | 'inbox'
   | 'manual'
+  | 'merchants'
   | 'onboarding'
   | 'showcase'
   | 'split'
@@ -227,6 +239,9 @@ export function SpendTrackerApp() {
     DEFAULT_ONBOARDING_PREFERENCES,
   );
   const [categories, setCategories] = useState<CategoryOption[]>(getDefaultCategories());
+  const [merchants, setMerchants] = useState<MerchantRecord[]>(seededMerchants);
+  const [merchantAliases, setMerchantAliases] =
+    useState<MerchantAliasRecord[]>(seededMerchantAliases);
   const [notificationAccessState, setNotificationAccessState] =
     useState<NotificationAccessState>('not_started');
   const [transactions, setTransactions] = useState<Transaction[]>(seededTransactions);
@@ -273,6 +288,8 @@ export function SpendTrackerApp() {
     categories,
   );
   const timelineSourceAppOptions = getTimelineSourceAppOptions(transactions);
+  const merchantUsage = summarizeMerchantUsage(merchants, merchantAliases, transactions);
+  const merchantReviewCandidates = getMerchantReviewCandidates(merchants, transactions);
   const summary = summarizeDashboard(
     transactions,
     {
@@ -289,7 +306,13 @@ export function SpendTrackerApp() {
     ? getTransactionById(transactions, detailTransactionId)
     : null;
   const activeTransactionSuggestions = activeTransaction
-    ? getClassificationSuggestions(transactions, activeTransaction.merchant, activeTransaction.id)
+    ? getClassificationSuggestions(
+        transactions,
+        activeTransaction.merchantRaw ?? activeTransaction.merchant,
+        activeTransaction.id,
+        merchants,
+        merchantAliases,
+      )
     : [];
   const splitSummary = activeTransaction
     ? summarizeSplitDraft(activeTransaction.amountMinor, splitDraft)
@@ -297,6 +320,9 @@ export function SpendTrackerApp() {
   const manualEntrySuggestions = getClassificationSuggestions(
     transactions,
     manualDraft.merchant,
+    undefined,
+    merchants,
+    merchantAliases,
   );
   const manualAmountMinor = parseCurrencyInputToMinor(manualDraft.amountInput);
   const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
@@ -312,11 +338,19 @@ export function SpendTrackerApp() {
       }
 
       if (storedState) {
+        const merchantDirectory = reconcileMerchantState(
+          storedState.transactions,
+          storedState.merchants,
+          storedState.merchantAliases,
+        );
+
         setCategories(storedState.categories);
         setOnboardingPreferences(storedState.onboardingPreferences);
         setNotificationAccessState(storedState.notificationAccessState);
         setOnboardingCompleted(storedState.onboardingCompleted);
-        setTransactions(storedState.transactions);
+        setMerchants(merchantDirectory.merchants);
+        setMerchantAliases(merchantDirectory.merchantAliases);
+        setTransactions(merchantDirectory.transactions);
         setScreen(storedState.onboardingCompleted ? 'home' : 'onboarding');
       }
 
@@ -455,6 +489,8 @@ export function SpendTrackerApp() {
 
     void saveStoredSpendTrackerState({
       categories,
+      merchantAliases,
+      merchants,
       onboardingPreferences,
       notificationAccessState,
       onboardingCompleted,
@@ -463,11 +499,31 @@ export function SpendTrackerApp() {
   }, [
     categories,
     isHydrating,
+    merchantAliases,
+    merchants,
     notificationAccessState,
     onboardingCompleted,
     onboardingPreferences,
     transactions,
   ]);
+
+  function applyMerchantDirectoryState(
+    nextTransactions: Transaction[],
+    nextMerchants: MerchantRecord[] = merchants,
+    nextMerchantAliases: MerchantAliasRecord[] = merchantAliases,
+  ) {
+    const merchantDirectory = reconcileMerchantState(
+      nextTransactions,
+      nextMerchants,
+      nextMerchantAliases,
+    );
+
+    setTransactions(merchantDirectory.transactions);
+    setMerchants(merchantDirectory.merchants);
+    setMerchantAliases(merchantDirectory.merchantAliases);
+
+    return merchantDirectory;
+  }
 
   async function handleOpenNotificationAccess() {
     if (capturePausedRemotely) {
@@ -536,8 +592,8 @@ export function SpendTrackerApp() {
       draft,
       categories,
     );
+    const merchantDirectory = applyMerchantDirectoryState(nextTransactions);
 
-    setTransactions(nextTransactions);
     setActiveTransactionId(null);
     setClassifyReturnScreen(null);
     setDraft({ ...EMPTY_DRAFT });
@@ -548,7 +604,7 @@ export function SpendTrackerApp() {
       return;
     }
 
-    setScreen(getPostReviewScreen(nextTransactions));
+    setScreen(getPostReviewScreen(merchantDirectory.transactions));
   }
 
   function handleCancelClassification() {
@@ -581,8 +637,8 @@ export function SpendTrackerApp() {
       return;
     }
 
-    setTransactions((currentTransactions) =>
-      skipTransaction(currentTransactions, activeTransactionId),
+    applyMerchantDirectoryState(
+      skipTransaction(transactions, activeTransactionId),
     );
     setActiveTransactionId(null);
     setClassifyReturnScreen(null);
@@ -606,6 +662,10 @@ export function SpendTrackerApp() {
 
   function handleOpenTimeline() {
     setScreen('timeline');
+  }
+
+  function handleOpenMerchants() {
+    setScreen('merchants');
   }
 
   function handleOpenCategories() {
@@ -710,9 +770,7 @@ export function SpendTrackerApp() {
           style: 'destructive',
           text: 'Delete',
           onPress: () => {
-            setTransactions((currentTransactions) =>
-              deleteTransaction(currentTransactions, transactionId),
-            );
+            applyMerchantDirectoryState(deleteTransaction(transactions, transactionId));
 
             if (detailTransactionId === transactionId) {
               setDetailTransactionId(null);
@@ -732,8 +790,8 @@ export function SpendTrackerApp() {
 
     const normalizedNote = detailNoteDraft.trim();
 
-    setTransactions((currentTransactions) =>
-      updateTransactionNote(currentTransactions, detailTransactionId, normalizedNote),
+    applyMerchantDirectoryState(
+      updateTransactionNote(transactions, detailTransactionId, normalizedNote),
     );
     setDetailNoteDraft(normalizedNote);
   }
@@ -840,8 +898,8 @@ export function SpendTrackerApp() {
     }
 
     const nextTransactions = splitTransaction(transactions, activeTransactionId, splitDraft);
+    const merchantDirectory = applyMerchantDirectoryState(nextTransactions);
 
-    setTransactions(nextTransactions);
     setActiveTransactionId(null);
     setDraft({ ...EMPTY_DRAFT });
     setSplitDraft(EMPTY_SPLIT_DRAFT);
@@ -851,7 +909,7 @@ export function SpendTrackerApp() {
       return;
     }
 
-    setScreen(getPostReviewScreen(nextTransactions));
+    setScreen(getPostReviewScreen(merchantDirectory.transactions));
   }
 
   function handleToggleSourceAppSelection(sourceAppId: SupportedSourceAppId) {
@@ -926,7 +984,7 @@ export function SpendTrackerApp() {
       ...transactions,
     ]);
 
-    setTransactions(nextTransactions);
+    applyMerchantDirectoryState(nextTransactions);
     setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
     setScreen(manualReturnScreen === 'timeline' ? 'timeline' : 'home');
   }
@@ -956,21 +1014,48 @@ export function SpendTrackerApp() {
   }
 
   function handleSkipInboxTransaction(transactionId: string) {
-    setTransactions((currentTransactions) =>
-      skipTransaction(currentTransactions, transactionId),
+    applyMerchantDirectoryState(
+      skipTransaction(transactions, transactionId),
     );
   }
 
   function handleRestoreSkippedInboxTransaction(transactionId: string) {
-    setTransactions((currentTransactions) =>
-      restoreSkippedTransaction(currentTransactions, transactionId),
+    applyMerchantDirectoryState(
+      restoreSkippedTransaction(transactions, transactionId),
     );
   }
 
   function handleDeleteInboxTransaction(transactionId: string) {
-    setTransactions((currentTransactions) =>
-      deleteTransaction(currentTransactions, transactionId),
+    applyMerchantDirectoryState(
+      deleteTransaction(transactions, transactionId),
     );
+  }
+
+  function handleMergeMerchant(sourceMerchantId: string, targetMerchantId: string) {
+    const merchantDirectory = mergeMerchants(
+      merchants,
+      merchantAliases,
+      transactions,
+      sourceMerchantId,
+      targetMerchantId,
+    );
+
+    setMerchants(merchantDirectory.merchants);
+    setMerchantAliases(merchantDirectory.merchantAliases);
+    setTransactions(merchantDirectory.transactions);
+  }
+
+  function handleSplitMerchantAlias(aliasId: string) {
+    const merchantDirectory = splitMerchantAlias(
+      merchants,
+      merchantAliases,
+      transactions,
+      aliasId,
+    );
+
+    setMerchants(merchantDirectory.merchants);
+    setMerchantAliases(merchantDirectory.merchantAliases);
+    setTransactions(merchantDirectory.transactions);
   }
 
   async function handleResetDemoData() {
@@ -986,6 +1071,8 @@ export function SpendTrackerApp() {
     setNotificationAccessState('not_started');
     setOnboardingCompleted(false);
     setCategories(getDefaultCategories());
+    setMerchants(seededMerchants);
+    setMerchantAliases(seededMerchantAliases);
     setTransactions(seededTransactions);
     setScreen('onboarding');
 
@@ -1066,6 +1153,15 @@ export function SpendTrackerApp() {
             onMergeCategory={handleMergeCategory}
             onUpdateCategory={handleUpdateCategory}
           />
+        ) : !isHydrating && screen === 'merchants' ? (
+          <MerchantManagementScreen
+            merchantAliases={merchantAliases}
+            merchantReviewCandidates={merchantReviewCandidates}
+            merchantUsage={merchantUsage}
+            onBack={() => setScreen('home')}
+            onMergeMerchant={handleMergeMerchant}
+            onSplitMerchantAlias={handleSplitMerchantAlias}
+          />
         ) : !isHydrating && screen === 'detail' && detailTransaction ? (
           <TransactionDetailScreen
             categories={categories}
@@ -1145,6 +1241,8 @@ export function SpendTrackerApp() {
                 bootstrapState={bootstrapState}
                 categories={categories}
                 captureDiagnostics={captureDiagnostics}
+                merchantReviewCandidateCount={merchantReviewCandidates.length}
+                merchantUsageCount={merchantUsage.length}
                 nextPendingTransaction={pendingTransactions[0] ?? null}
                 notificationAccessState={notificationAccessState}
                 onboardingPreferences={onboardingPreferences}
@@ -1152,6 +1250,7 @@ export function SpendTrackerApp() {
                 onOpenCategories={handleOpenCategories}
                 onOpenInbox={() => setScreen('inbox')}
                 onOpenManualEntry={() => handleOpenManualEntry('home')}
+                onOpenMerchants={handleOpenMerchants}
                 onOpenNotificationAccess={handleOpenNotificationAccess}
                 onRefreshCaptureDiagnostics={handleRefreshCaptureDiagnostics}
                 onOpenTimeline={handleOpenTimeline}
@@ -1450,6 +1549,8 @@ function HomeScreen({
   bootstrapState,
   categories,
   captureDiagnostics,
+  merchantReviewCandidateCount,
+  merchantUsageCount,
   nextPendingTransaction,
   notificationAccessState,
   onboardingPreferences,
@@ -1457,6 +1558,7 @@ function HomeScreen({
   onOpenCategories,
   onOpenInbox,
   onOpenManualEntry,
+  onOpenMerchants,
   onOpenNotificationAccess,
   onRefreshCaptureDiagnostics,
   onOpenTimeline,
@@ -1469,6 +1571,8 @@ function HomeScreen({
   bootstrapState: BootstrapConfigState;
   categories: CategoryOption[];
   captureDiagnostics: NativeCaptureDiagnostics;
+  merchantReviewCandidateCount: number;
+  merchantUsageCount: number;
   nextPendingTransaction: Transaction | null;
   notificationAccessState: NotificationAccessState;
   onboardingPreferences: OnboardingPreferences;
@@ -1476,6 +1580,7 @@ function HomeScreen({
   onOpenCategories: () => void;
   onOpenInbox: () => void;
   onOpenManualEntry: () => void;
+  onOpenMerchants: () => void;
   onOpenNotificationAccess: () => Promise<void>;
   onRefreshCaptureDiagnostics: () => Promise<void>;
   onOpenTimeline: () => void;
@@ -1561,7 +1666,8 @@ function HomeScreen({
         <Text style={styles.bodyCopy}>
           Manual add and Inbox are live now. Budget creation, search, and showcase access follow
           the active remote flags so staged rollout does not require a native release. Categories
-          are now managed locally and reused across classify, split, manual add, and timeline.
+          and merchants are now managed locally and reused across classify, split, manual add,
+          timeline, and detail.
         </Text>
         <View style={styles.helperStack}>
           <Text style={styles.helperCopy}>
@@ -1573,11 +1679,16 @@ function HomeScreen({
           <Text style={styles.helperCopy}>
             Categories: {categories.length} available in this local profile
           </Text>
+          <Text style={styles.helperCopy}>
+            Merchants: {merchantUsageCount} tracked locally · {merchantReviewCandidateCount} review
+            suggestion{merchantReviewCandidateCount === 1 ? '' : 's'}
+          </Text>
         </View>
         <View style={styles.actionRow}>
           <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
           <ActionButton label="Review inbox" onPress={onOpenInbox} tone="secondary" />
           <ActionButton label="Manage categories" onPress={onOpenCategories} tone="secondary" />
+          <ActionButton label="Manage merchants" onPress={onOpenMerchants} tone="secondary" />
           <ActionButton
             disabled={!budgetsEnabled}
             label="Create budget"
@@ -2685,6 +2796,248 @@ function CategoryManagementScreen({
   );
 }
 
+function MerchantManagementScreen({
+  merchantAliases,
+  merchantReviewCandidates,
+  merchantUsage,
+  onBack,
+  onMergeMerchant,
+  onSplitMerchantAlias,
+}: {
+  merchantAliases: MerchantAliasRecord[];
+  merchantReviewCandidates: MerchantReviewCandidate[];
+  merchantUsage: MerchantUsageSummary[];
+  onBack: () => void;
+  onMergeMerchant: (sourceMerchantId: string, targetMerchantId: string) => void;
+  onSplitMerchantAlias: (aliasId: string) => void;
+}) {
+  const [mergeSourceMerchantId, setMergeSourceMerchantId] = useState<string | null>(null);
+  const [mergeTargetMerchantId, setMergeTargetMerchantId] = useState<string | null>(null);
+  const mergeTargets = mergeSourceMerchantId
+    ? merchantUsage.filter(({ merchant }) => merchant.id !== mergeSourceMerchantId)
+    : [];
+
+  function resetManualMerge() {
+    setMergeSourceMerchantId(null);
+    setMergeTargetMerchantId(null);
+  }
+
+  function confirmMerge(sourceMerchantId: string, targetMerchantId: string) {
+    const sourceMerchant = merchantUsage.find(
+      ({ merchant }) => merchant.id === sourceMerchantId,
+    )?.merchant;
+    const targetMerchant = merchantUsage.find(
+      ({ merchant }) => merchant.id === targetMerchantId,
+    )?.merchant;
+
+    if (!sourceMerchant || !targetMerchant) {
+      return;
+    }
+
+    Alert.alert(
+      'Merge merchants locally?',
+      `${sourceMerchant.label} will map into ${targetMerchant.label}. Future matching variants will reuse the target merchant through a saved alias on this device.`,
+      [
+        { style: 'cancel', text: 'Cancel' },
+        {
+          text: 'Merge',
+          onPress: () => {
+            onMergeMerchant(sourceMerchant.id, targetMerchant.id);
+            resetManualMerge();
+          },
+        },
+      ],
+    );
+  }
+
+  function confirmAliasSplit(aliasId: string, aliasLabel: string) {
+    Alert.alert(
+      'Split alias back out?',
+      `${aliasLabel} will become its own standalone merchant again, and future local matches will stop folding into the current canonical merchant.`,
+      [
+        { style: 'cancel', text: 'Cancel' },
+        {
+          text: 'Split alias',
+          onPress: () => onSplitMerchantAlias(aliasId),
+        },
+      ],
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <SectionCard accentColor={colors.accentSoft}>
+        <Text style={styles.sectionEyebrow}>Merchants</Text>
+        <Text style={styles.sectionTitle}>Normalize repeated merchant variants locally</Text>
+        <Text style={styles.bodyCopy}>
+          Deterministic matches already fold repeated variants into one canonical merchant. This
+          screen lets the user review likely merges, create future aliases through explicit
+          corrections, and split an alias back out when a merge was too aggressive.
+        </Text>
+        <View style={styles.actionRow}>
+          <ActionButton label="Back to home" onPress={onBack} tone="secondary" />
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.cardTitle}>Likely merges to review</Text>
+        <Text style={styles.bodyCopy}>
+          These are suggestions only. Low-confidence or ambiguous matches are not auto-applied.
+        </Text>
+        {merchantReviewCandidates.length > 0 ? (
+          <View style={styles.listStack}>
+            {merchantReviewCandidates.map((candidate) => (
+              <View key={candidate.sourceMerchantId} style={styles.summaryCard}>
+                <View style={styles.summaryCopy}>
+                  <Text style={styles.summaryPrimary}>
+                    {candidate.sourceMerchantLabel} → {candidate.targetMerchantLabel}
+                  </Text>
+                  <Text style={styles.summarySecondary}>
+                    Confidence {formatMerchantConfidence(candidate.confidenceBps)}
+                  </Text>
+                </View>
+                <View style={styles.actionRow}>
+                  <ActionButton
+                    accessibilityLabel={`Merge ${candidate.sourceMerchantLabel} into ${candidate.targetMerchantLabel}`}
+                    label="Merge and create alias"
+                    onPress={() =>
+                      confirmMerge(
+                        candidate.sourceMerchantId,
+                        candidate.targetMerchantId,
+                      )
+                    }
+                    tone="primary"
+                  />
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <EmptyState
+            description="The current local merchant directory does not have any high-confidence review suggestions right now."
+            title="No review suggestions"
+          />
+        )}
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Manual merge</Text>
+        <Text style={styles.bodyCopy}>
+          Pick the source merchant that should be folded into another canonical label. This also
+          creates a saved alias for future local matches.
+        </Text>
+        <View style={styles.fieldStack}>
+          <Text style={styles.fieldLabel}>Merge from</Text>
+          <View style={styles.categoryGrid}>
+            {merchantUsage.map(({ merchant, transactionCount }) => (
+              <CategoryChip
+                isActive={mergeSourceMerchantId === merchant.id}
+                key={merchant.id}
+                label={`${merchant.label} (${transactionCount})`}
+                onPress={() => {
+                  setMergeSourceMerchantId(merchant.id);
+                  setMergeTargetMerchantId(null);
+                }}
+              />
+            ))}
+          </View>
+        </View>
+
+        {mergeSourceMerchantId ? (
+          <View style={styles.fieldStack}>
+            <Text style={styles.fieldLabel}>Merge into</Text>
+            <View style={styles.categoryGrid}>
+              {mergeTargets.map(({ merchant, transactionCount }) => (
+                <CategoryChip
+                  isActive={mergeTargetMerchantId === merchant.id}
+                  key={merchant.id}
+                  label={`${merchant.label} (${transactionCount})`}
+                  onPress={() => setMergeTargetMerchantId(merchant.id)}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        <View style={styles.actionRow}>
+          <ActionButton label="Clear merge" onPress={resetManualMerge} tone="secondary" />
+          <ActionButton
+            disabled={!mergeSourceMerchantId || !mergeTargetMerchantId}
+            label="Merge selected merchants"
+            onPress={() => {
+              if (mergeSourceMerchantId && mergeTargetMerchantId) {
+                confirmMerge(mergeSourceMerchantId, mergeTargetMerchantId);
+              }
+            }}
+            tone="primary"
+          />
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.successSoft}>
+        <Text style={styles.cardTitle}>Merchant directory</Text>
+        <Text style={styles.bodyCopy}>
+          Canonical merchant labels, saved aliases, and the number of local transactions currently
+          mapped into each merchant.
+        </Text>
+        {merchantUsage.length > 0 ? (
+          <View style={styles.listStack}>
+            {merchantUsage.map((summary) => {
+              const aliases = merchantAliases.filter(
+                (merchantAlias) => merchantAlias.merchantId === summary.merchant.id,
+              );
+
+              return (
+                <View key={summary.merchant.id} style={styles.summaryCard}>
+                  <View style={styles.summaryCopy}>
+                    <Text style={styles.summaryPrimary}>{summary.merchant.label}</Text>
+                    <Text style={styles.summarySecondary}>
+                      {summary.transactionCount} transaction
+                      {summary.transactionCount === 1 ? '' : 's'} · {aliases.length} alias
+                      {aliases.length === 1 ? '' : 'es'}
+                    </Text>
+                  </View>
+
+                  {aliases.length > 0 ? (
+                    <View style={styles.aliasStack}>
+                      {aliases.map((alias) => (
+                        <View key={alias.id} style={styles.aliasRow}>
+                          <View style={styles.summaryCopy}>
+                            <Text style={styles.summaryPrimary}>{alias.alias}</Text>
+                            <Text style={styles.summarySecondary}>
+                              {alias.source === 'merged' ? 'Merged alias' : 'Manual alias'} ·{' '}
+                              {formatMerchantConfidence(alias.confidenceBps)}
+                            </Text>
+                          </View>
+                          <ActionButton
+                            accessibilityLabel={`Split alias ${alias.alias}`}
+                            label="Split alias"
+                            onPress={() => confirmAliasSplit(alias.id, alias.alias)}
+                            tone="secondary"
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={styles.helperCopy}>
+                      No saved aliases yet for this merchant.
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <EmptyState
+            description="Merchants will appear here after local transactions or captures are normalized."
+            title="No merchants yet"
+          />
+        )}
+      </SectionCard>
+    </ScrollView>
+  );
+}
+
 function TransactionDetailScreen({
   categories,
   noteDraft,
@@ -2778,6 +3131,23 @@ function TransactionDetailScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Source and parser context</Text>
         <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>Normalized merchant: {transaction.merchant}</Text>
+          <Text style={styles.helperCopy}>
+            Raw merchant:{' '}
+            {transaction.merchantRaw && transaction.merchantRaw.length > 0
+              ? transaction.merchantRaw
+              : transaction.merchant}
+          </Text>
+          {transaction.merchantMatchKind ? (
+            <Text style={styles.helperCopy}>
+              Merchant match: {formatMerchantMatchKind(transaction.merchantMatchKind)}
+            </Text>
+          ) : null}
+          {typeof transaction.merchantConfidenceBps === 'number' ? (
+            <Text style={styles.helperCopy}>
+              Merchant confidence: {formatMerchantConfidence(transaction.merchantConfidenceBps)}
+            </Text>
+          ) : null}
           <Text style={styles.helperCopy}>Source app: {transaction.sourceApp}</Text>
           <Text style={styles.helperCopy}>
             Local status: {getTransactionStatusLabel(transaction.status)}
@@ -3799,6 +4169,10 @@ function getHistoryEventLabel(kind: TransactionHistoryEntry['kind']): string {
       return 'Imported state';
     case 'manual_added':
       return 'Manual add';
+    case 'merchant_alias_split':
+      return 'Alias split';
+    case 'merchant_merged':
+      return 'Merchant merged';
     case 'note_updated':
       return 'Note updated';
     case 'restored':
@@ -3833,6 +4207,14 @@ function formatParserInfo(
     note: null,
     version: parserInfo.parserVersion,
   };
+}
+
+function formatMerchantMatchKind(matchKind: 'alias' | 'deterministic'): string {
+  return matchKind === 'alias' ? 'Alias match' : 'Deterministic match';
+}
+
+function formatMerchantConfidence(confidenceBps: number): string {
+  return `${(confidenceBps / 100).toFixed(0)}%`;
 }
 
 function getStatusTone(status: Transaction['status']): 'pending' | 'ready' {
@@ -3892,6 +4274,15 @@ const styles = StyleSheet.create({
   actionRow: {
     gap: 12,
     marginTop: 8,
+  },
+  aliasRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  aliasStack: {
+    gap: 10,
   },
   amountLabel: {
     color: colors.ink,

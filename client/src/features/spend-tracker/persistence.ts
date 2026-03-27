@@ -2,13 +2,19 @@ import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 import { Storage } from 'expo-sqlite/kv-store';
 
 import {
+  normalizeMerchantAliases,
+  normalizeMerchants,
   normalizeCategories,
+  reconcileMerchantState,
   sortTransactionsByCapturedAtDesc,
   type CategoryId,
   type CategoryOption,
+  type MerchantAliasRecord,
+  type MerchantRecord,
   type Transaction,
   type TransactionHistoryEntry,
   type TransactionParserInfo,
+  type MerchantMatchKind,
 } from './domain';
 import { applyMobileMigrations } from './db/migration-runner';
 
@@ -32,6 +38,8 @@ export interface OnboardingPreferences {
 
 export interface PersistedSpendTrackerState {
   categories: CategoryOption[];
+  merchantAliases?: MerchantAliasRecord[];
+  merchants?: MerchantRecord[];
   onboardingPreferences: OnboardingPreferences;
   notificationAccessState: NotificationAccessState;
   onboardingCompleted: boolean;
@@ -50,11 +58,27 @@ interface CategoryRow {
   label: string;
 }
 
+interface MerchantRow {
+  id: string;
+  label: string;
+  normalizedLabel: string;
+}
+
+interface MerchantAliasRow {
+  alias: string;
+  confidenceBps: number;
+  id: string;
+  merchantId: string;
+  normalizedAlias: string;
+  source: string;
+}
+
 interface TransactionRow {
   amountMinor: number;
   capturedAt: string;
   id: string;
   merchant: string;
+  merchantRaw: string | null;
   note: string | null;
   parserConfidenceBps: number | null;
   parserId: string | null;
@@ -99,6 +123,8 @@ export async function clearStoredSpendTrackerState(): Promise<void> {
     await database.runAsync('DELETE FROM transaction_history');
     await database.runAsync('DELETE FROM transaction_items');
     await database.runAsync('DELETE FROM transactions');
+    await database.runAsync('DELETE FROM merchant_aliases');
+    await database.runAsync('DELETE FROM merchants');
     await database.runAsync('DELETE FROM categories');
     await database.runAsync('DELETE FROM settings');
   });
@@ -155,6 +181,12 @@ async function hasStoredState(database: SQLiteDatabase): Promise<boolean> {
   const transactionCountRow = await database.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM transactions',
   );
+  const merchantCountRow = await database.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM merchants',
+  );
+  const merchantAliasCountRow = await database.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM merchant_aliases',
+  );
   const categoryCountRow = await database.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM categories',
   );
@@ -164,6 +196,8 @@ async function hasStoredState(database: SQLiteDatabase): Promise<boolean> {
 
   return (
     (transactionCountRow?.count ?? 0) > 0 ||
+    (merchantCountRow?.count ?? 0) > 0 ||
+    (merchantAliasCountRow?.count ?? 0) > 0 ||
     (categoryCountRow?.count ?? 0) > 0 ||
     (settingsCountRow?.count ?? 0) > 0
   );
@@ -173,10 +207,18 @@ async function writeStateToDatabase(
   database: SQLiteDatabase,
   state: PersistedSpendTrackerState,
 ): Promise<void> {
+  const merchantDirectory = reconcileMerchantState(
+    state.transactions,
+    state.merchants,
+    state.merchantAliases,
+  );
+
   await database.withTransactionAsync(async () => {
     await database.runAsync('DELETE FROM transaction_history');
     await database.runAsync('DELETE FROM transaction_items');
     await database.runAsync('DELETE FROM transactions');
+    await database.runAsync('DELETE FROM merchant_aliases');
+    await database.runAsync('DELETE FROM merchants');
     await database.runAsync('DELETE FROM categories');
     await database.runAsync('DELETE FROM settings');
 
@@ -223,7 +265,43 @@ async function writeStateToDatabase(
       state.onboardingCompleted ? 'true' : 'false',
     );
 
-    for (const transaction of state.transactions) {
+    for (const merchant of merchantDirectory.merchants) {
+      await database.runAsync(
+        `
+          INSERT INTO merchants (
+            id,
+            label,
+            normalized_label
+          ) VALUES (?, ?, ?)
+        `,
+        merchant.id,
+        merchant.label,
+        merchant.normalizedLabel,
+      );
+    }
+
+    for (const merchantAlias of merchantDirectory.merchantAliases) {
+      await database.runAsync(
+        `
+          INSERT INTO merchant_aliases (
+            id,
+            merchant_id,
+            alias,
+            normalized_alias,
+            confidence_bps,
+            source
+          ) VALUES (?, ?, ?, ?, ?, ?)
+        `,
+        merchantAlias.id,
+        merchantAlias.merchantId,
+        merchantAlias.alias,
+        merchantAlias.normalizedAlias,
+        merchantAlias.confidenceBps,
+        merchantAlias.source,
+      );
+    }
+
+    for (const transaction of merchantDirectory.transactions) {
       await database.runAsync(
         `
           INSERT INTO transactions (
@@ -231,18 +309,20 @@ async function writeStateToDatabase(
             amount_minor,
             captured_at,
             merchant,
+            merchant_raw,
             source_app,
             status,
             note,
             parser_id,
             parser_version,
             parser_confidence_bps
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         transaction.id,
         transaction.amountMinor,
         transaction.capturedAt,
         transaction.merchant,
+        transaction.merchantRaw ?? transaction.merchant,
         transaction.sourceApp,
         transaction.status,
         transaction.note ?? '',
@@ -299,7 +379,15 @@ async function writeStateToDatabase(
 async function readStateFromDatabase(
   database: SQLiteDatabase,
 ): Promise<PersistedSpendTrackerState> {
-  const [settingRows, categoryRows, transactionRows, itemRows, historyRows] = await Promise.all([
+  const [
+    settingRows,
+    categoryRows,
+    merchantRows,
+    merchantAliasRows,
+    transactionRows,
+    itemRows,
+    historyRows,
+  ] = await Promise.all([
     database.getAllAsync<SettingRow>('SELECT key, value FROM settings'),
     database.getAllAsync<CategoryRow>(
       `
@@ -312,6 +400,29 @@ async function readStateFromDatabase(
         ORDER BY is_default DESC, label ASC, id ASC
       `,
     ),
+    database.getAllAsync<MerchantRow>(
+      `
+        SELECT
+          id,
+          label,
+          normalized_label as normalizedLabel
+        FROM merchants
+        ORDER BY label ASC, id ASC
+      `,
+    ),
+    database.getAllAsync<MerchantAliasRow>(
+      `
+        SELECT
+          id,
+          merchant_id as merchantId,
+          alias,
+          normalized_alias as normalizedAlias,
+          confidence_bps as confidenceBps,
+          source
+        FROM merchant_aliases
+        ORDER BY alias ASC, id ASC
+      `,
+    ),
     database.getAllAsync<TransactionRow>(
       `
         SELECT
@@ -319,6 +430,7 @@ async function readStateFromDatabase(
           amount_minor as amountMinor,
           captured_at as capturedAt,
           merchant,
+          merchant_raw as merchantRaw,
           note,
           parser_id as parserId,
           parser_version as parserVersion,
@@ -403,7 +515,7 @@ async function readStateFromDatabase(
     historyByTransactionId.set(row.transactionId, currentHistory);
   }
 
-  const transactions = sortTransactionsByCapturedAtDesc(
+  const rawTransactions = sortTransactionsByCapturedAtDesc(
     transactionRows
       .filter((row) => isTransactionStatus(row.status))
       .map((row) => ({
@@ -418,19 +530,49 @@ async function readStateFromDatabase(
             merchant: row.merchant,
             sourceApp: row.sourceApp,
             status: row.status as Transaction['status'],
-          }),
+        }),
         id: row.id,
         items: itemsByTransactionId.get(row.id) ?? [],
         merchant: row.merchant,
+        merchantRaw: row.merchantRaw ?? row.merchant,
         note: row.note ?? '',
         parserInfo: normalizeTransactionParserInfo(row),
         sourceApp: row.sourceApp,
         status: row.status as Transaction['status'],
       })),
   );
+  const merchantDirectory = reconcileMerchantState(
+    rawTransactions,
+    normalizeMerchants(
+      merchantRows.map((row) => ({
+        id: row.id,
+        label: row.label,
+        normalizedLabel: row.normalizedLabel,
+      })),
+    ),
+    normalizeMerchantAliases(
+      merchantAliasRows.map((row) => ({
+        alias: row.alias,
+        confidenceBps: row.confidenceBps,
+        id: row.id,
+        merchantId: row.merchantId,
+        normalizedAlias: row.normalizedAlias,
+        source: row.source === 'merged' ? 'merged' : 'manual',
+      })),
+      normalizeMerchants(
+        merchantRows.map((row) => ({
+          id: row.id,
+          label: row.label,
+          normalizedLabel: row.normalizedLabel,
+        })),
+      ),
+    ),
+  );
 
   return {
     categories,
+    merchantAliases: merchantDirectory.merchantAliases,
+    merchants: merchantDirectory.merchants,
     onboardingPreferences: {
       budgetCycleId: isBudgetCycleId(storedBudgetCycleId)
         ? storedBudgetCycleId
@@ -447,7 +589,7 @@ async function readStateFromDatabase(
       ? storedNotificationAccessState
       : 'not_started',
     onboardingCompleted: settings.get('onboarding_completed') === 'true',
-    transactions,
+    transactions: merchantDirectory.transactions,
   };
 }
 
@@ -466,6 +608,15 @@ async function readLegacyState(): Promise<PersistedSpendTrackerState | null> {
     }
 
     const candidate = parsedValue as Partial<PersistedSpendTrackerState>;
+    const merchantDirectory = reconcileMerchantState(
+      candidate.transactions as Transaction[],
+      isMerchantList((candidate as { merchants?: unknown }).merchants)
+        ? (candidate as { merchants?: MerchantRecord[] }).merchants
+        : undefined,
+      isMerchantAliasList((candidate as { merchantAliases?: unknown }).merchantAliases)
+        ? (candidate as { merchantAliases?: MerchantAliasRecord[] }).merchantAliases
+        : undefined,
+    );
 
     return {
       categories: normalizeCategories(
@@ -473,12 +624,14 @@ async function readLegacyState(): Promise<PersistedSpendTrackerState | null> {
           ? (candidate as { categories?: CategoryOption[] }).categories
           : undefined,
       ),
+      merchantAliases: merchantDirectory.merchantAliases,
+      merchants: merchantDirectory.merchants,
       onboardingPreferences: normalizeOnboardingPreferences(
         candidate.onboardingPreferences,
       ),
       notificationAccessState: candidate.notificationAccessState as NotificationAccessState,
       onboardingCompleted: candidate.onboardingCompleted as boolean,
-      transactions: candidate.transactions as Transaction[],
+      transactions: merchantDirectory.transactions,
     };
   } catch {
     return null;
@@ -496,6 +649,8 @@ function isPersistedSpendTrackerState(
 
   return (
     (candidate.categories === undefined || isCategoryList(candidate.categories)) &&
+    (candidate.merchants === undefined || isMerchantList(candidate.merchants)) &&
+    (candidate.merchantAliases === undefined || isMerchantAliasList(candidate.merchantAliases)) &&
     typeof candidate.onboardingCompleted === 'boolean' &&
     isNotificationAccessState(candidate.notificationAccessState) &&
     (candidate.onboardingPreferences === undefined ||
@@ -688,6 +843,16 @@ function isTransactionList(value: unknown): value is Transaction[] {
       typeof candidate.amountMinor === 'number' &&
       typeof candidate.capturedAt === 'string' &&
       typeof candidate.merchant === 'string' &&
+      (candidate.merchantRaw === undefined || typeof candidate.merchantRaw === 'string') &&
+      (candidate.merchantId === undefined ||
+        candidate.merchantId === null ||
+        typeof candidate.merchantId === 'string') &&
+      (candidate.merchantMatchKind === undefined ||
+        candidate.merchantMatchKind === null ||
+        isMerchantMatchKind(candidate.merchantMatchKind)) &&
+      (candidate.merchantConfidenceBps === undefined ||
+        candidate.merchantConfidenceBps === null ||
+        typeof candidate.merchantConfidenceBps === 'number') &&
       typeof candidate.sourceApp === 'string' &&
       isTransactionStatus(candidate.status) &&
       (candidate.note === undefined || typeof candidate.note === 'string') &&
@@ -759,11 +924,67 @@ function isTransactionHistoryKind(
     value === 'classified' ||
     value === 'classification_imported' ||
     value === 'manual_added' ||
+    value === 'merchant_alias_split' ||
+    value === 'merchant_merged' ||
     value === 'note_updated' ||
     value === 'restored' ||
     value === 'skipped' ||
     value === 'split_saved'
   );
+}
+
+function isMerchantMatchKind(value: unknown): value is MerchantMatchKind {
+  return value === 'alias' || value === 'deterministic';
+}
+
+function isMerchantList(value: unknown): value is MerchantRecord[] {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  return value.every((merchant) => {
+    if (!merchant || typeof merchant !== 'object') {
+      return false;
+    }
+
+    const candidate = merchant as Partial<MerchantRecord>;
+
+    return (
+      typeof candidate.id === 'string' &&
+      candidate.id.trim().length > 0 &&
+      typeof candidate.label === 'string' &&
+      candidate.label.trim().length > 0 &&
+      typeof candidate.normalizedLabel === 'string' &&
+      candidate.normalizedLabel.trim().length > 0
+    );
+  });
+}
+
+function isMerchantAliasList(value: unknown): value is MerchantAliasRecord[] {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  return value.every((merchantAlias) => {
+    if (!merchantAlias || typeof merchantAlias !== 'object') {
+      return false;
+    }
+
+    const candidate = merchantAlias as Partial<MerchantAliasRecord>;
+
+    return (
+      typeof candidate.id === 'string' &&
+      candidate.id.trim().length > 0 &&
+      typeof candidate.alias === 'string' &&
+      candidate.alias.trim().length > 0 &&
+      typeof candidate.normalizedAlias === 'string' &&
+      candidate.normalizedAlias.trim().length > 0 &&
+      typeof candidate.merchantId === 'string' &&
+      candidate.merchantId.trim().length > 0 &&
+      typeof candidate.confidenceBps === 'number' &&
+      (candidate.source === 'manual' || candidate.source === 'merged')
+    );
+  });
 }
 
 function isCategoryList(value: unknown): value is CategoryOption[] {

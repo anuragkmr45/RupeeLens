@@ -589,12 +589,12 @@
       ],
       "tests": "Alias resolution tests with noisy merchant fixtures.",
       "done": "Merchant reports look stable on QA dataset.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-27",
+      "completed_at": "2026-03-27",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: the client now normalizes repeated merchant variants into stable local merchant identities, persists canonical merchants plus aliases in SQLite with additive migrations and raw-merchant backfill, exposes manual merge/split controls plus review-only fuzzy merge suggestions, and reuses merchant normalization across manual add, classify suggestions, Inbox filters, Timeline/detail search, and a Home-linked merchant-management screen. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27."
     },
     {
       "id": "INT-003",

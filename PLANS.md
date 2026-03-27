@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### INT-002 — Build Merchant Normalization And Alias Management Pipeline
+
+- **Status:** completed
+- **Ticket:** INT-002
+- **Goal:** Add a local merchant directory with deterministic normalization, alias mapping, merge/split controls, and review-safe fuzzy suggestions so merchant reporting stops depending on raw notification strings.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `client/src/features/spend-tracker/domain.ts`, `client/src/features/spend-tracker/persistence.ts`, `client/src/features/spend-tracker/db/migrations.ts`, `client/src/features/spend-tracker/db/migration-runner.ts`, `client/src/app/SpendTrackerApp.tsx`, focused client tests, and repo-truth docs only if ticket status changes.
+- **Rationale:** `CAP-003` and `CAP-004` remain environment-blocked, `UX-005` still depends on external QA/design acceptance, and `UX-007` depends on `CAP-007`. `INT-002` is now the earliest unblocked canonical `todo` with satisfied dependencies, and repo truth still reports merchants from raw strings rather than a stable alias-backed local identity model.
+- **Risks:** This pass touches the local transaction shape, mobile SQLite schema, dashboard/search/reporting math, and multiple mobile screens. It must stay inside deterministic merchant cleanup, alias management, merge/split controls, and safe fuzzy review cues. It must not spill into rules, budgets, sync, or backend APIs.
+- **API / schema impact:** No backend/API changes. Local mobile SQLite schema will likely need additive merchant and alias tables plus transaction raw-merchant support for truthful normalization.
+- **Rollout / flag plan:** Keep merchant normalization entirely local-first with no new remote flags.
+- **Validation commands:** `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus focused client tests for alias resolution, merge/split preservation, fuzzy review suggestions, and merchant-aware persistence/migration behavior.
+- **Done when:** Repeated raw merchant variants resolve to stable local merchant identities when deterministic cleanup or aliases allow it, manual alias/merge/split controls update local transactions safely, low-confidence fuzzy matches surface for review instead of auto-merge, and backlog status can move to `done` only if those acceptance criteria are satisfied.
+- **Outcome:** Added a local merchant directory with deterministic normalization, saved merchant plus alias tables, additive mobile SQLite migrations for merchant aliases and raw merchant strings, merchant-aware classify/search behavior, a Home-linked merchant-management screen with likely-merge review plus alias split controls, and truthful raw-versus-normalized merchant detail in the timeline flow. Added focused domain, persistence, migration, and app tests for deterministic normalization, safe review-only fuzzy candidates, alias merge/split behavior, merchant-aware persistence, and the in-app merge review path. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand domain.test.ts persistence.test.ts mobile-migrations.test.ts app.test.tsx`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27. Ticket status moved to `done`.
+
 ### INT-001 — Implement Category Management And Seeded Default Categories
 
 - **Status:** completed

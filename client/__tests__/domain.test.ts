@@ -12,6 +12,7 @@ import {
   getClassificationSuggestions,
   getDefaultCategories,
   getInboxReviewTransactions,
+  getMerchantReviewCandidates,
   getPendingTransactions,
   getTimelineDayGroups,
   getTimelineTransactions,
@@ -20,11 +21,14 @@ import {
   isClassificationReady,
   isSplitDraftReady,
   mergeCategories,
+  mergeMerchants,
   moveSplitDraftRow,
+  reconcileMerchantState,
   removeSplitDraftRow,
   restoreSkippedTransaction,
   seededTransactions,
   skipTransaction,
+  splitMerchantAlias,
   splitTransaction,
   summarizeCategoryUsage,
   summarizeSplitDraft,
@@ -373,6 +377,212 @@ describe('spend-tracker dashboard summary', () => {
         saveAsRule: true,
       }),
     ).toBe(true);
+  });
+
+  it('normalizes repeated merchant variants into one canonical merchant when deterministic rules allow it', () => {
+    const merchantDirectory = reconcileMerchantState([
+      {
+        amountMinor: 25000,
+        capturedAt: '2026-03-25T09:12:00+05:30',
+        id: 'txn_acme_1',
+        items: [],
+        merchant: 'Acme Payments Pvt Ltd Store',
+        sourceApp: 'Google Pay',
+        status: 'uncategorized',
+      },
+      {
+        amountMinor: 26000,
+        capturedAt: '2026-03-25T10:12:00+05:30',
+        id: 'txn_acme_2',
+        items: [],
+        merchant: 'ACME Store',
+        sourceApp: 'PhonePe',
+        status: 'uncategorized',
+      },
+    ]);
+
+    expect(merchantDirectory.merchants).toEqual([
+      expect.objectContaining({
+        label: 'Acme Store',
+        normalizedLabel: 'acme store',
+      }),
+    ]);
+    expect(merchantDirectory.transactions.map((transaction) => transaction.merchant)).toEqual([
+      'Acme Store',
+      'Acme Store',
+    ]);
+    expect(
+      merchantDirectory.transactions.map((transaction) => transaction.merchantRaw),
+    ).toEqual(['Acme Payments Pvt Ltd Store', 'ACME Store']);
+  });
+
+  it('surfaces merchant review candidates without auto-merging lower-confidence variants', () => {
+    const merchantDirectory = reconcileMerchantState([
+      {
+        amountMinor: 19000,
+        capturedAt: '2026-03-20T09:00:00+05:30',
+        id: 'txn_roasters_1',
+        items: [],
+        merchant: 'Blue Tokai Roasters',
+        sourceApp: 'Google Pay',
+        status: 'uncategorized',
+      },
+      {
+        amountMinor: 21000,
+        capturedAt: '2026-03-21T09:00:00+05:30',
+        id: 'txn_roasters_2',
+        items: [],
+        merchant: 'Blue Tokai Roasters',
+        sourceApp: 'Google Pay',
+        status: 'uncategorized',
+      },
+      {
+        amountMinor: 18000,
+        capturedAt: '2026-03-22T09:00:00+05:30',
+        id: 'txn_roaster_variant',
+        items: [],
+        merchant: 'Blue Tokai Roaster',
+        sourceApp: 'Google Pay',
+        status: 'uncategorized',
+      },
+    ]);
+
+    expect(merchantDirectory.transactions.map((transaction) => transaction.merchant)).toEqual([
+      'Blue Tokai Roasters',
+      'Blue Tokai Roasters',
+      'Blue Tokai Roaster',
+    ]);
+    expect(getMerchantReviewCandidates(merchantDirectory.merchants, merchantDirectory.transactions)).toEqual([
+      expect.objectContaining({
+        sourceMerchantLabel: 'Blue Tokai Roaster',
+        targetMerchantLabel: 'Blue Tokai Roasters',
+      }),
+    ]);
+  });
+
+  it('creates merchant aliases from explicit merges and can split them back out later', () => {
+    const merchantDirectory = reconcileMerchantState([
+      {
+        amountMinor: 19000,
+        capturedAt: '2026-03-20T09:00:00+05:30',
+        id: 'txn_roasters_1',
+        items: [
+          {
+            amountMinor: 19000,
+            categoryId: 'food_drink',
+            id: 'txn_roasters_1_item_1',
+            label: 'Cold brew',
+          },
+        ],
+        merchant: 'Blue Tokai Roasters',
+        sourceApp: 'Google Pay',
+        status: 'classified',
+      },
+      {
+        amountMinor: 18000,
+        capturedAt: '2026-03-22T09:00:00+05:30',
+        id: 'txn_roaster_variant',
+        items: [
+          {
+            amountMinor: 18000,
+            categoryId: 'food_drink',
+            id: 'txn_roaster_variant_item_1',
+            label: 'Cappuccino',
+          },
+        ],
+        merchant: 'Blue Tokai Roaster',
+        sourceApp: 'Google Pay',
+        status: 'classified',
+      },
+    ]);
+    const sourceMerchant = merchantDirectory.merchants.find(
+      (merchant) => merchant.label === 'Blue Tokai Roaster',
+    );
+    const targetMerchant = merchantDirectory.merchants.find(
+      (merchant) => merchant.label === 'Blue Tokai Roasters',
+    );
+
+    expect(sourceMerchant).toBeDefined();
+    expect(targetMerchant).toBeDefined();
+
+    const mergedDirectory = mergeMerchants(
+      merchantDirectory.merchants,
+      merchantDirectory.merchantAliases,
+      merchantDirectory.transactions,
+      sourceMerchant!.id,
+      targetMerchant!.id,
+    );
+
+    expect(mergedDirectory.merchantAliases).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          alias: 'Blue Tokai Roaster',
+          merchantId: targetMerchant!.id,
+          source: 'merged',
+        }),
+      ]),
+    );
+    expect(
+      mergedDirectory.transactions.find((transaction) => transaction.id === 'txn_roaster_variant'),
+    ).toEqual(
+      expect.objectContaining({
+        history: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'merchant_merged',
+          }),
+        ]),
+        merchant: 'Blue Tokai Roasters',
+      }),
+    );
+    expect(
+      getClassificationSuggestions(
+        mergedDirectory.transactions,
+        'Blue Tokai Roaster',
+        undefined,
+        mergedDirectory.merchants,
+        mergedDirectory.merchantAliases,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          itemLabel: 'Cold brew',
+          reason: 'Used before for this merchant',
+        }),
+      ]),
+    );
+
+    const mergedAlias = mergedDirectory.merchantAliases.find(
+      (merchantAlias) => merchantAlias.alias === 'Blue Tokai Roaster',
+    );
+
+    expect(mergedAlias).toBeDefined();
+
+    const splitDirectory = splitMerchantAlias(
+      mergedDirectory.merchants,
+      mergedDirectory.merchantAliases,
+      mergedDirectory.transactions,
+      mergedAlias!.id,
+    );
+
+    expect(splitDirectory.merchants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'Blue Tokai Roaster',
+        }),
+      ]),
+    );
+    expect(
+      splitDirectory.transactions.find((transaction) => transaction.id === 'txn_roaster_variant'),
+    ).toEqual(
+      expect.objectContaining({
+        history: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'merchant_alias_split',
+          }),
+        ]),
+        merchant: 'Blue Tokai Roaster',
+      }),
+    );
   });
 
   it('supports split-row helpers and keeps partially classified transactions in Inbox', () => {

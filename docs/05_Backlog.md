@@ -611,7 +611,7 @@ Categories ready for classification flows.
 - **Story points:** 8
 - **Goal:** Collapse noisy merchant strings into stable merchant identities for reporting and suggestions.
 - **Dependencies:** CAP-002, INT-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-27 | Completed At: 2026-03-27 | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the client now normalizes repeated merchant variants into stable local merchant identities, persists canonical merchants plus aliases in SQLite with additive migrations and raw-merchant backfill, exposes manual merge/split controls plus review-only fuzzy merge suggestions, and reuses merchant normalization across manual add, classify suggestions, Inbox filters, Timeline/detail search, and a Home-linked merchant-management screen. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27.
 
 **Description**  
 Implement deterministic normalization, alias table, manual merge/split controls, and fuzzy fallback only when deterministic match fails. Track provenance and confidence.

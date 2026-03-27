@@ -43,6 +43,28 @@ export const DEFAULT_CATEGORIES_SEED_SQL = `
     ('transport', 'Transport', 'Metro, cab, fuel, and commute spends.', 1),
     ('travel', 'Travel', 'Flights, hotels, and long-distance travel.', 1);
 `;
+export const MERCHANTS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS merchants (
+    id TEXT PRIMARY KEY NOT NULL,
+    label TEXT NOT NULL,
+    normalized_label TEXT NOT NULL UNIQUE
+  );
+`;
+export const MERCHANT_ALIASES_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS merchant_aliases (
+    id TEXT PRIMARY KEY NOT NULL,
+    merchant_id TEXT NOT NULL,
+    alias TEXT NOT NULL,
+    normalized_alias TEXT NOT NULL UNIQUE,
+    confidence_bps INTEGER NOT NULL,
+    source TEXT NOT NULL CHECK(source IN ('manual', 'merged')),
+    FOREIGN KEY (merchant_id) REFERENCES merchants(id) ON DELETE CASCADE
+  );
+`;
+export const MERCHANT_ALIASES_MERCHANT_ID_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_merchant_aliases_merchant_id
+  ON merchant_aliases(merchant_id, alias);
+`;
 export const TRANSACTIONS_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS transactions (
     id TEXT PRIMARY KEY NOT NULL,
@@ -56,6 +78,14 @@ export const TRANSACTIONS_TABLE_SQL = `
     parser_version TEXT,
     parser_confidence_bps INTEGER
   );
+`;
+export const TRANSACTIONS_V3_ADD_MERCHANT_RAW_SQL = `
+  ALTER TABLE transactions
+  ADD COLUMN merchant_raw TEXT NOT NULL DEFAULT '';
+
+  UPDATE transactions
+  SET merchant_raw = merchant
+  WHERE merchant_raw = '';
 `;
 export const TRANSACTION_ITEMS_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS transaction_items (
@@ -275,5 +305,21 @@ export const mobileMigrations: readonly MobileMigration[] = [
   {
     id: '011_create_categories_label_index',
     sql: CATEGORIES_LABEL_INDEX_SQL,
+  },
+  {
+    id: '012_create_merchants_table',
+    sql: MERCHANTS_TABLE_SQL,
+  },
+  {
+    id: '013_create_merchant_aliases_table',
+    sql: MERCHANT_ALIASES_TABLE_SQL,
+  },
+  {
+    id: '014_create_merchant_aliases_merchant_id_index',
+    sql: MERCHANT_ALIASES_MERCHANT_ID_INDEX_SQL,
+  },
+  {
+    id: '015_add_transaction_merchant_raw',
+    sql: TRANSACTIONS_V3_ADD_MERCHANT_RAW_SQL,
   },
 ] as const;

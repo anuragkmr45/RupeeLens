@@ -925,6 +925,123 @@ describe('App', () => {
     );
   });
 
+  it('reviews a merchant merge suggestion and saves the resulting alias locally', async () => {
+    const mergeAlertSpy = jest.spyOn(Alert, 'alert').mockImplementation(
+      (
+        _title: string,
+        _message?: string,
+        buttons?: Parameters<typeof Alert.alert>[2],
+      ) => {
+        const mergeButton = buttons?.find((button) => button.text === 'Merge');
+        mergeButton?.onPress?.();
+      },
+    );
+
+    mockedLoadStoredSpendTrackerState.mockResolvedValue({
+      categories: buildDefaultCategories(),
+      onboardingPreferences: DEFAULT_ONBOARDING_PREFERENCES,
+      notificationAccessState: 'settings_opened',
+      onboardingCompleted: true,
+      transactions: [
+        {
+          amountMinor: 19000,
+          capturedAt: '2026-03-20T09:00:00+05:30',
+          id: 'txn_roasters_1',
+          items: [
+            {
+              amountMinor: 19000,
+              categoryId: 'food_drink',
+              id: 'txn_roasters_1_item_1',
+              label: 'Cold brew',
+            },
+          ],
+          merchant: 'Blue Tokai Roasters',
+          sourceApp: 'Google Pay',
+          status: 'classified',
+        },
+        {
+          amountMinor: 21000,
+          capturedAt: '2026-03-21T09:00:00+05:30',
+          id: 'txn_roasters_2',
+          items: [
+            {
+              amountMinor: 21000,
+              categoryId: 'food_drink',
+              id: 'txn_roasters_2_item_1',
+              label: 'Pour over',
+            },
+          ],
+          merchant: 'Blue Tokai Roasters',
+          sourceApp: 'Google Pay',
+          status: 'classified',
+        },
+        {
+          amountMinor: 18000,
+          capturedAt: '2026-03-22T09:00:00+05:30',
+          id: 'txn_roaster_variant',
+          items: [
+            {
+              amountMinor: 18000,
+              categoryId: 'food_drink',
+              id: 'txn_roaster_variant_item_1',
+              label: 'Cappuccino',
+            },
+          ],
+          merchant: 'Blue Tokai Roaster',
+          sourceApp: 'Google Pay',
+          status: 'classified',
+        },
+      ],
+    });
+
+    try {
+      const screen = await renderApp();
+
+      expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
+      fireEvent.press(screen.getByRole('button', { name: 'Manage merchants' }));
+
+      expect(await screen.findByText('Normalize repeated merchant variants locally')).toBeTruthy();
+      expect(screen.getByText('Blue Tokai Roaster → Blue Tokai Roasters')).toBeTruthy();
+
+      fireEvent.press(
+        screen.getByRole('button', {
+          name: 'Merge Blue Tokai Roaster into Blue Tokai Roasters',
+        }),
+      );
+
+      await waitFor(() =>
+        expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            merchantAliases: expect.arrayContaining([
+              expect.objectContaining({
+                alias: 'Blue Tokai Roaster',
+                source: 'merged',
+              }),
+            ]),
+            merchants: expect.arrayContaining([
+              expect.objectContaining({
+                label: 'Blue Tokai Roasters',
+              }),
+            ]),
+            transactions: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'txn_roaster_variant',
+                merchant: 'Blue Tokai Roasters',
+                history: expect.arrayContaining([
+                  expect.objectContaining({
+                    kind: 'merchant_merged',
+                  }),
+                ]),
+              }),
+            ]),
+          }),
+        ),
+      );
+    } finally {
+      mergeAlertSpy.mockRestore();
+    }
+  });
+
   it('saves a partial split and keeps the transaction visible in Inbox', async () => {
     const screen = await renderApp();
 

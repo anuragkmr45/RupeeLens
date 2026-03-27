@@ -132,6 +132,7 @@ describe('spend-tracker persistence', () => {
             capturedAt: '2026-03-25T10:00:00+05:30',
             id: 'txn_manual_store',
             merchant: 'Corner Store',
+            merchantRaw: 'Corner Store',
             sourceApp: 'Manual entry',
             status: 'classified',
           },
@@ -140,6 +141,7 @@ describe('spend-tracker persistence', () => {
             capturedAt: '2026-03-25T09:12:00+05:30',
             id: 'txn_blue_tokai',
             merchant: 'Blue Tokai Roasters',
+            merchantRaw: 'Blue Tokai Roasters',
             sourceApp: 'Google Pay',
             status: 'skipped',
           },
@@ -166,6 +168,11 @@ describe('spend-tracker persistence', () => {
 
     await expect(loadStoredSpendTrackerState()).resolves.toEqual({
       categories: getDefaultCategories(),
+      merchantAliases: [],
+      merchants: expect.arrayContaining([
+        expect.objectContaining({ label: 'Blue Tokai Roasters' }),
+        expect.objectContaining({ label: 'Corner Store' }),
+      ]),
       onboardingPreferences: {
         budgetCycleId: 'salary_cycle',
         selectedSourceAppIds: ['google_pay', 'phonepe'],
@@ -246,6 +253,14 @@ describe('spend-tracker persistence', () => {
 
     await expect(loadStoredSpendTrackerState()).resolves.toEqual({
       categories: getDefaultCategories(),
+      merchantAliases: [],
+      merchants: expect.arrayContaining([
+        expect.objectContaining({ label: 'Bangalore Metro' }),
+        expect.objectContaining({ label: 'Bigbasket' }),
+        expect.objectContaining({ label: 'Blinkit' }),
+        expect.objectContaining({ label: 'Blue Tokai Roasters' }),
+        expect.objectContaining({ label: 'Third Wave Coffee' }),
+      ]),
       onboardingPreferences: {
         budgetCycleId: 'calendar_month',
         selectedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
@@ -319,6 +334,7 @@ describe('spend-tracker persistence', () => {
             capturedAt: '2026-03-25T09:12:00+05:30',
             id: 'txn_blue_tokai',
             merchant: 'Blue Tokai Roasters',
+            merchantRaw: 'Blue Tokai Roasters',
             sourceApp: 'Google Pay',
             status: 'partially_classified',
           },
@@ -392,6 +408,23 @@ describe('spend-tracker persistence', () => {
         selectedSourceAppIds: ['bhim', 'paytm'],
         syncMode: 'local_only',
       },
+      merchantAliases: [
+        {
+          alias: 'Corner Stores',
+          confidenceBps: 10000,
+          id: 'merchant_corner_store_corner_stores',
+          merchantId: 'merchant_corner_store',
+          normalizedAlias: 'corner stores',
+          source: 'manual',
+        },
+      ],
+      merchants: [
+        {
+          id: 'merchant_corner_store',
+          label: 'Corner Store',
+          normalizedLabel: 'corner store',
+        },
+      ],
       notificationAccessState: 'settings_opened',
       onboardingCompleted: true,
       transactions: [
@@ -408,6 +441,7 @@ describe('spend-tracker persistence', () => {
             },
           ],
           merchant: 'Corner Store',
+          merchantRaw: 'Corner Stores',
           sourceApp: 'Manual entry',
           status: 'partially_classified',
         },
@@ -442,11 +476,27 @@ describe('spend-tracker persistence', () => {
       'local_only',
     );
     expect(database.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO merchants'),
+      'merchant_corner_store',
+      'Corner Store',
+      'corner store',
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO merchant_aliases'),
+      'merchant_corner_store_corner_stores',
+      'merchant_corner_store',
+      'Corner Stores',
+      'corner stores',
+      10000,
+      'manual',
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO transactions'),
       'txn_manual_store',
       29900,
       '2026-03-25T10:00:00+05:30',
       'Corner Store',
+      'Corner Stores',
       'Manual entry',
       'partially_classified',
       '',

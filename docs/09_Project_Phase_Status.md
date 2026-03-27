@@ -66,13 +66,14 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Full-screen split-items flow with add/remove/reorder controls, running totals, explicit remainder handling, and partial-save visibility back in Inbox
 - Local timeline/history flow with grouped day sections, search/filter chips, transaction detail, local notes, parser context, classification/audit history, and local edit/delete handoff
 - Seeded default categories plus local category create/edit/delete/merge, with the saved category list reused across classify, split, manual add, dashboard summaries, and Timeline search/detail
+- Deterministic merchant normalization with canonical merchant plus alias persistence, manual merge/split controls, review-only fuzzy merge suggestions, and merchant-aware reuse across manual add, classify, Inbox filters, Timeline search, and transaction detail
 
 **Remaining**
 
 - External QA/design acceptance for the split flow
 - Durable rule creation via `INT-003`
 - Settings/privacy/export screens and captured-spend classify integration
-- Merchant normalization and rule engine
+- Rule engine
 
 ## Sprint 4 — Budgets And Sync Foundation
 

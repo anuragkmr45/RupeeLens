@@ -1,4 +1,5 @@
 export type CategoryId = string;
+export type MerchantId = string;
 
 export interface CategoryOption {
   description: string;
@@ -11,6 +12,46 @@ export interface CategoryUsageSummary {
   category: CategoryOption;
   itemCount: number;
   transactionCount: number;
+}
+
+export interface MerchantRecord {
+  id: MerchantId;
+  label: string;
+  normalizedLabel: string;
+}
+
+export type MerchantAliasSource = 'manual' | 'merged';
+
+export interface MerchantAliasRecord {
+  alias: string;
+  confidenceBps: number;
+  id: string;
+  merchantId: MerchantId;
+  normalizedAlias: string;
+  source: MerchantAliasSource;
+}
+
+export type MerchantMatchKind = 'alias' | 'deterministic';
+
+export interface MerchantReviewCandidate {
+  confidenceBps: number;
+  sourceMerchantId: MerchantId;
+  sourceMerchantLabel: string;
+  targetMerchantId: MerchantId;
+  targetMerchantLabel: string;
+}
+
+export interface MerchantUsageSummary {
+  aliasCount: number;
+  merchant: MerchantRecord;
+  transactionCount: number;
+}
+
+export interface MerchantDirectoryState {
+  merchantAliases: MerchantAliasRecord[];
+  merchants: MerchantRecord[];
+  reviewCandidates: MerchantReviewCandidate[];
+  transactions: Transaction[];
 }
 
 export interface TransactionItem {
@@ -32,6 +73,8 @@ export type TransactionHistoryKind =
   | 'classified'
   | 'classification_imported'
   | 'manual_added'
+  | 'merchant_alias_split'
+  | 'merchant_merged'
   | 'note_updated'
   | 'restored'
   | 'skipped'
@@ -51,6 +94,10 @@ export interface Transaction {
   id: string;
   items: TransactionItem[];
   merchant: string;
+  merchantConfidenceBps?: number | null;
+  merchantId?: MerchantId | null;
+  merchantMatchKind?: MerchantMatchKind | null;
+  merchantRaw?: string;
   note?: string;
   parserInfo?: TransactionParserInfo | null;
   sourceApp: string;
@@ -526,6 +573,616 @@ function buildCustomCategoryId(
   return `${prefix}_${suffix}`;
 }
 
+const MERCHANT_NOISE_TOKENS = new Set([
+  'india',
+  'limited',
+  'ltd',
+  'payment',
+  'payments',
+  'private',
+  'pvt',
+  'service',
+  'services',
+  'solution',
+  'solutions',
+  'tech',
+  'technologies',
+]);
+const MERCHANT_REVIEW_THRESHOLD_BPS = 7_600;
+
+export function normalizeMerchantLabel(rawMerchant: string): string {
+  const sanitizedTokens = rawMerchant
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) => !MERCHANT_NOISE_TOKENS.has(token))
+    .filter((token) => !/^\d+$/.test(token))
+    .filter((token) => token.length > 1);
+
+  return sanitizedTokens.join(' ').trim();
+}
+
+export function normalizeMerchants(
+  merchants: MerchantRecord[] | null | undefined,
+): MerchantRecord[] {
+  if (!Array.isArray(merchants)) {
+    return [];
+  }
+
+  const normalizedMerchants: MerchantRecord[] = [];
+  const seenIds = new Set<string>();
+  const seenNormalizedLabels = new Set<string>();
+
+  for (const merchant of merchants) {
+    if (
+      !merchant ||
+      typeof merchant !== 'object' ||
+      typeof merchant.id !== 'string' ||
+      typeof merchant.label !== 'string'
+    ) {
+      continue;
+    }
+
+    const normalizedLabel = normalizeMerchantLabel(
+      merchant.normalizedLabel || merchant.label,
+    );
+    const normalizedId = merchant.id.trim();
+    const normalizedDisplayLabel = formatMerchantLabel(normalizedLabel, merchant.label);
+
+    if (
+      normalizedId.length === 0 ||
+      normalizedLabel.length === 0 ||
+      seenIds.has(normalizedId) ||
+      seenNormalizedLabels.has(normalizedLabel)
+    ) {
+      continue;
+    }
+
+    seenIds.add(normalizedId);
+    seenNormalizedLabels.add(normalizedLabel);
+    normalizedMerchants.push({
+      id: normalizedId,
+      label: normalizedDisplayLabel,
+      normalizedLabel,
+    });
+  }
+
+  normalizedMerchants.sort((left, right) => left.label.localeCompare(right.label));
+
+  return normalizedMerchants;
+}
+
+export function normalizeMerchantAliases(
+  merchantAliases: MerchantAliasRecord[] | null | undefined,
+  merchants: MerchantRecord[],
+): MerchantAliasRecord[] {
+  if (!Array.isArray(merchantAliases)) {
+    return [];
+  }
+
+  const merchantIds = new Set(merchants.map((merchant) => merchant.id));
+  const normalizedAliases: MerchantAliasRecord[] = [];
+  const seenNormalizedAliases = new Set<string>();
+
+  for (const alias of merchantAliases) {
+    if (
+      !alias ||
+      typeof alias !== 'object' ||
+      typeof alias.id !== 'string' ||
+      typeof alias.alias !== 'string' ||
+      typeof alias.merchantId !== 'string' ||
+      typeof alias.confidenceBps !== 'number' ||
+      !isMerchantAliasSource(alias.source)
+    ) {
+      continue;
+    }
+
+    const normalizedAlias = normalizeMerchantLabel(
+      alias.normalizedAlias || alias.alias,
+    );
+    const normalizedId = alias.id.trim();
+    const normalizedMerchantId = alias.merchantId.trim();
+    const normalizedAliasLabel = alias.alias.trim();
+
+    if (
+      normalizedId.length === 0 ||
+      normalizedAlias.length === 0 ||
+      normalizedAliasLabel.length === 0 ||
+      !merchantIds.has(normalizedMerchantId) ||
+      seenNormalizedAliases.has(normalizedAlias)
+    ) {
+      continue;
+    }
+
+    seenNormalizedAliases.add(normalizedAlias);
+    normalizedAliases.push({
+      alias: normalizedAliasLabel,
+      confidenceBps: alias.confidenceBps,
+      id: normalizedId,
+      merchantId: normalizedMerchantId,
+      normalizedAlias,
+      source: alias.source,
+    });
+  }
+
+  normalizedAliases.sort((left, right) => left.alias.localeCompare(right.alias));
+
+  return normalizedAliases;
+}
+
+export function reconcileMerchantState(
+  transactions: Transaction[],
+  merchants: MerchantRecord[] | null | undefined = [],
+  merchantAliases: MerchantAliasRecord[] | null | undefined = [],
+): MerchantDirectoryState {
+  const nextMerchants = normalizeMerchants(merchants);
+  const transactionsWithRawMerchant = transactions.map((transaction) => ({
+    ...transaction,
+    merchantRaw: getTransactionRawMerchant(transaction),
+  }));
+  const ensuredMerchants = ensureMerchantsFromTransactions(
+    nextMerchants,
+    transactionsWithRawMerchant,
+  );
+  const nextAliases = normalizeMerchantAliases(merchantAliases, ensuredMerchants);
+  const merchantById = new Map(ensuredMerchants.map((merchant) => [merchant.id, merchant]));
+  const merchantByNormalizedLabel = new Map(
+    ensuredMerchants.map((merchant) => [merchant.normalizedLabel, merchant]),
+  );
+  const aliasByNormalizedValue = new Map(
+    nextAliases.map((alias) => [alias.normalizedAlias, alias]),
+  );
+  const normalizedTransactions = transactionsWithRawMerchant.map((transaction) => {
+    const merchantRaw = getTransactionRawMerchant(transaction);
+    const normalizedRawMerchant = normalizeMerchantLabel(merchantRaw);
+    const aliasMatch =
+      normalizedRawMerchant.length > 0
+        ? aliasByNormalizedValue.get(normalizedRawMerchant)
+        : undefined;
+    const directMerchantMatch =
+      normalizedRawMerchant.length > 0
+        ? merchantByNormalizedLabel.get(normalizedRawMerchant)
+        : undefined;
+    const matchedMerchant =
+      (aliasMatch ? merchantById.get(aliasMatch.merchantId) : null) ??
+      directMerchantMatch ??
+      createFallbackMerchant(ensuredMerchants, merchantRaw);
+
+    if (!merchantById.has(matchedMerchant.id)) {
+      merchantById.set(matchedMerchant.id, matchedMerchant);
+      merchantByNormalizedLabel.set(matchedMerchant.normalizedLabel, matchedMerchant);
+      ensuredMerchants.push(matchedMerchant);
+    }
+
+    return {
+      ...transaction,
+      merchant: matchedMerchant.label,
+      merchantConfidenceBps: aliasMatch?.confidenceBps ?? 10_000,
+      merchantId: matchedMerchant.id,
+      merchantMatchKind: aliasMatch ? ('alias' as const) : ('deterministic' as const),
+      merchantRaw,
+    };
+  });
+  const normalizedDirectory = normalizeMerchants(ensuredMerchants);
+
+  return {
+    merchantAliases: normalizeMerchantAliases(nextAliases, normalizedDirectory),
+    merchants: normalizedDirectory,
+    reviewCandidates: getMerchantReviewCandidates(
+      normalizedDirectory,
+      normalizedTransactions,
+    ),
+    transactions: normalizedTransactions,
+  };
+}
+
+export function summarizeMerchantUsage(
+  merchants: MerchantRecord[],
+  merchantAliases: MerchantAliasRecord[],
+  transactions: Transaction[],
+): MerchantUsageSummary[] {
+  const transactionCounts = new Map<MerchantId, number>();
+  const aliasCounts = new Map<MerchantId, number>();
+
+  for (const transaction of transactions) {
+    const merchantId = transaction.merchantId;
+
+    if (!merchantId) {
+      continue;
+    }
+
+    transactionCounts.set(merchantId, (transactionCounts.get(merchantId) ?? 0) + 1);
+  }
+
+  for (const alias of merchantAliases) {
+    aliasCounts.set(alias.merchantId, (aliasCounts.get(alias.merchantId) ?? 0) + 1);
+  }
+
+  return normalizeMerchants(merchants).map((merchant) => ({
+    aliasCount: aliasCounts.get(merchant.id) ?? 0,
+    merchant,
+    transactionCount: transactionCounts.get(merchant.id) ?? 0,
+  }));
+}
+
+export function mergeMerchants(
+  merchants: MerchantRecord[],
+  merchantAliases: MerchantAliasRecord[],
+  transactions: Transaction[],
+  sourceMerchantId: MerchantId,
+  targetMerchantId: MerchantId,
+): MerchantDirectoryState {
+  if (sourceMerchantId === targetMerchantId) {
+    return reconcileMerchantState(transactions, merchants, merchantAliases);
+  }
+
+  const normalizedMerchants = normalizeMerchants(merchants);
+  const sourceMerchant = normalizedMerchants.find((merchant) => merchant.id === sourceMerchantId);
+  const targetMerchant = normalizedMerchants.find((merchant) => merchant.id === targetMerchantId);
+
+  if (!sourceMerchant || !targetMerchant) {
+    return reconcileMerchantState(transactions, normalizedMerchants, merchantAliases);
+  }
+
+  const mergedTransactions = transactions.map((transaction) => {
+    if (transaction.merchantId !== sourceMerchant.id) {
+      return transaction;
+    }
+
+    return {
+      ...transaction,
+      history: appendTransactionHistoryEntry(
+        transaction.history,
+        createHistoryEntry(
+          transaction.id,
+          'merchant_merged',
+          `Merged merchant ${sourceMerchant.label} into ${targetMerchant.label} and created an alias for future captures.`,
+        ),
+      ),
+    };
+  });
+  const nextAliases = normalizeMerchantAliases(
+    [
+      ...merchantAliases.map((alias) =>
+        alias.merchantId === sourceMerchant.id
+          ? {
+              ...alias,
+              merchantId: targetMerchant.id,
+              source: 'merged' as const,
+            }
+          : alias,
+      ),
+      {
+        alias: sourceMerchant.label,
+        confidenceBps: 10_000,
+        id: buildMerchantAliasId(sourceMerchant.label, targetMerchant.id, merchantAliases),
+        merchantId: targetMerchant.id,
+        normalizedAlias: sourceMerchant.normalizedLabel,
+        source: 'merged',
+      },
+    ],
+    normalizedMerchants.filter((merchant) => merchant.id !== sourceMerchant.id),
+  );
+
+  return reconcileMerchantState(
+    mergedTransactions,
+    normalizedMerchants.filter((merchant) => merchant.id !== sourceMerchant.id),
+    nextAliases,
+  );
+}
+
+export function splitMerchantAlias(
+  merchants: MerchantRecord[],
+  merchantAliases: MerchantAliasRecord[],
+  transactions: Transaction[],
+  aliasId: string,
+): MerchantDirectoryState {
+  const aliasToSplit = merchantAliases.find((alias) => alias.id === aliasId);
+
+  if (!aliasToSplit) {
+    return reconcileMerchantState(transactions, merchants, merchantAliases);
+  }
+
+  const nextMerchants = normalizeMerchants(merchants);
+  const revivedMerchant = ensureMerchant(
+    nextMerchants,
+    formatMerchantLabel(aliasToSplit.normalizedAlias, aliasToSplit.alias),
+    aliasToSplit.normalizedAlias,
+  );
+  const splitTransactions = transactions.map((transaction) => {
+    if (normalizeMerchantLabel(getTransactionRawMerchant(transaction)) !== aliasToSplit.normalizedAlias) {
+      return transaction;
+    }
+
+    return {
+      ...transaction,
+      history: appendTransactionHistoryEntry(
+        transaction.history,
+        createHistoryEntry(
+          transaction.id,
+          'merchant_alias_split',
+          `Split alias ${aliasToSplit.alias} back into standalone merchant ${revivedMerchant.label}.`,
+        ),
+      ),
+    };
+  });
+
+  return reconcileMerchantState(
+    splitTransactions,
+    nextMerchants,
+    merchantAliases.filter((alias) => alias.id !== aliasId),
+  );
+}
+
+export function getMerchantReviewCandidates(
+  merchants: MerchantRecord[],
+  transactions: Transaction[],
+): MerchantReviewCandidate[] {
+  const transactionCounts = new Map<MerchantId, number>();
+
+  for (const transaction of transactions) {
+    const merchantId = transaction.merchantId;
+
+    if (!merchantId) {
+      continue;
+    }
+
+    transactionCounts.set(merchantId, (transactionCounts.get(merchantId) ?? 0) + 1);
+  }
+
+  const candidates = new Map<string, MerchantReviewCandidate>();
+  const normalizedMerchants = normalizeMerchants(merchants);
+
+  for (const sourceMerchant of normalizedMerchants) {
+    const sourceTransactionCount = transactionCounts.get(sourceMerchant.id) ?? 0;
+
+    if (sourceTransactionCount === 0) {
+      continue;
+    }
+
+    let bestCandidate: MerchantReviewCandidate | null = null;
+
+    for (const targetMerchant of normalizedMerchants) {
+      if (sourceMerchant.id === targetMerchant.id) {
+        continue;
+      }
+
+      const similarityBps = getMerchantSimilarityBps(
+        sourceMerchant.normalizedLabel,
+        targetMerchant.normalizedLabel,
+      );
+      const targetTransactionCount = transactionCounts.get(targetMerchant.id) ?? 0;
+
+      if (
+        similarityBps < MERCHANT_REVIEW_THRESHOLD_BPS ||
+        targetTransactionCount < sourceTransactionCount
+      ) {
+        continue;
+      }
+
+      if (
+        targetTransactionCount === sourceTransactionCount &&
+        targetMerchant.label.localeCompare(sourceMerchant.label) >= 0
+      ) {
+        continue;
+      }
+
+      if (
+        !bestCandidate ||
+        similarityBps > bestCandidate.confidenceBps ||
+        (similarityBps === bestCandidate.confidenceBps &&
+          targetTransactionCount >
+            (transactionCounts.get(bestCandidate.targetMerchantId) ?? 0))
+      ) {
+        bestCandidate = {
+          confidenceBps: similarityBps,
+          sourceMerchantId: sourceMerchant.id,
+          sourceMerchantLabel: sourceMerchant.label,
+          targetMerchantId: targetMerchant.id,
+          targetMerchantLabel: targetMerchant.label,
+        };
+      }
+    }
+
+    if (bestCandidate) {
+      candidates.set(bestCandidate.sourceMerchantId, bestCandidate);
+    }
+  }
+
+  return [...candidates.values()].sort(
+    (left, right) =>
+      right.confidenceBps - left.confidenceBps ||
+      left.sourceMerchantLabel.localeCompare(right.sourceMerchantLabel),
+  );
+}
+
+function ensureMerchantsFromTransactions(
+  merchants: MerchantRecord[],
+  transactions: Transaction[],
+): MerchantRecord[] {
+  const nextMerchants = [...merchants];
+
+  for (const transaction of transactions) {
+    const rawMerchant = getTransactionRawMerchant(transaction);
+    const normalizedRawMerchant = normalizeMerchantLabel(rawMerchant);
+
+    if (normalizedRawMerchant.length === 0) {
+      continue;
+    }
+
+    ensureMerchant(
+      nextMerchants,
+      formatMerchantLabel(normalizedRawMerchant, rawMerchant),
+      normalizedRawMerchant,
+    );
+  }
+
+  return nextMerchants;
+}
+
+function ensureMerchant(
+  merchants: MerchantRecord[],
+  label: string,
+  normalizedLabel = normalizeMerchantLabel(label),
+): MerchantRecord {
+  const existingMerchant = merchants.find(
+    (merchant) => merchant.normalizedLabel === normalizedLabel,
+  );
+
+  if (existingMerchant) {
+    return existingMerchant;
+  }
+
+  const nextMerchant: MerchantRecord = {
+    id: buildMerchantId(label, merchants),
+    label: formatMerchantLabel(normalizedLabel, label),
+    normalizedLabel,
+  };
+
+  merchants.push(nextMerchant);
+
+  return nextMerchant;
+}
+
+function createFallbackMerchant(
+  merchants: MerchantRecord[],
+  rawMerchant: string,
+): MerchantRecord {
+  const normalizedLabel = normalizeMerchantLabel(rawMerchant);
+
+  return ensureMerchant(
+    merchants,
+    formatMerchantLabel(normalizedLabel, rawMerchant),
+    normalizedLabel,
+  );
+}
+
+function buildMerchantId(label: string, merchants: MerchantRecord[]): MerchantId {
+  const baseSlug =
+    normalizeMerchantLabel(label).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') ||
+    'merchant';
+  const prefix = `merchant_${baseSlug}`;
+  const existingIds = new Set(merchants.map((merchant) => merchant.id));
+
+  if (!existingIds.has(prefix)) {
+    return prefix;
+  }
+
+  let suffix = 2;
+
+  while (existingIds.has(`${prefix}_${suffix}`)) {
+    suffix += 1;
+  }
+
+  return `${prefix}_${suffix}`;
+}
+
+function buildMerchantAliasId(
+  alias: string,
+  merchantId: MerchantId,
+  merchantAliases: MerchantAliasRecord[],
+): string {
+  const baseSlug =
+    normalizeMerchantLabel(alias).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') ||
+    'alias';
+  const prefix = `${merchantId}_${baseSlug}`;
+  const existingIds = new Set(merchantAliases.map((merchantAlias) => merchantAlias.id));
+
+  if (!existingIds.has(prefix)) {
+    return prefix;
+  }
+
+  let suffix = 2;
+
+  while (existingIds.has(`${prefix}_${suffix}`)) {
+    suffix += 1;
+  }
+
+  return `${prefix}_${suffix}`;
+}
+
+function getMerchantSimilarityBps(left: string, right: string): number {
+  if (left === right) {
+    return 10_000;
+  }
+
+  const leftTokens = new Set(left.split(' ').filter(Boolean));
+  const rightTokens = new Set(right.split(' ').filter(Boolean));
+  const sharedTokens = [...leftTokens].filter((token) => rightTokens.has(token)).length;
+  const tokenScore =
+    leftTokens.size + rightTokens.size === 0
+      ? 0
+      : (2 * sharedTokens) / (leftTokens.size + rightTokens.size);
+  const charScore = getDiceCoefficient(left, right);
+
+  return Math.round(Math.max(tokenScore, charScore) * 10_000);
+}
+
+function getDiceCoefficient(left: string, right: string): number {
+  const leftBigrams = buildBigrams(left);
+  const rightBigrams = buildBigrams(right);
+
+  if (leftBigrams.length === 0 || rightBigrams.length === 0) {
+    return 0;
+  }
+
+  const remainingRightBigrams = [...rightBigrams];
+  let sharedBigrams = 0;
+
+  for (const bigram of leftBigrams) {
+    const rightIndex = remainingRightBigrams.indexOf(bigram);
+
+    if (rightIndex === -1) {
+      continue;
+    }
+
+    sharedBigrams += 1;
+    remainingRightBigrams.splice(rightIndex, 1);
+  }
+
+  return (2 * sharedBigrams) / (leftBigrams.length + rightBigrams.length);
+}
+
+function buildBigrams(value: string): string[] {
+  const sanitizedValue = value.replace(/\s+/g, ' ').trim();
+
+  if (sanitizedValue.length < 2) {
+    return [];
+  }
+
+  const bigrams: string[] = [];
+
+  for (let index = 0; index < sanitizedValue.length - 1; index += 1) {
+    bigrams.push(sanitizedValue.slice(index, index + 2));
+  }
+
+  return bigrams;
+}
+
+function formatMerchantLabel(
+  normalizedLabel: string,
+  fallbackLabel: string,
+): string {
+  if (normalizedLabel.length === 0) {
+    return fallbackLabel.trim();
+  }
+
+  return normalizedLabel
+    .split(' ')
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(' ');
+}
+
+function getTransactionRawMerchant(transaction: Transaction): string {
+  return (transaction.merchantRaw ?? transaction.merchant).trim();
+}
+
+function isMerchantAliasSource(value: unknown): value is MerchantAliasSource {
+  return value === 'manual' || value === 'merged';
+}
+
 function buildSeededParserInfo(
   sourceApp: Transaction['sourceApp'],
 ): TransactionParserInfo | null {
@@ -577,7 +1234,7 @@ function buildSeededHistory(
   return baseEntries;
 }
 
-export const seededTransactions: Transaction[] = [
+const seededTransactionsBase: Transaction[] = [
   {
     amountMinor: 18000,
     capturedAt: '2026-03-25T09:12:00+05:30',
@@ -717,6 +1374,13 @@ export const seededTransactions: Transaction[] = [
   },
 ];
 
+const seededMerchantDirectory = reconcileMerchantState(seededTransactionsBase);
+
+export const seededMerchants: MerchantRecord[] = seededMerchantDirectory.merchants;
+export const seededMerchantAliases: MerchantAliasRecord[] =
+  seededMerchantDirectory.merchantAliases;
+export const seededTransactions: Transaction[] = seededMerchantDirectory.transactions;
+
 export function buildClassificationDraft(
   transaction: Transaction,
 ): ClassificationDraft {
@@ -833,6 +1497,7 @@ export function createManualTransaction({
       },
     ],
     merchant: normalizedMerchant,
+    merchantRaw: normalizedMerchant,
     note: normalizedNote,
     parserInfo: null,
     sourceApp,
@@ -1169,9 +1834,16 @@ export function getClassificationSuggestions(
   transactions: Transaction[],
   merchant: string,
   currentTransactionId?: string,
+  merchants: MerchantRecord[] = [],
+  merchantAliases: MerchantAliasRecord[] = [],
 ): ClassificationSuggestion[] {
   const suggestions = new Map<string, ClassificationSuggestion>();
-  const normalizedMerchant = merchant.trim().toLowerCase();
+  const resolvedMerchant = resolveMerchantSuggestionKey(
+    merchant,
+    merchants,
+    merchantAliases,
+  );
+  const normalizedMerchant = resolvedMerchant.normalizedLabel;
 
   for (const transaction of transactions) {
     if (
@@ -1182,7 +1854,12 @@ export function getClassificationSuggestions(
       continue;
     }
 
-    const normalizedTransactionMerchant = transaction.merchant.trim().toLowerCase();
+    const normalizedTransactionMerchant = resolveMerchantSuggestionKey(
+      getTransactionRawMerchant(transaction),
+      merchants,
+      merchantAliases,
+      transaction.merchantId,
+    ).normalizedLabel;
 
     if (
       normalizedMerchant.length === 0 ||
@@ -1505,10 +2182,14 @@ function matchesMerchantFilter(
   merchantQuery: string,
 ): boolean {
   const normalizedQuery = merchantQuery.trim().toLowerCase();
+  const merchantValues = [
+    transaction.merchant,
+    transaction.merchantRaw ?? transaction.merchant,
+  ].map((value) => value.toLowerCase());
 
   return (
     normalizedQuery.length === 0 ||
-    transaction.merchant.toLowerCase().includes(normalizedQuery)
+    merchantValues.some((value) => value.includes(normalizedQuery))
   );
 }
 
@@ -1529,6 +2210,7 @@ function matchesTimelineQuery(
 
   const searchHaystacks = [
     transaction.merchant,
+    transaction.merchantRaw ?? '',
     transaction.note ?? '',
     transaction.sourceApp,
     getTransactionStatusLabel(transaction.status),
@@ -1751,6 +2433,45 @@ function getTopMerchantLabel(merchantSpend: Map<string, number>): string {
   }
 
   return topMerchantLabel;
+}
+
+function resolveMerchantSuggestionKey(
+  merchant: string,
+  merchants: MerchantRecord[],
+  merchantAliases: MerchantAliasRecord[],
+  merchantId?: MerchantId | null,
+): { normalizedLabel: string } {
+  const normalizedMerchant = normalizeMerchantLabel(merchant);
+
+  if (normalizedMerchant.length === 0) {
+    return { normalizedLabel: '' };
+  }
+
+  const normalizedMerchants = normalizeMerchants(merchants);
+  const normalizedAliases = normalizeMerchantAliases(merchantAliases, normalizedMerchants);
+  const merchantById = new Map(normalizedMerchants.map((entry) => [entry.id, entry]));
+  const merchantByNormalizedLabel = new Map(
+    normalizedMerchants.map((entry) => [entry.normalizedLabel, entry]),
+  );
+  const aliasByNormalizedLabel = new Map(
+    normalizedAliases.map((entry) => [entry.normalizedAlias, entry]),
+  );
+
+  const directMerchant =
+    (merchantId ? merchantById.get(merchantId) : null) ??
+    (() => {
+      const aliasMatch = aliasByNormalizedLabel.get(normalizedMerchant);
+
+      if (aliasMatch) {
+        return merchantById.get(aliasMatch.merchantId) ?? null;
+      }
+
+      return merchantByNormalizedLabel.get(normalizedMerchant) ?? null;
+    })();
+
+  return {
+    normalizedLabel: directMerchant?.normalizedLabel ?? normalizedMerchant,
+  };
 }
 
 function appendTransactionHistoryEntry(

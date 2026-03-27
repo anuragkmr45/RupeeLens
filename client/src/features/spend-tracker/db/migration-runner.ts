@@ -2,6 +2,9 @@ import {
   CATEGORIES_LABEL_INDEX_SQL,
   CATEGORIES_TABLE_SQL,
   DEFAULT_CATEGORIES_SEED_SQL,
+  MERCHANT_ALIASES_MERCHANT_ID_INDEX_SQL,
+  MERCHANT_ALIASES_TABLE_SQL,
+  MERCHANTS_TABLE_SQL,
   MOBILE_MIGRATION_TABLE,
   MOBILE_MIGRATION_TABLE_SQL,
   SETTINGS_TABLE_SQL,
@@ -12,6 +15,7 @@ import {
   TRANSACTION_ITEMS_TABLE_SQL,
   TRANSACTIONS_TABLE_SQL,
   TRANSACTIONS_V2_REBUILD_SQL,
+  TRANSACTIONS_V3_ADD_MERCHANT_RAW_SQL,
   mobileMigrations,
 } from './migrations';
 
@@ -82,7 +86,7 @@ async function adoptLegacySchema(
       SELECT name, sql
       FROM sqlite_master
       WHERE type = 'table'
-        AND name IN ('categories', 'settings', 'transactions', 'transaction_items')
+        AND name IN ('categories', 'merchant_aliases', 'merchants', 'settings', 'transactions', 'transaction_items')
       ORDER BY name ASC
     `,
   );
@@ -93,6 +97,8 @@ async function adoptLegacySchema(
 
   const transactionsTableSql =
     existingTables.find((table) => table.name === 'transactions')?.sql ?? null;
+  const needsMerchantRawUpgrade =
+    !transactionsTableSql || !transactionsTableSql.includes('merchant_raw TEXT');
 
   if (
     transactionsTableSql &&
@@ -115,7 +121,14 @@ async function adoptLegacySchema(
     ${CATEGORIES_TABLE_SQL}
     ${DEFAULT_CATEGORIES_SEED_SQL}
     ${CATEGORIES_LABEL_INDEX_SQL}
+    ${MERCHANTS_TABLE_SQL}
+    ${MERCHANT_ALIASES_TABLE_SQL}
+    ${MERCHANT_ALIASES_MERCHANT_ID_INDEX_SQL}
   `);
+
+  if (needsMerchantRawUpgrade) {
+    await database.execAsync(TRANSACTIONS_V3_ADD_MERCHANT_RAW_SQL);
+  }
 
   for (const migration of mobileMigrations) {
     await recordMobileMigration(database, migration.id, now);
