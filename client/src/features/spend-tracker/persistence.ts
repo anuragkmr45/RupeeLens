@@ -491,5 +491,10 @@ function isCategoryId(value: unknown): value is CategoryId {
 function isTransactionStatus(
   value: unknown,
 ): value is Transaction['status'] {
-  return value === 'classified' || value === 'skipped' || value === 'uncategorized';
+  return (
+    value === 'classified' ||
+    value === 'partially_classified' ||
+    value === 'skipped' ||
+    value === 'uncategorized'
+  );
 }

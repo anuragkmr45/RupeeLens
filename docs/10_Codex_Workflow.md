@@ -127,10 +127,11 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `CAP-004 — Create native capture database and repository layer`
+- `UX-006 — Build timeline, transaction detail, and search/filter views`
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `CAP-003` remains blocked only on prior connected-device closeout work, but `CAP-004` is now the active closeout candidate because its repo-side implementation landed in code.
-- `CAP-004` now has a Room-backed repository plus validation coverage in repo truth, but it is still blocked from completion until a device or emulator is attached and `./gradlew :app:connectedDebugAndroidTest` can execute.
+- `CAP-003` and `CAP-004` both remain blocked on connected-Android validation while `adb devices` is empty, so they are no longer the default repo-side choice in the current environment.
+- `UX-005` now has its repo-side split implementation and validation, but it stays `in_progress` only because external QA/design acceptance has not happened yet.
+- `UX-006` is now the earliest actionable `todo` ticket with satisfied dependencies and no current environment blocker.

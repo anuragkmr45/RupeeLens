@@ -25,9 +25,12 @@ import {
 } from '@upi-spend-tracker/mobile-ui';
 
 import {
+  appendSplitDraftRow,
   buildClassificationDraft,
+  buildSplitDraft,
   categoryOptions,
   classifyTransaction,
+  createSplitDraftRow,
   getClassificationSuggestions,
   createManualTransaction,
   DEFAULT_INBOX_FILTERS,
@@ -39,11 +42,17 @@ import {
   getPendingTransactions,
   getTransactionById,
   isClassificationReady,
+  isSplitDraftReady,
+  moveSplitDraftRow,
   parseCurrencyInputToMinor,
+  removeSplitDraftRow,
   restoreSkippedTransaction,
   seededTransactions,
   skipTransaction,
+  splitTransaction,
+  SPLIT_REMAINDER_OPTIONS,
   sortTransactionsByCapturedAtDesc,
+  summarizeSplitDraft,
   summarizeDashboard,
   type CategoryId,
   type ClassificationDraft,
@@ -51,6 +60,8 @@ import {
   type DashboardSummary,
   type InboxFilters,
   type InboxReviewItem,
+  type SplitDraft,
+  type SplitRemainderDisposition,
   type Transaction,
 } from '../features/spend-tracker/domain';
 import {
@@ -87,13 +98,27 @@ import { APP_COPY } from '../lib/app-info';
 import { colors } from '../theme/colors';
 import { DesignSystemShowcaseScreen } from './DesignSystemShowcaseScreen';
 
-type Screen = 'classify' | 'home' | 'inbox' | 'manual' | 'onboarding' | 'showcase';
+type Screen =
+  | 'classify'
+  | 'home'
+  | 'inbox'
+  | 'manual'
+  | 'onboarding'
+  | 'showcase'
+  | 'split';
 type TabScreen = 'home' | 'inbox';
+type SplitReturnScreen = 'classify' | 'inbox';
 
 const EMPTY_DRAFT: ClassificationDraft = {
   categoryId: null,
   itemLabel: '',
   saveAsRule: false,
+};
+
+const EMPTY_SPLIT_DRAFT: SplitDraft = {
+  remainderCategoryId: null,
+  remainderDisposition: 'leave_unresolved',
+  rows: [createSplitDraftRow({ rowId: 'split_empty_row_1' })],
 };
 
 interface ManualEntryDraft {
@@ -173,10 +198,13 @@ export function SpendTrackerApp() {
   const [transactions, setTransactions] = useState<Transaction[]>(seededTransactions);
   const [activeTransactionId, setActiveTransactionId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ClassificationDraft>(EMPTY_DRAFT);
+  const [splitDraft, setSplitDraft] = useState<SplitDraft>(EMPTY_SPLIT_DRAFT);
   const [manualDraft, setManualDraft] =
     useState<ManualEntryDraft>(EMPTY_MANUAL_ENTRY_DRAFT);
   const [inboxFilters, setInboxFilters] = useState<InboxFilters>(DEFAULT_INBOX_FILTERS);
   const [manualReturnScreen, setManualReturnScreen] = useState<TabScreen>('home');
+  const [splitReturnScreen, setSplitReturnScreen] =
+    useState<SplitReturnScreen>('inbox');
   const [captureDiagnostics, setCaptureDiagnostics] = useState<NativeCaptureDiagnostics>(
     DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS,
   );
@@ -201,6 +229,9 @@ export function SpendTrackerApp() {
   const activeTransactionSuggestions = activeTransaction
     ? getClassificationSuggestions(transactions, activeTransaction.merchant, activeTransaction.id)
     : [];
+  const splitSummary = activeTransaction
+    ? summarizeSplitDraft(activeTransaction.amountMinor, splitDraft)
+    : null;
   const manualEntrySuggestions = getClassificationSuggestions(
     transactions,
     manualDraft.merchant,
@@ -403,6 +434,15 @@ export function SpendTrackerApp() {
     setCaptureDiagnostics(await getNativeCaptureDiagnostics());
   }
 
+  function getPostReviewScreen(nextTransactions: Transaction[]): TabScreen {
+    return getInboxReviewTransactions(nextTransactions, {
+      ...DEFAULT_INBOX_FILTERS,
+      statusFilter: 'all',
+    }).length > 0
+      ? 'inbox'
+      : 'home';
+  }
+
   function handleStartClassification(transactionId: string) {
     const transaction = getTransactionById(transactions, transactionId);
 
@@ -412,6 +452,7 @@ export function SpendTrackerApp() {
 
     setActiveTransactionId(transaction.id);
     setDraft(buildClassificationDraft(transaction));
+    setSplitDraft(EMPTY_SPLIT_DRAFT);
     setScreen('classify');
   }
 
@@ -425,19 +466,14 @@ export function SpendTrackerApp() {
     setTransactions(nextTransactions);
     setActiveTransactionId(null);
     setDraft({ ...EMPTY_DRAFT });
-    setScreen(
-      getInboxReviewTransactions(nextTransactions, {
-        ...DEFAULT_INBOX_FILTERS,
-        statusFilter: 'all',
-      }).length > 0
-        ? 'inbox'
-        : 'home',
-    );
+    setSplitDraft(EMPTY_SPLIT_DRAFT);
+    setScreen(getPostReviewScreen(nextTransactions));
   }
 
   function handleCancelClassification() {
     setActiveTransactionId(null);
     setDraft({ ...EMPTY_DRAFT });
+    setSplitDraft(EMPTY_SPLIT_DRAFT);
     setScreen('inbox');
   }
 
@@ -466,6 +502,7 @@ export function SpendTrackerApp() {
     );
     setActiveTransactionId(null);
     setDraft({ ...EMPTY_DRAFT });
+    setSplitDraft(EMPTY_SPLIT_DRAFT);
     setScreen('inbox');
   }
 
@@ -489,11 +526,108 @@ export function SpendTrackerApp() {
     );
   }
 
-  function handleOpenSplitPlaceholder() {
-    Alert.alert(
-      'Split comes next',
-      'Split-items remains a separate follow-up ticket. This pass only prepares the faster quick-classify flow.',
-    );
+  function handleStartSplit(
+    transactionId: string,
+    returnScreen: SplitReturnScreen,
+    classificationSeed?: Pick<ClassificationDraft, 'categoryId' | 'itemLabel'> | null,
+  ) {
+    const transaction = getTransactionById(transactions, transactionId);
+
+    if (!transaction) {
+      return;
+    }
+
+    setActiveTransactionId(transaction.id);
+    setSplitReturnScreen(returnScreen);
+    setSplitDraft(buildSplitDraft(transaction, classificationSeed));
+    setScreen('split');
+  }
+
+  function handleOpenSplitFromClassification() {
+    if (!activeTransactionId) {
+      return;
+    }
+
+    handleStartSplit(activeTransactionId, 'classify', draft);
+  }
+
+  function handleOpenSplitFromInbox(transactionId: string) {
+    handleStartSplit(transactionId, 'inbox');
+  }
+
+  function handleUpdateSplitRow(
+    rowId: string,
+    nextRowPatch: Partial<SplitDraft['rows'][number]>,
+  ) {
+    setSplitDraft((currentDraft) => ({
+      ...currentDraft,
+      rows: currentDraft.rows.map((row) =>
+        row.id === rowId ? { ...row, ...nextRowPatch } : row,
+      ),
+    }));
+  }
+
+  function handleAddSplitRow() {
+    setSplitDraft((currentDraft) => appendSplitDraftRow(currentDraft));
+  }
+
+  function handleRemoveSplitRow(rowId: string) {
+    setSplitDraft((currentDraft) => removeSplitDraftRow(currentDraft, rowId));
+  }
+
+  function handleMoveSplitRow(rowId: string, direction: 'down' | 'up') {
+    setSplitDraft((currentDraft) => moveSplitDraftRow(currentDraft, rowId, direction));
+  }
+
+  function handleSelectRemainderDisposition(
+    remainderDisposition: SplitRemainderDisposition,
+  ) {
+    setSplitDraft((currentDraft) => ({
+      ...currentDraft,
+      remainderCategoryId:
+        remainderDisposition === 'leave_unresolved'
+          ? null
+          : currentDraft.remainderCategoryId,
+      remainderDisposition,
+    }));
+  }
+
+  function handleSelectRemainderCategory(categoryId: CategoryId) {
+    setSplitDraft((currentDraft) => ({
+      ...currentDraft,
+      remainderCategoryId: categoryId,
+    }));
+  }
+
+  function handleCancelSplit() {
+    setSplitDraft(EMPTY_SPLIT_DRAFT);
+
+    if (splitReturnScreen === 'classify' && activeTransactionId) {
+      setScreen('classify');
+      return;
+    }
+
+    setActiveTransactionId(null);
+    setDraft({ ...EMPTY_DRAFT });
+    setScreen('inbox');
+  }
+
+  function handleSaveSplit() {
+    if (!activeTransactionId || !activeTransaction) {
+      return;
+    }
+
+    if (!isSplitDraftReady(activeTransaction.amountMinor, splitDraft)) {
+      return;
+    }
+
+    const nextTransactions = splitTransaction(transactions, activeTransactionId, splitDraft);
+
+    setTransactions(nextTransactions);
+    setActiveTransactionId(null);
+    setDraft({ ...EMPTY_DRAFT });
+    setSplitDraft(EMPTY_SPLIT_DRAFT);
+    setScreen(getPostReviewScreen(nextTransactions));
   }
 
   function handleToggleSourceAppSelection(sourceAppId: SupportedSourceAppId) {
@@ -618,6 +752,7 @@ export function SpendTrackerApp() {
   async function handleResetDemoData() {
     setActiveTransactionId(null);
     setDraft({ ...EMPTY_DRAFT });
+    setSplitDraft(EMPTY_SPLIT_DRAFT);
     setInboxFilters({ ...DEFAULT_INBOX_FILTERS });
     setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
     setOnboardingPreferences(DEFAULT_ONBOARDING_PREFERENCES);
@@ -673,6 +808,7 @@ export function SpendTrackerApp() {
             onSelectTab={(nextScreen) => setScreen(nextScreen)}
             onSkipTransaction={handleSkipInboxTransaction}
             onStartClassification={handleStartClassification}
+            onStartSplit={handleOpenSplitFromInbox}
             onUpdateFilters={handleUpdateInboxFilters}
           />
         ) : !isHydrating && screen === 'classify' && activeTransaction ? (
@@ -683,7 +819,7 @@ export function SpendTrackerApp() {
             onChangeItemLabel={(itemLabel) =>
               setDraft((currentDraft) => ({ ...currentDraft, itemLabel }))
             }
-            onOpenSplitPlaceholder={handleOpenSplitPlaceholder}
+            onOpenSplit={handleOpenSplitFromClassification}
             onSave={handleSaveClassification}
             onSelectCategory={(categoryId) =>
               setDraft((currentDraft) => ({ ...currentDraft, categoryId }))
@@ -691,6 +827,20 @@ export function SpendTrackerApp() {
             onSkip={handleSkipFromClassification}
             onToggleSaveAsRule={handleToggleSaveAsRule}
             suggestions={activeTransactionSuggestions}
+            transaction={activeTransaction}
+          />
+        ) : !isHydrating && screen === 'split' && activeTransaction && splitSummary ? (
+          <SplitItemsScreen
+            onAddRow={handleAddSplitRow}
+            onCancel={handleCancelSplit}
+            onMoveRow={handleMoveSplitRow}
+            onRemoveRow={handleRemoveSplitRow}
+            onSave={handleSaveSplit}
+            onSelectRemainderCategory={handleSelectRemainderCategory}
+            onSelectRemainderDisposition={handleSelectRemainderDisposition}
+            onUpdateRow={handleUpdateSplitRow}
+            splitDraft={splitDraft}
+            splitSummary={splitSummary}
             transaction={activeTransaction}
           />
         ) : (
@@ -1444,6 +1594,7 @@ function InboxScreen({
   onSelectTab,
   onSkipTransaction,
   onStartClassification,
+  onStartSplit,
   onUpdateFilters,
 }: {
   allReviewCount: number;
@@ -1459,11 +1610,14 @@ function InboxScreen({
   onSelectTab: (screen: TabScreen) => void;
   onSkipTransaction: (transactionId: string) => void;
   onStartClassification: (transactionId: string) => void;
+  onStartSplit: (transactionId: string) => void;
   onUpdateFilters: (nextFilters: Partial<InboxFilters>) => void;
 }) {
   const statusHeadline =
     filteredReviewTransactions.length > 0
-      ? filters.statusFilter === 'skipped'
+      ? filters.statusFilter === 'partially_classified'
+        ? 'Continue split items'
+        : filters.statusFilter === 'skipped'
         ? 'Revisit what you skipped'
         : 'Inbox for unresolved spend'
       : allReviewCount > 0 && hasActiveFilters
@@ -1471,7 +1625,9 @@ function InboxScreen({
         : 'Inbox is empty';
   const statusBody =
     filteredReviewTransactions.length > 0
-      ? 'Use filters to narrow the queue, skip noisy items for later, or classify directly into the local dashboard.'
+      ? filters.statusFilter === 'partially_classified'
+        ? 'These payments already have some saved rows. Finish the split or leave the remainder unresolved so they stay visible until review is complete.'
+        : 'Use filters to narrow the queue, split multi-part spends, skip noisy items for later, or classify directly into the local dashboard.'
       : allReviewCount > 0 && hasActiveFilters
         ? 'Clear or relax the active filters to bring hidden review items back into view.'
         : 'The current session has no unresolved local transactions left. Future captured payments will show up here, while manual spends save directly as classified records.';
@@ -1520,7 +1676,7 @@ function InboxScreen({
                 Showing {filteredReviewTransactions.length} of {allReviewCount} unresolved items
               </Text>
               <Text style={styles.helperCopy}>
-                Split flows, conflict handling, and rule creation remain later-ticket work.
+                Partially classified transactions stay in this queue until their remainder is resolved.
               </Text>
             </View>
             <View style={styles.actionRow}>
@@ -1553,6 +1709,11 @@ function InboxScreen({
                     isActive={filters.statusFilter === 'needs_review'}
                     label="Needs review"
                     onPress={() => onUpdateFilters({ statusFilter: 'needs_review' })}
+                  />
+                  <CategoryChip
+                    isActive={filters.statusFilter === 'partially_classified'}
+                    label="Partially split"
+                    onPress={() => onUpdateFilters({ statusFilter: 'partially_classified' })}
                   />
                   <CategoryChip
                     isActive={filters.statusFilter === 'skipped'}
@@ -1653,6 +1814,7 @@ function InboxScreen({
           onRestore={() => onRestoreTransaction(item.transaction.id)}
           onSkip={() => onSkipTransaction(item.transaction.id)}
           onStartClassification={onStartClassification}
+          onStartSplit={onStartSplit}
           reviewItem={item}
         />
       )}
@@ -1668,7 +1830,7 @@ function ClassifyScreen({
   onApplySuggestion,
   onCancel,
   onChangeItemLabel,
-  onOpenSplitPlaceholder,
+  onOpenSplit,
   onSave,
   onSelectCategory,
   onSkip,
@@ -1680,7 +1842,7 @@ function ClassifyScreen({
   onApplySuggestion: (suggestion: ClassificationSuggestion) => void;
   onCancel: () => void;
   onChangeItemLabel: (itemLabel: string) => void;
-  onOpenSplitPlaceholder: () => void;
+  onOpenSplit: () => void;
   onSave: () => void;
   onSelectCategory: (categoryId: CategoryId) => void;
   onSkip: () => void;
@@ -1726,14 +1888,14 @@ function ClassifyScreen({
           <Text style={styles.cardTitle}>Save behavior</Text>
           <Text style={styles.bodyCopy}>
             Saving removes the payment from Inbox, recalculates Home immediately, and writes the
-            updated transaction back into local SQLite tables. Split remains a later follow-up
-            flow.
+            updated transaction back into local SQLite tables. Split opens a full-screen editor
+            when one payment needs to become multiple items first.
           </Text>
           <RuleIntentToggle isActive={draft.saveAsRule} onPress={onToggleSaveAsRule} />
           <View style={styles.actionRow}>
             <ActionButton label="Back to inbox" onPress={onCancel} tone="secondary" />
             <ActionButton label="Skip for now" onPress={onSkip} tone="secondary" />
-            <ActionButton label="Split later" onPress={onOpenSplitPlaceholder} tone="secondary" />
+            <ActionButton label="Split items" onPress={onOpenSplit} tone="secondary" />
             <ActionButton
               disabled={saveDisabled}
               label="Save classification"
@@ -1744,6 +1906,282 @@ function ClassifyScreen({
         </SectionCard>
       </ScrollView>
     </BottomSheet>
+  );
+}
+
+function SplitItemsScreen({
+  onAddRow,
+  onCancel,
+  onMoveRow,
+  onRemoveRow,
+  onSave,
+  onSelectRemainderCategory,
+  onSelectRemainderDisposition,
+  onUpdateRow,
+  splitDraft,
+  splitSummary,
+  transaction,
+}: {
+  onAddRow: () => void;
+  onCancel: () => void;
+  onMoveRow: (rowId: string, direction: 'down' | 'up') => void;
+  onRemoveRow: (rowId: string) => void;
+  onSave: () => void;
+  onSelectRemainderCategory: (categoryId: CategoryId) => void;
+  onSelectRemainderDisposition: (remainderDisposition: SplitRemainderDisposition) => void;
+  onUpdateRow: (
+    rowId: string,
+    nextRowPatch: Partial<SplitDraft['rows'][number]>,
+  ) => void;
+  splitDraft: SplitDraft;
+  splitSummary: ReturnType<typeof summarizeSplitDraft>;
+  transaction: Transaction;
+}) {
+  const saveDisabled = !isSplitDraftReady(transaction.amountMinor, splitDraft);
+  const hasRemainingAmount = splitSummary.remainingMinor > 0;
+  const hasOverAllocation = splitSummary.signedRemainingMinor < 0;
+  const requiresRemainderCategory =
+    hasRemainingAmount &&
+    splitDraft.remainderDisposition !== 'leave_unresolved' &&
+    !splitDraft.remainderCategoryId;
+  const saveLabel =
+    hasRemainingAmount && splitDraft.remainderDisposition === 'leave_unresolved'
+      ? 'Save partial split'
+      : 'Save split';
+
+  let summaryCopy =
+    'Saving writes these rows into the local transaction and updates Home immediately.';
+
+  if (hasOverAllocation) {
+    summaryCopy = `Reduce the rows by ${formatCurrency(
+      Math.abs(splitSummary.signedRemainingMinor),
+    )} before saving.`;
+  } else if (hasRemainingAmount && splitDraft.remainderDisposition === 'leave_unresolved') {
+    summaryCopy = `${formatCurrency(
+      splitSummary.remainingMinor,
+    )} will stay unresolved, so this payment remains visible in Inbox as partially classified.`;
+  } else if (hasRemainingAmount && requiresRemainderCategory) {
+    summaryCopy = 'Choose a category for the remainder before saving this split.';
+  } else if (hasRemainingAmount) {
+    summaryCopy = `${formatCurrency(
+      splitSummary.remainingMinor,
+    )} will be saved as ${getSplitRemainderLabel(
+      splitDraft.remainderDisposition,
+    ).toLowerCase()}.`;
+  } else if (splitSummary.readyRows.length > 0) {
+    summaryCopy = 'This payment is fully allocated and ready to leave the Inbox.';
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <SectionCard accentColor={colors.accentSoft}>
+        <Text style={styles.sectionEyebrow}>Split items</Text>
+        <Text style={styles.sectionTitle}>Break one payment into meaningful parts</Text>
+        <Text style={styles.bodyCopy}>
+          Use rows when one UPI payment maps to groceries plus fees, shared items, or any other
+          multi-part spend that should not stay as one flat label.
+        </Text>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.cardTitle}>{transaction.merchant}</Text>
+        <Text style={styles.amountLabel}>{formatCurrency(transaction.amountMinor)}</Text>
+        <Text style={styles.bodyCopy}>
+          {transaction.sourceApp} captured at {formatCaptureMoment(transaction.capturedAt)}
+        </Text>
+        {transaction.items.length > 0 ? (
+          <Text style={styles.helperCopy}>
+            Existing rows: {transaction.items.map((item) => item.label).join(', ')}
+          </Text>
+        ) : null}
+      </SectionCard>
+
+      <SectionCard accentColor={hasOverAllocation ? colors.panelWarm : colors.successSoft}>
+        <Text style={styles.cardTitle}>Running total</Text>
+        <View style={styles.metricGrid}>
+          <MetricCard
+            label="Allocated"
+            value={formatCurrency(splitSummary.allocatedMinor)}
+          />
+          <MetricCard
+            label={hasOverAllocation ? 'Over by' : 'Remaining'}
+            value={formatCurrency(
+              hasOverAllocation
+                ? Math.abs(splitSummary.signedRemainingMinor)
+                : splitSummary.remainingMinor,
+            )}
+          />
+        </View>
+        <Text style={styles.bodyCopy}>{summaryCopy}</Text>
+        {splitSummary.hasInvalidRows ? (
+          <Text style={styles.helperCopy}>
+            Rows only count after amount, item label, and category are all filled.
+          </Text>
+        ) : null}
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Split rows</Text>
+        <Text style={styles.bodyCopy}>
+          Add, reorder, or remove rows until the payment matches what actually happened.
+        </Text>
+        <View style={styles.splitRowStack}>
+          {splitDraft.rows.map((row, index) => (
+            <SplitRowCard
+              index={index}
+              key={row.id}
+              onMoveRow={onMoveRow}
+              onRemoveRow={onRemoveRow}
+              onUpdateRow={onUpdateRow}
+              row={row}
+              totalRows={splitDraft.rows.length}
+            />
+          ))}
+        </View>
+        <View style={styles.actionRow}>
+          <ActionButton label="Add another row" onPress={onAddRow} tone="secondary" />
+        </View>
+      </SectionCard>
+
+      {hasRemainingAmount ? (
+        <SectionCard accentColor={colors.panelWarm}>
+          <Text style={styles.cardTitle}>Remainder handling</Text>
+          <Text style={styles.bodyCopy}>
+            Decide whether the leftover {formatCurrency(splitSummary.remainingMinor)} should stay in
+            Inbox or be saved now as tip, tax, fees, or an unknown remainder.
+          </Text>
+          <View style={styles.categoryGrid}>
+            {SPLIT_REMAINDER_OPTIONS.map((option) => (
+              <CategoryChip
+                isActive={splitDraft.remainderDisposition === option.id}
+                key={option.id}
+                label={option.label}
+                onPress={() => onSelectRemainderDisposition(option.id)}
+              />
+            ))}
+          </View>
+
+          {splitDraft.remainderDisposition !== 'leave_unresolved' ? (
+            <View style={styles.fieldStack}>
+              <Text style={styles.fieldLabel}>Remainder category</Text>
+              <View style={styles.categoryGrid}>
+                {categoryOptions.map((category) => (
+                  <CategoryChip
+                    isActive={splitDraft.remainderCategoryId === category.id}
+                    key={category.id}
+                    label={category.label}
+                    onPress={() => onSelectRemainderCategory(category.id)}
+                  />
+                ))}
+              </View>
+              {requiresRemainderCategory ? (
+                <Text style={styles.helperCopy}>
+                  Pick a category so the explicit remainder can save with the rest of the split.
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+        </SectionCard>
+      ) : null}
+
+      <SectionCard accentColor={colors.successSoft}>
+        <Text style={styles.cardTitle}>Save split</Text>
+        <Text style={styles.bodyCopy}>
+          Full splits leave Inbox. Partial saves keep the transaction visible until the unresolved
+          remainder is reviewed later.
+        </Text>
+        <View style={styles.actionRow}>
+          <ActionButton label="Back" onPress={onCancel} tone="secondary" />
+          <ActionButton
+            disabled={saveDisabled}
+            label={saveLabel}
+            onPress={onSave}
+            tone="primary"
+          />
+        </View>
+      </SectionCard>
+    </ScrollView>
+  );
+}
+
+function SplitRowCard({
+  index,
+  onMoveRow,
+  onRemoveRow,
+  onUpdateRow,
+  row,
+  totalRows,
+}: {
+  index: number;
+  onMoveRow: (rowId: string, direction: 'down' | 'up') => void;
+  onRemoveRow: (rowId: string) => void;
+  onUpdateRow: (
+    rowId: string,
+    nextRowPatch: Partial<SplitDraft['rows'][number]>,
+  ) => void;
+  row: SplitDraft['rows'][number];
+  totalRows: number;
+}) {
+  return (
+    <View style={styles.splitRowCard}>
+      <View style={styles.splitRowHeader}>
+        <Text style={styles.fieldLabel}>Item {index + 1}</Text>
+        <Text style={styles.helperCopy}>
+          {row.categoryId ? getCategoryLabel(row.categoryId) : 'Category still needed'}
+        </Text>
+      </View>
+
+      <View style={styles.inputStack}>
+        <TextField
+          keyboardType="decimal-pad"
+          label="Amount"
+          onChangeText={(amountInput) => onUpdateRow(row.id, { amountInput })}
+          placeholder={`Amount for item ${index + 1}`}
+          value={row.amountInput}
+        />
+        <TextField
+          autoCapitalize="sentences"
+          label="Item label"
+          onChangeText={(itemLabel) => onUpdateRow(row.id, { itemLabel })}
+          placeholder={`What did item ${index + 1} cover?`}
+          value={row.itemLabel}
+        />
+      </View>
+
+      <View style={styles.fieldStack}>
+        <Text style={styles.fieldLabel}>Category</Text>
+        <View style={styles.categoryGrid}>
+          {categoryOptions.map((category) => (
+            <CategoryChip
+              isActive={row.categoryId === category.id}
+              key={category.id}
+              label={category.label}
+              onPress={() => onUpdateRow(row.id, { categoryId: category.id })}
+            />
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.actionRow}>
+        <ActionButton
+          disabled={index === 0}
+          label="Move up"
+          onPress={() => onMoveRow(row.id, 'up')}
+          tone="secondary"
+        />
+        <ActionButton
+          disabled={index === totalRows - 1}
+          label="Move down"
+          onPress={() => onMoveRow(row.id, 'down')}
+          tone="secondary"
+        />
+        <ActionButton
+          label={totalRows === 1 ? 'Clear row' : 'Remove row'}
+          onPress={() => onRemoveRow(row.id)}
+          tone="secondary"
+        />
+      </View>
+    </View>
   );
 }
 
@@ -2102,16 +2540,21 @@ function TransactionCard({
   onRestore,
   onSkip,
   onStartClassification,
+  onStartSplit,
   reviewItem,
 }: {
   onDelete: () => void;
   onRestore: () => void;
   onSkip: () => void;
   onStartClassification: (transactionId: string) => void;
+  onStartSplit: (transactionId: string) => void;
   reviewItem: InboxReviewItem;
 }) {
   const { reviewStatus, transaction } = reviewItem;
   const hasSavedItemPreview = transaction.items[0]?.label?.trim().length;
+  const unresolvedRemainderMinor =
+    transaction.amountMinor -
+    transaction.items.reduce((sum, item) => sum + item.amountMinor, 0);
 
   return (
     <ListItem
@@ -2120,14 +2563,24 @@ function TransactionCard({
       trailing={<Text style={styles.transactionAmount}>{formatCurrency(transaction.amountMinor)}</Text>}
     >
       <StatusChip
-        label={reviewStatus === 'skipped' ? 'Skipped' : 'Needs review'}
-        tone={reviewStatus === 'skipped' ? 'pending' : 'ready'}
+        label={
+          reviewStatus === 'skipped'
+            ? 'Skipped'
+            : reviewStatus === 'partially_classified'
+              ? 'Partially classified'
+              : 'Needs review'
+        }
+        tone={reviewStatus === 'uncategorized' ? 'ready' : 'pending'}
       />
 
       <Text style={styles.bodyCopy}>
         {reviewStatus === 'skipped'
           ? 'This payment was deferred locally. Move it back into needs review or classify it directly when you are ready.'
-          : 'No item or category has been saved for this payment yet. Classify it now, or skip it without losing the original capture.'}
+          : reviewStatus === 'partially_classified'
+            ? `${formatCurrency(
+                Math.max(unresolvedRemainderMinor, 0),
+              )} still needs a remainder decision. Continue the split or open classify to adjust the saved rows.`
+            : 'No item or category has been saved for this payment yet. Classify it now, split it into rows, or skip it without losing the original capture.'}
       </Text>
 
       {hasSavedItemPreview ? (
@@ -2135,26 +2588,57 @@ function TransactionCard({
       ) : null}
 
       <View style={styles.actionRow}>
-        <ActionButton
-          accessibilityLabel={`Classify ${transaction.merchant}`}
-          label="Classify"
-          onPress={() => onStartClassification(transaction.id)}
-          tone="primary"
-        />
         {reviewStatus === 'skipped' ? (
-          <ActionButton
-            accessibilityLabel={`Review ${transaction.merchant} again`}
-            label="Move to needs review"
-            onPress={onRestore}
-            tone="secondary"
-          />
+          <>
+            <ActionButton
+              accessibilityLabel={`Classify ${transaction.merchant}`}
+              label="Classify"
+              onPress={() => onStartClassification(transaction.id)}
+              tone="primary"
+            />
+            <ActionButton
+              accessibilityLabel={`Review ${transaction.merchant} again`}
+              label="Move to needs review"
+              onPress={onRestore}
+              tone="secondary"
+            />
+          </>
+        ) : reviewStatus === 'partially_classified' ? (
+          <>
+            <ActionButton
+              accessibilityLabel={`Continue split ${transaction.merchant}`}
+              label="Continue split"
+              onPress={() => onStartSplit(transaction.id)}
+              tone="primary"
+            />
+            <ActionButton
+              accessibilityLabel={`Classify ${transaction.merchant}`}
+              label="Open classify"
+              onPress={() => onStartClassification(transaction.id)}
+              tone="secondary"
+            />
+          </>
         ) : (
-          <ActionButton
-            accessibilityLabel={`Skip ${transaction.merchant} for now`}
-            label="Skip for now"
-            onPress={onSkip}
-            tone="secondary"
-          />
+          <>
+            <ActionButton
+              accessibilityLabel={`Classify ${transaction.merchant}`}
+              label="Classify"
+              onPress={() => onStartClassification(transaction.id)}
+              tone="primary"
+            />
+            <ActionButton
+              accessibilityLabel={`Split ${transaction.merchant} now`}
+              label="Split items"
+              onPress={() => onStartSplit(transaction.id)}
+              tone="secondary"
+            />
+            <ActionButton
+              accessibilityLabel={`Skip ${transaction.merchant} for now`}
+              label="Skip for now"
+              onPress={onSkip}
+              tone="secondary"
+            />
+          </>
         )}
         <ActionButton
           accessibilityLabel={`Delete ${transaction.merchant} locally`}
@@ -2221,6 +2705,15 @@ function getCategoryLabel(categoryId: CategoryId): string {
   return (
     categoryOptions.find((category) => category.id === categoryId)?.label ??
     'Needs category'
+  );
+}
+
+function getSplitRemainderLabel(
+  remainderDisposition: SplitRemainderDisposition,
+): string {
+  return (
+    SPLIT_REMAINDER_OPTIONS.find((option) => option.id === remainderDisposition)?.label ??
+    'Unknown'
   );
 }
 
@@ -2608,6 +3101,23 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     lineHeight: 34,
+  },
+  splitRowCard: {
+    backgroundColor: colors.panel,
+    borderColor: colors.edgeStrong,
+    borderRadius: 24,
+    borderWidth: 1,
+    gap: 14,
+    padding: 16,
+  },
+  splitRowHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  splitRowStack: {
+    gap: 16,
   },
   stack: {
     gap: 16,

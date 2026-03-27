@@ -311,12 +311,12 @@
       ],
       "tests": "Manual notification action tests on supported Android versions; instrumented receiver tests.",
       "done": "One-tap classification path works end to end.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-27",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "CAP-004 remains blocked on 2026-03-27 because `adb devices` is empty, so this run moved to UX-005 as the next actionable canonical ticket. Scope is limited to a full-screen split-items flow, remainder handling, and local persistence/UI updates needed to keep partially classified transactions visible in Inbox."
     },
     {
       "id": "CAP-006",
@@ -336,12 +336,12 @@
       ],
       "tests": "Launch app after multiple native captures; verify no duplicate imports.",
       "done": "Native-to-JS bridge documented and reliable.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-27",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: the client now has a full-screen split-items flow with dynamic rows, local reorder/remove/add controls, running allocated-vs-remaining totals, explicit remainder handling, and Inbox visibility for partially classified transactions. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27. Status stays `in_progress` because the backlog done-when still requires external QA/design acceptance, which was not performed in this environment."
     },
     {
       "id": "CAP-007",

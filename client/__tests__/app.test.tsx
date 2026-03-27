@@ -842,6 +842,47 @@ describe('App', () => {
     );
   });
 
+  it('saves a partial split and keeps the transaction visible in Inbox', async () => {
+    const screen = render(<App />);
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+    fireEvent.press(screen.getByRole('button', { name: 'Inbox' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Split Blue Tokai Roasters now' }));
+
+    expect(await screen.findByText('Break one payment into meaningful parts')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Amount for item 1'), '120');
+    fireEvent.changeText(screen.getByPlaceholderText('What did item 1 cover?'), 'Cold brew');
+    fireEvent.press(screen.getByRole('button', { name: 'Food & Drink' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Save partial split' }));
+
+    expect(await screen.findByText('Blue Tokai Roasters')).toBeTruthy();
+    expect(screen.getByText('Partially classified')).toBeTruthy();
+    expect(
+      screen.getByText(/still needs a remainder decision/),
+    ).toBeTruthy();
+
+    await waitFor(() =>
+      expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          transactions: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'txn_blue_tokai',
+              items: [
+                expect.objectContaining({
+                  amountMinor: 12000,
+                  categoryId: 'food_drink',
+                  label: 'Cold brew',
+                }),
+              ],
+              status: 'partially_classified',
+            }),
+          ]),
+        }),
+      ),
+    );
+  });
+
   it('adds a manual spend and persists the updated session', async () => {
     const screen = render(<App />);
 

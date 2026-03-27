@@ -34,6 +34,40 @@ export interface ClassificationDraft {
   saveAsRule: boolean;
 }
 
+export interface SplitDraftRow {
+  amountInput: string;
+  categoryId: CategoryId | null;
+  id: string;
+  itemLabel: string;
+}
+
+export type SplitRemainderDisposition =
+  | 'leave_unresolved'
+  | 'fees'
+  | 'tax'
+  | 'tip'
+  | 'unknown';
+
+export interface SplitDraft {
+  remainderCategoryId: CategoryId | null;
+  remainderDisposition: SplitRemainderDisposition;
+  rows: SplitDraftRow[];
+}
+
+export interface SplitDraftSummary {
+  allocatedMinor: number;
+  hasInvalidRows: boolean;
+  hasOverAllocation: boolean;
+  readyRows: Array<{
+    amountMinor: number;
+    categoryId: CategoryId;
+    id: string;
+    itemLabel: string;
+  }>;
+  remainingMinor: number;
+  signedRemainingMinor: number;
+}
+
 export interface ManualEntryInput {
   amountMinor: number;
   capturedAt?: string;
@@ -57,9 +91,17 @@ export interface DashboardSummary {
   totalSpendMinor: number;
 }
 
-export type TransactionStatus = 'classified' | 'skipped' | 'uncategorized';
+export type TransactionStatus =
+  | 'classified'
+  | 'partially_classified'
+  | 'skipped'
+  | 'uncategorized';
 
-export type InboxStatusFilter = 'all' | 'needs_review' | 'skipped';
+export type InboxStatusFilter =
+  | 'all'
+  | 'needs_review'
+  | 'partially_classified'
+  | 'skipped';
 export type InboxAmountFilter = 'all' | 'under_250' | 'between_250_and_500' | 'over_500';
 export type InboxAgeFilter = 'all' | 'today' | 'last_3_days' | 'older';
 
@@ -72,7 +114,7 @@ export interface InboxFilters {
 }
 
 export interface InboxReviewItem {
-  reviewStatus: Extract<TransactionStatus, 'skipped' | 'uncategorized'>;
+  reviewStatus: Exclude<TransactionStatus, 'classified'>;
   transaction: Transaction;
 }
 
@@ -106,6 +148,17 @@ export const DEFAULT_INBOX_FILTERS: InboxFilters = {
   sourceApp: 'all',
   statusFilter: 'needs_review',
 };
+
+export const SPLIT_REMAINDER_OPTIONS: Array<{
+  id: SplitRemainderDisposition;
+  label: string;
+}> = [
+  { id: 'leave_unresolved', label: 'Leave in Inbox' },
+  { id: 'tip', label: 'Tip' },
+  { id: 'tax', label: 'Tax' },
+  { id: 'fees', label: 'Fees' },
+  { id: 'unknown', label: 'Unknown' },
+];
 
 export const categoryOptions: CategoryOption[] = [
   {
@@ -216,6 +269,34 @@ export function buildClassificationDraft(
   };
 }
 
+export function buildSplitDraft(
+  transaction: Transaction,
+  classificationDraft?: Pick<ClassificationDraft, 'categoryId' | 'itemLabel'> | null,
+): SplitDraft {
+  const seededRows =
+    transaction.items.length > 0
+      ? transaction.items.map((item, index) => ({
+          amountInput: formatMinorForInput(item.amountMinor),
+          categoryId: item.categoryId,
+          id: item.id || `${transaction.id}_split_${index + 1}`,
+          itemLabel: item.label,
+        }))
+      : [
+          createSplitDraftRow({
+            amountMinor: transaction.amountMinor,
+            categoryId: classificationDraft?.categoryId ?? null,
+            itemLabel: classificationDraft?.itemLabel ?? '',
+            rowId: `${transaction.id}_split_1`,
+          }),
+        ];
+
+  return {
+    remainderCategoryId: null,
+    remainderDisposition: 'leave_unresolved',
+    rows: seededRows,
+  };
+}
+
 export function formatCaptureMoment(capturedAt: string): string {
   const capturedDate = new Date(capturedAt);
   const month = MONTH_LABELS[capturedDate.getMonth()] ?? 'Date';
@@ -281,6 +362,195 @@ export function createManualTransaction({
   };
 }
 
+export function createSplitDraftRow({
+  amountMinor,
+  categoryId = null,
+  itemLabel = '',
+  rowId = `split_row_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+}: {
+  amountMinor?: number;
+  categoryId?: CategoryId | null;
+  itemLabel?: string;
+  rowId?: string;
+} = {}): SplitDraftRow {
+  return {
+    amountInput:
+      typeof amountMinor === 'number' && amountMinor > 0 ? formatMinorForInput(amountMinor) : '',
+    categoryId,
+    id: rowId,
+    itemLabel,
+  };
+}
+
+export function appendSplitDraftRow(splitDraft: SplitDraft): SplitDraft {
+  return {
+    ...splitDraft,
+    rows: [...splitDraft.rows, createSplitDraftRow()],
+  };
+}
+
+export function removeSplitDraftRow(
+  splitDraft: SplitDraft,
+  rowId: string,
+): SplitDraft {
+  const remainingRows = splitDraft.rows.filter((row) => row.id !== rowId);
+
+  return {
+    ...splitDraft,
+    rows: remainingRows.length > 0 ? remainingRows : [createSplitDraftRow()],
+  };
+}
+
+export function moveSplitDraftRow(
+  splitDraft: SplitDraft,
+  rowId: string,
+  direction: 'down' | 'up',
+): SplitDraft {
+  const currentIndex = splitDraft.rows.findIndex((row) => row.id === rowId);
+
+  if (currentIndex === -1) {
+    return splitDraft;
+  }
+
+  const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+  if (targetIndex < 0 || targetIndex >= splitDraft.rows.length) {
+    return splitDraft;
+  }
+
+  const nextRows = [...splitDraft.rows];
+  const [movedRow] = nextRows.splice(currentIndex, 1);
+
+  if (!movedRow) {
+    return splitDraft;
+  }
+
+  nextRows.splice(targetIndex, 0, movedRow);
+
+  return {
+    ...splitDraft,
+    rows: nextRows,
+  };
+}
+
+export function summarizeSplitDraft(
+  totalAmountMinor: number,
+  splitDraft: SplitDraft,
+): SplitDraftSummary {
+  let allocatedMinor = 0;
+  let hasInvalidRows = false;
+  const readyRows: SplitDraftSummary['readyRows'] = [];
+
+  for (const row of splitDraft.rows) {
+    const amountMinor = parseCurrencyInputToMinor(row.amountInput);
+    const itemLabel = row.itemLabel.trim();
+    const hasAnyContent =
+      row.amountInput.trim().length > 0 ||
+      itemLabel.length > 0 ||
+      row.categoryId !== null;
+
+    if (!hasAnyContent) {
+      continue;
+    }
+
+    if (!row.categoryId || amountMinor === null || amountMinor <= 0 || itemLabel.length === 0) {
+      hasInvalidRows = true;
+      continue;
+    }
+
+    allocatedMinor += amountMinor;
+    readyRows.push({
+      amountMinor,
+      categoryId: row.categoryId,
+      id: row.id,
+      itemLabel,
+    });
+  }
+
+  const signedRemainingMinor = totalAmountMinor - allocatedMinor;
+
+  return {
+    allocatedMinor,
+    hasInvalidRows,
+    hasOverAllocation: signedRemainingMinor < 0,
+    readyRows,
+    remainingMinor: Math.max(signedRemainingMinor, 0),
+    signedRemainingMinor,
+  };
+}
+
+export function isSplitDraftReady(
+  totalAmountMinor: number,
+  splitDraft: SplitDraft,
+): boolean {
+  const summary = summarizeSplitDraft(totalAmountMinor, splitDraft);
+
+  if (
+    summary.readyRows.length === 0 ||
+    summary.hasInvalidRows ||
+    summary.hasOverAllocation
+  ) {
+    return false;
+  }
+
+  if (summary.remainingMinor === 0) {
+    return true;
+  }
+
+  if (splitDraft.remainderDisposition === 'leave_unresolved') {
+    return true;
+  }
+
+  return splitDraft.remainderCategoryId !== null;
+}
+
+export function splitTransaction(
+  transactions: Transaction[],
+  transactionId: string,
+  splitDraft: SplitDraft,
+): Transaction[] {
+  return transactions.map((transaction) => {
+    if (transaction.id !== transactionId) {
+      return transaction;
+    }
+
+    if (!isSplitDraftReady(transaction.amountMinor, splitDraft)) {
+      return transaction;
+    }
+
+    const summary = summarizeSplitDraft(transaction.amountMinor, splitDraft);
+    const nextItems = summary.readyRows.map((row, index) => ({
+      amountMinor: row.amountMinor,
+      categoryId: row.categoryId,
+      id: `${transaction.id}_item_${index + 1}`,
+      label: row.itemLabel,
+    }));
+
+    if (
+      summary.remainingMinor > 0 &&
+      splitDraft.remainderDisposition !== 'leave_unresolved' &&
+      splitDraft.remainderCategoryId
+    ) {
+      nextItems.push({
+        amountMinor: summary.remainingMinor,
+        categoryId: splitDraft.remainderCategoryId,
+        id: `${transaction.id}_item_${nextItems.length + 1}`,
+        label: getRemainderLabel(splitDraft.remainderDisposition),
+      });
+    }
+
+    return {
+      ...transaction,
+      items: nextItems,
+      status:
+        summary.remainingMinor > 0 &&
+        splitDraft.remainderDisposition === 'leave_unresolved'
+          ? 'partially_classified'
+          : 'classified',
+    };
+  });
+}
+
 export function sortTransactionsByCapturedAtDesc(
   transactions: Transaction[],
 ): Transaction[] {
@@ -294,7 +564,11 @@ export function getPendingTransactions(
   transactions: Transaction[],
 ): Transaction[] {
   return sortTransactionsByCapturedAtDesc(transactions)
-    .filter((transaction) => transaction.status === 'uncategorized');
+    .filter(
+      (transaction) =>
+        transaction.status === 'uncategorized' ||
+        transaction.status === 'partially_classified',
+    );
 }
 
 export function getInboxReviewTransactions(
@@ -310,7 +584,12 @@ export function getInboxReviewTransactions(
     .filter((transaction) => matchesAmountFilter(transaction, filters.amountFilter))
     .filter((transaction) => matchesAgeFilter(transaction, filters.ageFilter, now))
     .map((transaction) => ({
-      reviewStatus: transaction.status === 'skipped' ? 'skipped' : 'uncategorized',
+      reviewStatus:
+        transaction.status === 'skipped'
+          ? 'skipped'
+          : transaction.status === 'partially_classified'
+            ? 'partially_classified'
+            : 'uncategorized',
       transaction,
     }));
 }
@@ -467,9 +746,14 @@ export function summarizeDashboard(
       (merchantSpend.get(transaction.merchant) ?? 0) + transaction.amountMinor,
     );
 
-    if (transaction.status === 'uncategorized') {
+    if (
+      transaction.status === 'uncategorized' ||
+      transaction.status === 'partially_classified'
+    ) {
       inboxCount += 1;
-      continue;
+      if (transaction.status === 'uncategorized') {
+        continue;
+      }
     }
 
     if (transaction.status === 'skipped') {
@@ -534,11 +818,18 @@ function matchesInboxStatusFilter(
   statusFilter: InboxStatusFilter,
 ): boolean {
   if (statusFilter === 'all') {
-    return transaction.status === 'uncategorized' || transaction.status === 'skipped';
+    return transaction.status !== 'classified';
   }
 
   if (statusFilter === 'needs_review') {
-    return transaction.status === 'uncategorized';
+    return (
+      transaction.status === 'uncategorized' ||
+      transaction.status === 'partially_classified'
+    );
+  }
+
+  if (statusFilter === 'partially_classified') {
+    return transaction.status === 'partially_classified';
   }
 
   return transaction.status === 'skipped';
@@ -713,6 +1004,31 @@ function updateTransactionStatus(
   return transactions.map((transaction) =>
     transaction.id === transactionId ? { ...transaction, status } : transaction,
   );
+}
+
+function formatMinorForInput(amountMinor: number): string {
+  const whole = Math.trunc(amountMinor / 100);
+  const fractional = Math.abs(amountMinor % 100);
+
+  return fractional === 0
+    ? `${whole}`
+    : `${whole}.${`${fractional}`.padStart(2, '0')}`;
+}
+
+function getRemainderLabel(
+  remainderDisposition: Exclude<SplitRemainderDisposition, 'leave_unresolved'>,
+): string {
+  switch (remainderDisposition) {
+    case 'tip':
+      return 'Tip';
+    case 'tax':
+      return 'Tax';
+    case 'fees':
+      return 'Fees';
+    case 'unknown':
+    default:
+      return 'Unknown remainder';
+  }
 }
 
 function getTopCategoryLabel(categorySpend: Map<CategoryId, number>): string {

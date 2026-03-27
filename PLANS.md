@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### UX-005 — Implement Split-Items Screen And Remainder Handling
+
+- **Status:** in_progress
+- **Ticket:** UX-005
+- **Goal:** Add a full-screen split flow for one payment to map to multiple items or categories, with running totals, remainder handling, and Inbox visibility for partially classified transactions.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/domain.ts`, `client/src/features/spend-tracker/persistence.ts`, and focused client tests only.
+- **Rationale:** `CAP-004` remains blocked on connected Android validation because `adb devices` is empty, so the workflow moves to the next actionable canonical ticket. `UX-005` is the earliest remaining `todo` ticket with satisfied dependencies, and the app already has a real split placeholder inside the quick-classify sheet.
+- **Risks:** Split-flow work touches the core local domain model, classify UX, and persistence. The pass must stay inside split rows, running totals, remainder assignment, partial-classification visibility, and local save behavior. It must not spill into timeline/search (`UX-006`), rule engine work, or native notification actions.
+- **API / schema impact:** No backend/API changes. Local spend-tracker persistence may need additive state to store partially classified split transactions and multiple ordered items safely.
+- **Rollout / flag plan:** No new flag. Keep the flow local-first and available from the existing classify/manual paths only.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus focused client tests for split totals, remainder edge cases, and Inbox visibility.
+- **Done when:** Users can add, edit, reorder, and delete split rows; the UI shows allocated vs remaining amount clearly; remainder can be saved as explicit tip/tax/fees/unknown or left unresolved; partially classified transactions remain visible in Inbox; and repo quality gates stay green.
+- **Outcome:** Added a full-screen split-items flow to the client with dynamic line-item rows, local add/remove/reorder controls, running allocated vs remaining totals, explicit remainder handling, and partial-save behavior that keeps transactions visible in Inbox as `partially_classified`. Updated the local domain helpers, persistence status validation, and client tests for split helpers plus the end-to-end partial-save flow. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed. The ticket stays `in_progress` rather than `done` because the backlog still requires external QA/design acceptance for final closeout, and that acceptance was not available in this environment.
+
 ### CAP-004 — Create Native Capture Database And Repository Layer
 
 - **Status:** blocked

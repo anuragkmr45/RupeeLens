@@ -252,6 +252,86 @@ describe('spend-tracker persistence', () => {
     expect(Storage.removeItem).toHaveBeenCalledWith('spend_tracker_demo_state_v1');
   });
 
+  it('preserves partially classified transactions from SQLite tables', async () => {
+    const database = createDatabaseMock();
+    const { openDatabaseAsync } = getExpoSqliteMock();
+
+    openDatabaseAsync.mockResolvedValue(database);
+    database.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM schema_migrations')) {
+        return { count: 4 };
+      }
+
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM transactions')) {
+        return { count: 1 };
+      }
+
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM settings')) {
+        return { count: 1 };
+      }
+
+      return null;
+    });
+    database.getAllAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, 'SELECT id FROM schema_migrations ORDER BY id ASC')) {
+        return [
+          { id: '001_create_settings_table' },
+          { id: '002_create_transactions_table' },
+          { id: '003_create_transaction_items_table' },
+          { id: '004_create_transaction_items_index' },
+        ];
+      }
+
+      if (includesSql(sql, 'SELECT key, value FROM settings')) {
+        return [{ key: 'onboarding_completed', value: 'true' }];
+      }
+
+      if (includesSql(sql, 'FROM transactions')) {
+        return [
+          {
+            amountMinor: 18000,
+            capturedAt: '2026-03-25T09:12:00+05:30',
+            id: 'txn_blue_tokai',
+            merchant: 'Blue Tokai Roasters',
+            sourceApp: 'Google Pay',
+            status: 'partially_classified',
+          },
+        ];
+      }
+
+      if (includesSql(sql, 'FROM transaction_items')) {
+        return [
+          {
+            amountMinor: 12000,
+            categoryId: 'food_drink',
+            id: 'txn_blue_tokai_item_1',
+            label: 'Cold brew',
+            sortOrder: 0,
+            transactionId: 'txn_blue_tokai',
+          },
+        ];
+      }
+
+      return [];
+    });
+
+    const { loadStoredSpendTrackerState } = loadPersistenceModule();
+    const state = await loadStoredSpendTrackerState();
+
+    expect(state?.transactions).toEqual([
+      expect.objectContaining({
+        id: 'txn_blue_tokai',
+        items: [
+          expect.objectContaining({
+            amountMinor: 12000,
+            label: 'Cold brew',
+          }),
+        ],
+        status: 'partially_classified',
+      }),
+    ]);
+  });
+
   it('rewrites settings, transactions, and items on save', async () => {
     const database = createDatabaseMock();
     const { openDatabaseAsync } = getExpoSqliteMock();
@@ -301,7 +381,7 @@ describe('spend-tracker persistence', () => {
           ],
           merchant: 'Corner Store',
           sourceApp: 'Manual entry',
-          status: 'skipped',
+          status: 'partially_classified',
         },
       ],
     });
@@ -332,7 +412,7 @@ describe('spend-tracker persistence', () => {
       '2026-03-25T10:00:00+05:30',
       'Corner Store',
       'Manual entry',
-      'skipped',
+      'partially_classified',
     );
     expect(database.runAsync).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO transaction_items'),

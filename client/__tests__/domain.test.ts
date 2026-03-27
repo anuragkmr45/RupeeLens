@@ -1,14 +1,22 @@
 import {
+  appendSplitDraftRow,
+  buildSplitDraft,
   classifyTransaction,
+  createSplitDraftRow,
   DEFAULT_INBOX_FILTERS,
   deleteTransaction,
   getClassificationSuggestions,
   getInboxReviewTransactions,
   getPendingTransactions,
   isClassificationReady,
+  isSplitDraftReady,
+  moveSplitDraftRow,
+  removeSplitDraftRow,
   restoreSkippedTransaction,
   seededTransactions,
   skipTransaction,
+  splitTransaction,
+  summarizeSplitDraft,
   summarizeDashboard,
   type Transaction,
 } from '../src/features/spend-tracker/domain';
@@ -240,5 +248,138 @@ describe('spend-tracker dashboard summary', () => {
         saveAsRule: true,
       }),
     ).toBe(true);
+  });
+
+  it('supports split-row helpers and keeps partially classified transactions in Inbox', () => {
+    const blueTokai = seededTransactions.find(
+      (transaction) => transaction.id === 'txn_blue_tokai',
+    );
+
+    expect(blueTokai).toBeDefined();
+
+    const initialDraft = buildSplitDraft(blueTokai!, {
+      categoryId: 'food_drink',
+      itemLabel: 'Cold brew',
+    });
+    const withSecondRow = appendSplitDraftRow(initialDraft);
+    const firstRow = withSecondRow.rows[0]!;
+    const reorderedDraft = moveSplitDraftRow(
+      {
+        ...withSecondRow,
+        rows: [
+          {
+            ...firstRow,
+            amountInput: '120',
+            categoryId: 'food_drink',
+            itemLabel: 'Cold brew',
+          },
+          {
+            ...createSplitDraftRow({
+              amountMinor: 60_00,
+              categoryId: 'shopping',
+              itemLabel: 'Beans',
+              rowId: 'split_row_2',
+            }),
+          },
+        ],
+      },
+      'split_row_2',
+      'up',
+    );
+    const trimmedDraft = removeSplitDraftRow(reorderedDraft, reorderedDraft.rows[1]!.id);
+    const splitSummary = summarizeSplitDraft(18_000, trimmedDraft);
+
+    expect(splitSummary.readyRows).toEqual([
+      expect.objectContaining({
+        amountMinor: 6_000,
+        categoryId: 'shopping',
+        itemLabel: 'Beans',
+      }),
+    ]);
+    expect(splitSummary.remainingMinor).toBe(12_000);
+    expect(isSplitDraftReady(18_000, trimmedDraft)).toBe(true);
+
+    const nextTransactions = splitTransaction(
+      seededTransactions,
+      'txn_blue_tokai',
+      trimmedDraft,
+    );
+
+    expect(
+      getInboxReviewTransactions(nextTransactions, {
+        ...DEFAULT_INBOX_FILTERS,
+        statusFilter: 'partially_classified',
+      }).map((item) => ({
+        id: item.transaction.id,
+        reviewStatus: item.reviewStatus,
+      })),
+    ).toEqual([
+      {
+        id: 'txn_blue_tokai',
+        reviewStatus: 'partially_classified',
+      },
+    ]);
+  });
+
+  it('rejects over-allocation and can save an explicit remainder', () => {
+    const overAllocatedDraft = {
+      remainderCategoryId: null,
+      remainderDisposition: 'leave_unresolved' as const,
+      rows: [
+        createSplitDraftRow({
+          amountMinor: 12_000,
+          categoryId: 'food_drink',
+          itemLabel: 'Coffee',
+          rowId: 'row_1',
+        }),
+        createSplitDraftRow({
+          amountMinor: 9_000,
+          categoryId: 'shopping',
+          itemLabel: 'Beans',
+          rowId: 'row_2',
+        }),
+      ],
+    };
+
+    expect(summarizeSplitDraft(18_000, overAllocatedDraft).hasOverAllocation).toBe(true);
+    expect(isSplitDraftReady(18_000, overAllocatedDraft)).toBe(false);
+
+    const explicitRemainderDraft = {
+      remainderCategoryId: 'food_drink' as const,
+      remainderDisposition: 'tip' as const,
+      rows: [
+        createSplitDraftRow({
+          amountMinor: 17_000,
+          categoryId: 'food_drink',
+          itemLabel: 'Dinner',
+          rowId: 'row_1',
+        }),
+      ],
+    };
+
+    const nextTransactions = splitTransaction(
+      seededTransactions,
+      'txn_blue_tokai',
+      explicitRemainderDraft,
+    );
+
+    expect(
+      nextTransactions.find((transaction) => transaction.id === 'txn_blue_tokai'),
+    ).toEqual(
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            amountMinor: 17_000,
+            label: 'Dinner',
+          }),
+          expect.objectContaining({
+            amountMinor: 1_000,
+            categoryId: 'food_drink',
+            label: 'Tip',
+          }),
+        ],
+        status: 'classified',
+      }),
+    );
   });
 });

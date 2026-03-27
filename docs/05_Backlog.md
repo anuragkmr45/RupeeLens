@@ -313,7 +313,7 @@ Capture DB stable and integrated into native services.
 - **Story points:** 8
 - **Goal:** Let users classify a spend in one interaction without opening the app.
 - **Dependencies:** CAP-004
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-27 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: `CAP-004` remains blocked on 2026-03-27 because `adb devices` is empty, so this run moved to UX-005 as the next actionable canonical ticket. Scope is limited to a full-screen split-items flow, remainder handling, and local persistence/UI updates needed to keep partially classified transactions visible in Inbox.
 
 **Description**  
 Post app-owned actionable notifications for new payments with inline text reply, open-app classify action, split action, and skip action. Respect lockscreen privacy settings.
@@ -502,7 +502,7 @@ Quick-classify flow ready for beta.
 - **Story points:** 8
 - **Goal:** Support one payment mapping to multiple items or categories.
 - **Dependencies:** UX-004
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-27 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the client now has a full-screen split-items flow with dynamic rows, local reorder/remove/add controls, running allocated-vs-remaining totals, explicit remainder handling, and Inbox visibility for partially classified transactions. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27. Status stays `in_progress` because the backlog done-when still requires external QA/design acceptance, which was not performed in this environment.
 
 **Description**  
 Allow users to create multiple line items per transaction, auto-sum totals, show remaining amount, and classify remainder as tip, tax, fees, or unknown.
