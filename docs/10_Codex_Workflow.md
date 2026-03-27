@@ -127,13 +127,14 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `INT-004 — Implement history-based suggestion ranker`
+- `INT-005 — Build budget engine with monthly, weekly, rolling, and custom cycles`
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `CAP-003` and `CAP-004` both remain blocked on connected-Android validation because the current environment still does not have a stable attached-device closeout path.
+- `CAP-003` and `CAP-004` both remain blocked on connected-Android validation because the connected device still rejects debug APK installation with `INSTALL_FAILED_USER_RESTRICTED`.
 - `UX-005` remains `in_progress`, but its remaining acceptance is external QA/design signoff rather than repo-side implementation.
 - `UX-007` is not yet actionable because it depends on `CAP-007`.
 - `INT-003` is now done with deterministic local rules, SQLite-backed rule persistence, explanation metadata, and explicit auto-apply only for user-approved matches in the client.
-- `INT-004` is now the earliest unblocked `todo` ticket with satisfied dependencies because it depends on `INT-003`, which is complete in repo truth.
+- `INT-004` is now done with a weighted local history ranker that aggregates repeated confirmations, uses recency and frequency, and exposes explainable suggestion factors without silently auto-applying heuristics.
+- `INT-005` is now the earliest unblocked `todo` ticket with satisfied dependencies because it depends on `INT-001` and `UX-002`, both of which are already complete in repo truth.

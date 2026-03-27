@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### INT-004 — Implement History-Based Suggestion Ranker
+
+- **Status:** completed
+- **Ticket:** INT-004
+- **Goal:** Replace the current single-transaction history matching with a weighted local history ranker that improves suggestions over time using merchant, amount bucket, hour bucket, weekday, recency, and frequency factors while keeping heuristic suggestions suggestion-only.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `client/src/features/spend-tracker/domain.ts`, focused client tests, and repo-truth docs only if ticket status changes.
+- **Rationale:** A fresh closeout probe still leaves `CAP-003` and `CAP-004` blocked on 2026-03-28 because `adb devices` shows a connected phone but `cd client/android && ./gradlew :app:connectedDebugAndroidTest` again failed to install `app-debug.apk` on `M2102J20SI - 13` with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`. `UX-005` still depends on external QA/design acceptance, and repo-truth audit found stale backlog drift for `INT-003` and `UX-005` that must be reconciled before starting the next ticket. `INT-004` is therefore the next actionable canonical ticket with satisfied dependencies.
+- **Risks:** Suggestion work can easily blur into explicit-rule behavior, merchant normalization, or persistence changes that do not belong to this ticket. This pass must stay inside weighted local history ranking, factor explanations, deterministic ordering, and tests proving improved ranking behavior without silently auto-applying heuristics.
+- **API / schema impact:** No backend/API changes expected. Local inference should remain computed from existing on-device transaction history unless a narrow additive local shape change is truly necessary.
+- **Rollout / flag plan:** No new rollout flag. Keep rules first, weighted history ranker second, and preserve the rule that heuristic/history suggestions never auto-save silently.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus focused client tests for weighted ranking behavior and factor explanations. Run `pnpm db:validate` only if implementation ends up changing local persistence or migrations.
+- **Done when:** History suggestions aggregate repeated confirmed classifications, use weighted merchant/amount/time/recency/frequency factors with explainable output, remain suggestion-only unless an explicit saved rule applies, and backlog tracking can move to `done` truthfully.
+- **Outcome:** Replaced the prior single-transaction history match with a weighted local history ranker that aggregates repeated confirmed classifications per item/category and scores them with merchant, amount bucket, hour bucket, weekday, recency, and frequency contributions while staying below explicit saved-rule priority. Suggestion explanations now surface top factors such as merchant repeat, recency, amount-bucket matches, and confirmation count, and the domain test suite now includes backtest-style cases proving repeated confirmations outrank one-offs and recency breaks ties between equally repeated candidates. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand domain.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-28. Ticket status moved to `done`.
+
 ### INT-003 — Implement Rule Engine For Merchant, Amount, And Time-Based Suggestions
 
 - **Status:** completed

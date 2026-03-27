@@ -266,6 +266,24 @@ export interface ClassificationSuggestion {
   source: ClassificationSuggestionSource;
 }
 
+interface HistorySuggestionAccumulator {
+  amountBucketMatches: number;
+  categoryId: CategoryId;
+  hourBucketMatches: number;
+  itemLabel: string;
+  merchantMatches: number;
+  occurrences: number;
+  weekdayMatches: number;
+  mostRecentCapturedAt: string;
+}
+
+interface HistoryObservationMatch {
+  amountBucketMatched: boolean;
+  hourBucketMatched: boolean;
+  merchantMatched: boolean;
+  weekdayMatched: boolean;
+}
+
 export interface DashboardSummaryOptions {
   budgetTargetMinor: number;
   cycleStartDay: number;
@@ -2139,6 +2157,10 @@ export function getClassificationSuggestions(
   const amountBucket = getRuleAmountBucket(context.amountMinor);
   const hourBucket = getRuleHourBucket(context.capturedAt);
   const weekday = getRuleWeekday(context.capturedAt);
+  const historyReferenceCapturedAt = getHistoryReferenceCapturedAt(
+    transactions,
+    context.capturedAt,
+  );
 
   for (const rule of normalizeSpendRules(rules)) {
     const matchedFactors = getMatchedRuleFactors(rule, {
@@ -2165,51 +2187,20 @@ export function getClassificationSuggestions(
     });
   }
 
-  for (const transaction of transactions) {
-    if (
-      transaction.id === context.currentTransactionId ||
-      transaction.status !== 'classified' ||
-      transaction.items.length === 0
-    ) {
-      continue;
-    }
-
-    const normalizedTransactionMerchant = resolveMerchantSuggestionKey(
-      getTransactionRawMerchant(transaction),
-      merchants,
-      merchantAliases,
-      transaction.merchantId,
-    ).normalizedLabel;
-    const firstItem = transaction.items[0];
-
-    if (!firstItem) {
-      continue;
-    }
-
-    const matchedFactors = getMatchedHistoryFactors({
+  for (const suggestion of getWeightedHistorySuggestions(
+    transactions,
+    {
       amountBucket,
-      currentTransactionMerchant: normalizedMerchant,
-      historyTransactionAmountMinor: transaction.amountMinor,
-      historyTransactionCapturedAt: transaction.capturedAt,
-      historyTransactionMerchant: normalizedTransactionMerchant,
+      currentTransactionId: context.currentTransactionId,
       hourBucket,
+      normalizedMerchant,
+      referenceCapturedAt: historyReferenceCapturedAt,
       weekday,
-    });
-
-    if (!matchedFactors) {
-      continue;
-    }
-
-    upsertSuggestion(suggestions, {
-      autoApply: false,
-      categoryId: firstItem.categoryId,
-      explanation: matchedFactors,
-      id: `history_${transaction.id}`,
-      itemLabel: firstItem.label,
-      reason: buildHistorySuggestionReason(matchedFactors),
-      score: getHistorySuggestionScore(matchedFactors),
-      source: 'history',
-    });
+    },
+    merchants,
+    merchantAliases,
+  )) {
+    upsertSuggestion(suggestions, suggestion);
   }
 
   for (const suggestion of getMerchantKeywordSuggestions(normalizedMerchant)) {
@@ -3033,7 +3024,99 @@ function buildRuleSuggestionReason(rule: SpendRule, matchedFactors: string[]): s
     : `Saved rule matched ${factorSummary}`;
 }
 
-function getMatchedHistoryFactors({
+function getWeightedHistorySuggestions(
+  transactions: Transaction[],
+  context: {
+    amountBucket: RuleAmountBucket;
+    currentTransactionId: string | undefined;
+    hourBucket: RuleHourBucket;
+    normalizedMerchant: string;
+    referenceCapturedAt: string;
+    weekday: RuleWeekday;
+  },
+  merchants: MerchantRecord[],
+  merchantAliases: MerchantAliasRecord[],
+): ClassificationSuggestion[] {
+  const suggestionAccumulators = new Map<string, HistorySuggestionAccumulator>();
+
+  for (const transaction of transactions) {
+    if (
+      transaction.id === context.currentTransactionId ||
+      transaction.status !== 'classified' ||
+      transaction.items.length === 0
+    ) {
+      continue;
+    }
+
+    const normalizedTransactionMerchant = resolveMerchantSuggestionKey(
+      getTransactionRawMerchant(transaction),
+      merchants,
+      merchantAliases,
+      transaction.merchantId,
+    ).normalizedLabel;
+    const observationMatch = getHistoryObservationMatch({
+      amountBucket: context.amountBucket,
+      currentTransactionMerchant: context.normalizedMerchant,
+      historyTransactionAmountMinor: transaction.amountMinor,
+      historyTransactionCapturedAt: transaction.capturedAt,
+      historyTransactionMerchant: normalizedTransactionMerchant,
+      hourBucket: context.hourBucket,
+      weekday: context.weekday,
+    });
+
+    if (!hasMeaningfulHistoryObservation(observationMatch)) {
+      continue;
+    }
+
+    for (const item of transaction.items) {
+      const itemLabel = item.label.trim();
+
+      if (itemLabel.length === 0) {
+        continue;
+      }
+
+      const suggestionKey = buildSuggestionKey(item.categoryId, itemLabel);
+      const existingAccumulator = suggestionAccumulators.get(suggestionKey);
+
+      if (existingAccumulator) {
+        existingAccumulator.occurrences += 1;
+        existingAccumulator.amountBucketMatches += observationMatch.amountBucketMatched ? 1 : 0;
+        existingAccumulator.hourBucketMatches += observationMatch.hourBucketMatched ? 1 : 0;
+        existingAccumulator.merchantMatches += observationMatch.merchantMatched ? 1 : 0;
+        existingAccumulator.weekdayMatches += observationMatch.weekdayMatched ? 1 : 0;
+        existingAccumulator.mostRecentCapturedAt = getMostRecentCapturedAt(
+          existingAccumulator.mostRecentCapturedAt,
+          transaction.capturedAt,
+        );
+        continue;
+      }
+
+      suggestionAccumulators.set(suggestionKey, {
+        amountBucketMatches: observationMatch.amountBucketMatched ? 1 : 0,
+        categoryId: item.categoryId,
+        hourBucketMatches: observationMatch.hourBucketMatched ? 1 : 0,
+        itemLabel,
+        merchantMatches: observationMatch.merchantMatched ? 1 : 0,
+        mostRecentCapturedAt: transaction.capturedAt,
+        occurrences: 1,
+        weekdayMatches: observationMatch.weekdayMatched ? 1 : 0,
+      });
+    }
+  }
+
+  return [...suggestionAccumulators.values()]
+    .map((accumulator) =>
+      buildWeightedHistorySuggestion(accumulator, {
+        amountBucket: context.amountBucket,
+        hourBucket: context.hourBucket,
+        referenceCapturedAt: context.referenceCapturedAt,
+        weekday: context.weekday,
+      }),
+    )
+    .filter((suggestion): suggestion is ClassificationSuggestion => suggestion !== null);
+}
+
+function getHistoryObservationMatch({
   amountBucket,
   currentTransactionMerchant,
   historyTransactionAmountMinor,
@@ -3049,64 +3132,303 @@ function getMatchedHistoryFactors({
   historyTransactionMerchant: string;
   hourBucket: RuleHourBucket;
   weekday: RuleWeekday;
-}): string[] | null {
-  const matchedFactors: string[] = [];
+}): HistoryObservationMatch {
+  return {
+    amountBucketMatched:
+      amountBucket !== 'any' &&
+      getRuleAmountBucket(historyTransactionAmountMinor) === amountBucket,
+    hourBucketMatched:
+      hourBucket !== 'any' && getRuleHourBucket(historyTransactionCapturedAt) === hourBucket,
+    merchantMatched:
+      currentTransactionMerchant.length > 0 &&
+      historyTransactionMerchant === currentTransactionMerchant,
+    weekdayMatched:
+      weekday !== 'any' && getRuleWeekday(historyTransactionCapturedAt) === weekday,
+  };
+}
 
-  if (
-    currentTransactionMerchant.length > 0 &&
-    historyTransactionMerchant === currentTransactionMerchant
-  ) {
-    matchedFactors.push('merchant');
-  }
+function hasMeaningfulHistoryObservation(observationMatch: HistoryObservationMatch): boolean {
+  return (
+    observationMatch.merchantMatched ||
+    observationMatch.amountBucketMatched ||
+    observationMatch.hourBucketMatched ||
+    observationMatch.weekdayMatched
+  );
+}
 
-  if (
-    amountBucket !== 'any' &&
-    getRuleAmountBucket(historyTransactionAmountMinor) === amountBucket
-  ) {
-    matchedFactors.push('amount bucket');
-  }
+function buildWeightedHistorySuggestion(
+  accumulator: HistorySuggestionAccumulator,
+  context: {
+    amountBucket: RuleAmountBucket;
+    hourBucket: RuleHourBucket;
+    referenceCapturedAt: string;
+    weekday: RuleWeekday;
+  },
+): ClassificationSuggestion | null {
+  const recency = getHistoryRecencyContribution(
+    accumulator.mostRecentCapturedAt,
+    context.referenceCapturedAt,
+  );
+  const merchantContribution = getHistoryMerchantContribution(accumulator.merchantMatches);
+  const amountContribution = getHistoryAmountContribution(accumulator.amountBucketMatches);
+  const hourContribution = getHistoryHourContribution(accumulator.hourBucketMatches);
+  const weekdayContribution = getHistoryWeekdayContribution(accumulator.weekdayMatches);
+  const frequencyContribution = getHistoryFrequencyContribution(accumulator.occurrences);
+  const score =
+    merchantContribution +
+    amountContribution +
+    hourContribution +
+    weekdayContribution +
+    recency.score +
+    frequencyContribution;
 
-  if (
-    hourBucket !== 'any' &&
-    getRuleHourBucket(historyTransactionCapturedAt) === hourBucket
-  ) {
-    matchedFactors.push('hour bucket');
-  }
-
-  if (
-    weekday !== 'any' &&
-    getRuleWeekday(historyTransactionCapturedAt) === weekday
-  ) {
-    matchedFactors.push('weekday');
-  }
-
-  const score = getHistorySuggestionScore(matchedFactors);
-
-  if (matchedFactors.length === 0 || (!matchedFactors.includes('merchant') && score < 5)) {
+  if (!shouldIncludeHistorySuggestion(accumulator, score)) {
     return null;
   }
 
-  return matchedFactors;
+  const explanation = buildWeightedHistoryExplanation(accumulator, context, {
+    amountContribution,
+    frequencyContribution,
+    hourContribution,
+    merchantContribution,
+    recency,
+    weekdayContribution,
+  });
+
+  return {
+    autoApply: false,
+    categoryId: accumulator.categoryId,
+    explanation,
+    id: buildHistorySuggestionId(accumulator.categoryId, accumulator.itemLabel),
+    itemLabel: accumulator.itemLabel,
+    reason: buildWeightedHistorySuggestionReason(explanation),
+    score,
+    source: 'history',
+  };
 }
 
-function getHistorySuggestionScore(matchedFactors: string[]): number {
-  return matchedFactors.reduce((score, factor) => {
-    switch (factor) {
-      case 'merchant':
-        return score + 6;
-      case 'amount bucket':
-        return score + 3;
-      case 'hour bucket':
-      case 'weekday':
-        return score + 1;
-      default:
-        return score;
+function shouldIncludeHistorySuggestion(
+  accumulator: HistorySuggestionAccumulator,
+  score: number,
+): boolean {
+  if (score < 18) {
+    return false;
+  }
+
+  if (accumulator.merchantMatches > 0) {
+    return true;
+  }
+
+  return accumulator.amountBucketMatches > 0 && accumulator.occurrences >= 3;
+}
+
+function buildWeightedHistoryExplanation(
+  accumulator: HistorySuggestionAccumulator,
+  context: {
+    amountBucket: RuleAmountBucket;
+    hourBucket: RuleHourBucket;
+    weekday: RuleWeekday;
+  },
+  contributions: {
+    amountContribution: number;
+    frequencyContribution: number;
+    hourContribution: number;
+    merchantContribution: number;
+    recency: { label: string | null; score: number };
+    weekdayContribution: number;
+  },
+): string[] {
+  const rankedFactors = [
+    contributions.merchantContribution > 0
+      ? {
+          label:
+            accumulator.merchantMatches === 1
+              ? 'merchant match'
+              : `merchant repeated ${accumulator.merchantMatches}x`,
+          score: contributions.merchantContribution,
+        }
+      : null,
+    contributions.amountContribution > 0
+      ? {
+          label:
+            accumulator.amountBucketMatches === 1
+              ? `amount ${formatRuleAmountBucket(context.amountBucket)} matched once`
+              : `amount ${formatRuleAmountBucket(context.amountBucket)} matched ${accumulator.amountBucketMatches}x`,
+          score: contributions.amountContribution,
+        }
+      : null,
+    contributions.hourContribution > 0
+      ? {
+          label:
+            accumulator.hourBucketMatches === 1
+              ? `${formatRuleHourBucket(context.hourBucket)} timing matched once`
+              : `${formatRuleHourBucket(context.hourBucket)} timing matched ${accumulator.hourBucketMatches}x`,
+          score: contributions.hourContribution,
+        }
+      : null,
+    contributions.weekdayContribution > 0
+      ? {
+          label:
+            accumulator.weekdayMatches === 1
+              ? `${formatRuleWeekday(context.weekday)} pattern matched once`
+              : `${formatRuleWeekday(context.weekday)} pattern matched ${accumulator.weekdayMatches}x`,
+          score: contributions.weekdayContribution,
+        }
+      : null,
+    contributions.recency.label
+      ? {
+          label: contributions.recency.label,
+          score: contributions.recency.score,
+        }
+      : null,
+    contributions.frequencyContribution > 0
+      ? {
+          label: `${accumulator.occurrences} confirmations`,
+          score: contributions.frequencyContribution,
+        }
+      : null,
+  ]
+    .filter((factor): factor is { label: string; score: number } => factor !== null)
+    .sort((left, right) => {
+      const scoreDelta = right.score - left.score;
+
+      if (scoreDelta !== 0) {
+        return scoreDelta;
+      }
+
+      return left.label.localeCompare(right.label);
+    });
+
+  return rankedFactors.slice(0, 4).map((factor) => factor.label);
+}
+
+function buildWeightedHistorySuggestionReason(explanation: string[]): string {
+  return `Weighted local history favored ${formatMatchedFactors(explanation.slice(0, 2))}`;
+}
+
+function getHistoryMerchantContribution(matchCount: number): number {
+  if (matchCount <= 0) {
+    return 0;
+  }
+
+  return 24 + Math.min((matchCount - 1) * 4, 12);
+}
+
+function getHistoryAmountContribution(matchCount: number): number {
+  if (matchCount <= 0) {
+    return 0;
+  }
+
+  return 8 + Math.min((matchCount - 1) * 2, 6);
+}
+
+function getHistoryHourContribution(matchCount: number): number {
+  if (matchCount <= 0) {
+    return 0;
+  }
+
+  return 4 + Math.min(matchCount - 1, 3);
+}
+
+function getHistoryWeekdayContribution(matchCount: number): number {
+  if (matchCount <= 0) {
+    return 0;
+  }
+
+  return 3 + Math.min(matchCount - 1, 3);
+}
+
+function getHistoryFrequencyContribution(occurrences: number): number {
+  if (occurrences <= 1) {
+    return 0;
+  }
+
+  return Math.min((occurrences - 1) * 5, 20);
+}
+
+function getHistoryRecencyContribution(
+  capturedAt: string,
+  referenceCapturedAt: string,
+): { label: string | null; score: number } {
+  const capturedAtTimestamp = Date.parse(capturedAt);
+  const referenceTimestamp = Date.parse(referenceCapturedAt);
+
+  if (!Number.isFinite(capturedAtTimestamp) || !Number.isFinite(referenceTimestamp)) {
+    return {
+      label: null,
+      score: 0,
+    };
+  }
+
+  const diffDays = Math.max(
+    0,
+    Math.floor((referenceTimestamp - capturedAtTimestamp) / (24 * 60 * 60 * 1000)),
+  );
+
+  if (diffDays <= 3) {
+    return { label: 'recent within 3 days', score: 14 };
+  }
+
+  if (diffDays <= 7) {
+    return { label: 'recent within 7 days', score: 10 };
+  }
+
+  if (diffDays <= 30) {
+    return { label: 'recent within 30 days', score: 6 };
+  }
+
+  if (diffDays <= 90) {
+    return { label: 'recent within 90 days', score: 3 };
+  }
+
+  return {
+    label: null,
+    score: 0,
+  };
+}
+
+function getHistoryReferenceCapturedAt(
+  transactions: Transaction[],
+  capturedAt?: string | null,
+): string {
+  if (capturedAt && Number.isFinite(Date.parse(capturedAt))) {
+    return capturedAt;
+  }
+
+  const latestCapturedAt = transactions.reduce<string | null>((currentLatest, transaction) => {
+    if (!Number.isFinite(Date.parse(transaction.capturedAt))) {
+      return currentLatest;
     }
-  }, 0);
+
+    if (!currentLatest) {
+      return transaction.capturedAt;
+    }
+
+    return Date.parse(transaction.capturedAt) > Date.parse(currentLatest)
+      ? transaction.capturedAt
+      : currentLatest;
+  }, null);
+
+  return latestCapturedAt ?? '1970-01-01T00:00:00.000Z';
 }
 
-function buildHistorySuggestionReason(matchedFactors: string[]): string {
-  return `Local history matched ${formatMatchedFactors(matchedFactors)}`;
+function getMostRecentCapturedAt(left: string, right: string): string {
+  const leftTimestamp = Date.parse(left);
+  const rightTimestamp = Date.parse(right);
+
+  if (!Number.isFinite(leftTimestamp)) {
+    return right;
+  }
+
+  if (!Number.isFinite(rightTimestamp)) {
+    return left;
+  }
+
+  return rightTimestamp > leftTimestamp ? right : left;
+}
+
+function buildHistorySuggestionId(categoryId: CategoryId, itemLabel: string): string {
+  return `history_${buildSuggestionKey(categoryId, itemLabel).replace(/[^a-z0-9]+/g, '_')}`;
 }
 
 function formatMatchedFactors(factors: string[]): string {

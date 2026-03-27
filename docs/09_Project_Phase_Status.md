@@ -78,10 +78,11 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 **Done in repo**
 
 - Local SQLite transaction tables on mobile plus a modular backend skeleton with explicit API and worker module factories, tested runtime config loaders, and repository/service seams around health and heartbeat
+- Weighted local history-based suggestion ranker with explainable merchant, amount-bucket, hour-bucket, weekday, recency, and frequency scoring reused across classify and manual-entry flows
 
 **Remaining**
 
-- Suggestions, budgets, rollups, CSV export, backup/restore
+- Budgets, rollups, CSV export, backup/restore
 - Guest session, pairing, and sync APIs
 - Backend modular-monolith feature modules beyond health and heartbeat
 

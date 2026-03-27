@@ -367,7 +367,7 @@ describe('spend-tracker dashboard summary', () => {
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          explanation: expect.arrayContaining(['merchant']),
+          explanation: expect.arrayContaining([expect.stringMatching(/^merchant/)]),
           categoryId: 'food_drink',
           itemLabel: 'Cold brew',
           source: 'history',
@@ -395,6 +395,190 @@ describe('spend-tracker dashboard summary', () => {
         saveAsRule: true,
       }),
     ).toBe(true);
+  });
+
+  it('ranks repeated confirmed history above one-off matches and explains the top factors', () => {
+    const suggestions = getClassificationSuggestions(
+      [
+        {
+          amountMinor: 18_000,
+          capturedAt: '2026-04-06T09:05:00+05:30',
+          id: 'txn_flat_white_1',
+          items: [
+            {
+              amountMinor: 18_000,
+              categoryId: 'food_drink',
+              id: 'txn_flat_white_1_item_1',
+              label: 'Flat white',
+            },
+          ],
+          merchant: 'Blue Tokai Roasters',
+          sourceApp: 'Google Pay',
+          status: 'classified',
+        },
+        {
+          amountMinor: 18_200,
+          capturedAt: '2026-04-03T09:10:00+05:30',
+          id: 'txn_flat_white_2',
+          items: [
+            {
+              amountMinor: 18_200,
+              categoryId: 'food_drink',
+              id: 'txn_flat_white_2_item_1',
+              label: 'Flat white',
+            },
+          ],
+          merchant: 'Blue Tokai Roasters',
+          sourceApp: 'Google Pay',
+          status: 'classified',
+        },
+        {
+          amountMinor: 17_900,
+          capturedAt: '2026-03-31T09:00:00+05:30',
+          id: 'txn_flat_white_3',
+          items: [
+            {
+              amountMinor: 17_900,
+              categoryId: 'food_drink',
+              id: 'txn_flat_white_3_item_1',
+              label: 'Flat white',
+            },
+          ],
+          merchant: 'Blue Tokai Roasters',
+          sourceApp: 'Google Pay',
+          status: 'classified',
+        },
+        {
+          amountMinor: 18_100,
+          capturedAt: '2026-04-05T09:00:00+05:30',
+          id: 'txn_cold_brew_1',
+          items: [
+            {
+              amountMinor: 18_100,
+              categoryId: 'food_drink',
+              id: 'txn_cold_brew_1_item_1',
+              label: 'Cold brew',
+            },
+          ],
+          merchant: 'Blue Tokai Roasters',
+          sourceApp: 'Google Pay',
+          status: 'classified',
+        },
+      ],
+      {
+        amountMinor: 18_050,
+        capturedAt: '2026-04-08T09:20:00+05:30',
+        merchant: 'Blue Tokai Roasters',
+      },
+    );
+
+    expect(suggestions[0]).toEqual(
+      expect.objectContaining({
+        autoApply: false,
+        itemLabel: 'Flat white',
+        reason: expect.stringContaining('Weighted local history favored'),
+        source: 'history',
+      }),
+    );
+    expect(suggestions[0]?.explanation).toEqual(
+      expect.arrayContaining([
+        '3 confirmations',
+        expect.stringMatching(/^merchant/),
+        expect.stringMatching(/^recent within /),
+      ]),
+    );
+    expect(suggestions.find((suggestion) => suggestion.itemLabel === 'Cold brew')?.score).toBeLessThan(
+      suggestions[0]?.score ?? 0,
+    );
+  });
+
+  it('uses recency to break ties between equally repeated local history candidates', () => {
+    const suggestions = getClassificationSuggestions(
+      [
+        {
+          amountMinor: 64_000,
+          capturedAt: '2026-04-21T08:35:00+05:30',
+          id: 'txn_recent_pantry_1',
+          items: [
+            {
+              amountMinor: 64_000,
+              categoryId: 'groceries',
+              id: 'txn_recent_pantry_1_item_1',
+              label: 'Office pantry',
+            },
+          ],
+          merchant: 'Blinkit',
+          sourceApp: 'PhonePe',
+          status: 'classified',
+        },
+        {
+          amountMinor: 64_500,
+          capturedAt: '2026-04-14T08:30:00+05:30',
+          id: 'txn_recent_pantry_2',
+          items: [
+            {
+              amountMinor: 64_500,
+              categoryId: 'groceries',
+              id: 'txn_recent_pantry_2_item_1',
+              label: 'Office pantry',
+            },
+          ],
+          merchant: 'Blinkit',
+          sourceApp: 'PhonePe',
+          status: 'classified',
+        },
+        {
+          amountMinor: 64_000,
+          capturedAt: '2026-02-24T08:40:00+05:30',
+          id: 'txn_old_veg_1',
+          items: [
+            {
+              amountMinor: 64_000,
+              categoryId: 'groceries',
+              id: 'txn_old_veg_1_item_1',
+              label: 'Weekly vegetables',
+            },
+          ],
+          merchant: 'Blinkit',
+          sourceApp: 'PhonePe',
+          status: 'classified',
+        },
+        {
+          amountMinor: 63_500,
+          capturedAt: '2026-02-17T08:20:00+05:30',
+          id: 'txn_old_veg_2',
+          items: [
+            {
+              amountMinor: 63_500,
+              categoryId: 'groceries',
+              id: 'txn_old_veg_2_item_1',
+              label: 'Weekly vegetables',
+            },
+          ],
+          merchant: 'Blinkit',
+          sourceApp: 'PhonePe',
+          status: 'classified',
+        },
+      ],
+      {
+        amountMinor: 64_200,
+        capturedAt: '2026-04-28T08:42:00+05:30',
+        merchant: 'Blinkit',
+      },
+    );
+
+    expect(suggestions[0]).toEqual(
+      expect.objectContaining({
+        itemLabel: 'Office pantry',
+        source: 'history',
+      }),
+    );
+    expect(suggestions[0]?.explanation).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^recent within /)]),
+    );
+    expect(
+      suggestions.find((suggestion) => suggestion.itemLabel === 'Weekly vegetables')?.score,
+    ).toBeLessThan(suggestions[0]?.score ?? 0);
   });
 
   it('prioritizes explicit saved rules and only auto-applies user-approved matches', () => {

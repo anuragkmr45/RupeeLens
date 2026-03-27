@@ -489,12 +489,12 @@
       ],
       "tests": "Edge-case tests for rounding, zero remainder, and over-allocation.",
       "done": "Split-flow accepted by QA and design.",
-      "status": "done",
+      "status": "in_progress",
       "owner": "codex",
       "started_at": "2026-03-27",
-      "completed_at": "2026-03-27",
+      "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: Timeline now reads local SQLite-backed transaction records with parser metadata, saved notes, grouped day sections, and classification/audit history. Transaction detail shows source, parser context, edits, and history; search now covers merchant, item, category, and note; note saves persist locally; and clear edit/delete confirmation remains in place. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27."
+      "tracking_notes": "Repo truth: the client now has a full-screen split-items flow with dynamic rows, local reorder/remove/add controls, running allocated-vs-remaining totals, explicit remainder handling, and Inbox visibility for partially classified transactions. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27. Status stays `in_progress` because the backlog done-when still requires external QA/design acceptance, which was not performed in this environment."
     },
     {
       "id": "UX-006",
@@ -615,12 +615,12 @@
       ],
       "tests": "Rule evaluation matrix tests for priority and conflicts.",
       "done": "Rule engine integrated into classify flows.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-28",
+      "completed_at": "2026-03-28",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: the client now persists explicit local classification rules in SQLite with additive migrations, evaluates saved rules before history and merchant-keyword heuristics using merchant, amount bucket, hour bucket, and weekday factors, returns explanation metadata with deterministic priority, and auto-applies only explicit user-approved rules. Quick classify and manual add both create reusable rules through real toggles, and category/merchant merge handlers keep saved rules aligned. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28."
     },
     {
       "id": "INT-004",
@@ -640,12 +640,12 @@
       ],
       "tests": "Backtest on seeded user history and verify ranking expectations.",
       "done": "History-based suggestions meet acceptance benchmark.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-28",
+      "completed_at": "2026-03-28",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: classify and manual-entry suggestions now use a weighted local history ranker that aggregates repeated confirmed classifications per item/category, scores merchant, amount bucket, hour bucket, weekday, recency, and frequency factors with deterministic ordering beneath explicit saved rules, and exposes human-readable explanation metadata for top factors. Added backtest-style domain coverage proving repeated confirmations outrank one-off matches and recency breaks ties between equally repeated candidates. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand domain.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28."
     },
     {
       "id": "INT-005",

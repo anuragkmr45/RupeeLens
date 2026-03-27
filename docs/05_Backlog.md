@@ -637,7 +637,7 @@ Merchant reports look stable on QA dataset.
 - **Story points:** 8
 - **Goal:** Reduce repetitive manual entry without using paid AI services.
 - **Dependencies:** INT-002
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-28 | Completed At: 2026-03-28 | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the client now persists explicit local classification rules in SQLite with additive migrations, evaluates saved rules before history and merchant-keyword heuristics using merchant, amount bucket, hour bucket, and weekday factors, returns explanation metadata with deterministic priority, and auto-applies only explicit user-approved rules. Quick classify and manual add both create reusable rules through real toggles, and category/merchant merge handlers keep saved rules aligned. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28.
 
 **Description**  
 Create rule evaluator with explicit user rules first, then heuristic matching on merchant, amount bucket, hour bucket, and weekday. Return ranked suggestions and optional auto-apply for explicit rules only.
@@ -664,7 +664,7 @@ Rule engine integrated into classify flows.
 - **Story points:** 8
 - **Goal:** Make item suggestions improve over time using free on-device/server-safe logic.
 - **Dependencies:** INT-003
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-28 | Completed At: 2026-03-28 | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: classify and manual-entry suggestions now use a weighted local history ranker that aggregates repeated confirmed classifications per item/category, scores merchant, amount bucket, hour bucket, weekday, recency, and frequency factors with deterministic ordering beneath explicit saved rules, and exposes human-readable explanation metadata for top factors. Added backtest-style domain coverage proving repeated confirmations outrank one-off matches and recency breaks ties between equally repeated candidates. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand domain.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28.
 
 **Description**  
 Build weighted ranking over merchant, amount bucket, hour bucket, weekday, recency, and frequency. Support local inference and optional server-side recompute for report enrichment.
