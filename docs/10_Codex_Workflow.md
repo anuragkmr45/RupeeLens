@@ -127,10 +127,10 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `CAP-002 — Implement parser registry with package-specific and generic parsers`
+- `CAP-003 — Implement capture dedupe and replay protection`
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `CAP-001` is now done, with the androidTest APK accepted on a connected Android 13 device and `./gradlew :app:connectedDebugAndroidTest` passing on-device.
-- `CAP-002` is the earliest remaining `P0` ticket that builds directly on the finished listener, allowlist, diagnostics, and raw-snapshot foundation.
+- `CAP-002` is now done, with the native parser registry, parser-result persistence, and parser fixture coverage validated by Android unit tests plus `./gradlew :app:connectedDebugAndroidTest` on the attached Android 13 device.
+- `CAP-003` is the earliest remaining `P0` ticket that builds directly on the finished listener, parser, diagnostics, and raw-snapshot foundation.

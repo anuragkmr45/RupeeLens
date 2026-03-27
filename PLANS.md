@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### CAP-002 — Implement Parser Registry With Package-Specific and Generic Parsers
+
+- **Status:** completed
+- **Ticket:** CAP-002
+- **Goal:** Convert allowlisted raw notification snapshots into structured native capture parse results with package-specific parsers first, generic fallback second, auditable provenance, and reason-coded failures.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, Android native capture files under `client/android/app/src/main/java/com/upispendtracker/client/capture/*`, related Android unit/instrumentation tests, and repo-truth docs only if current scope/status changes.
+- **Rationale:** `SET-002` is still externally blocked, `CAP-001` is now done, and `CAP-002` is the earliest remaining `P0` ticket whose dependencies are satisfied. The repo already stores raw native snapshots, but it still has no parser registry, no package-specific parse logic, no generic fallback, no structured parse metadata, and no reason-coded parse failures.
+- **Risks:** Parser work can easily spill into dedupe or repository scope. This pass must stay limited to parser interfaces, parser ordering, structured outcomes, provenance/failure recording, and fixture-driven validation. It must not add dedupe heuristics or pretend CAP-004 Room/repository work is complete.
+- **API / schema impact:** No backend/API contract change expected. Native Android capture storage may gain parser-result fields or parse-attempt metadata needed to retain structured outcomes and reason codes.
+- **Rollout / flag plan:** Keep respecting the existing capture/parser remote kill switch in app-level copy; do not invent a new runtime-config channel in native code during this pass.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm db:validate`, and targeted Android Gradle unit/instrumentation tests for parser fixtures if the local environment supports them.
+- **Done when:** Registry order is package-specific then generic, parsed results include amount/merchant/timestamp/source app/confidence where available, failures persist with reason codes instead of silent drops, fixture-based parser coverage exists, and repo quality gates remain green.
+- **Outcome:** Added a native parser registry with package-specific parsers for Google Pay, PhonePe, Paytm, and BHIM plus generic fallback parsers, stored structured parse success/failure metadata alongside raw native snapshots, added a 30-plus-case fixture suite, and passed Android unit tests, connected Android instrumentation, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`.
+
 ### CAP-001 — Build Android NotificationListenerService and Allowlist Controls
 
 - **Status:** completed

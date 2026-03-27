@@ -67,6 +67,20 @@ class NotificationCaptureProcessorInstrumentedTest {
     assertEquals("com.phonepe.app", diagnostics.lastCapture?.packageName)
     assertEquals("phonepe", diagnostics.lastCapture?.sourceAppId)
     assertTrue(diagnostics.lastCapture?.preview?.contains("Paid Rs 245.00") == true)
+
+    val storedRecord = snapshotStore.getLatestStoredRecord()
+    assertNotNull(storedRecord)
+    assertEquals("success", storedRecord?.parseStatus)
+    assertEquals("phonepe_v1", storedRecord?.parserId)
+    assertEquals(24_500L, storedRecord?.parsedAmountMinor)
+    assertEquals("Chai Point", storedRecord?.merchantRaw)
+    assertEquals("body_text", storedRecord?.amountProvenance)
+    assertEquals("body_text", storedRecord?.merchantProvenance)
+    assertEquals(FIXED_POSTED_AT_MS, storedRecord?.parsedTimestampMs)
+    assertEquals(
+      NotificationParserRegistry.TIMESTAMP_PROVENANCE_POSTED_AT_MS,
+      storedRecord?.timestampProvenance,
+    )
   }
 
   @Test
@@ -99,6 +113,31 @@ class NotificationCaptureProcessorInstrumentedTest {
 
     assertFalse(didCapture)
     assertEquals(0, snapshotStore.getDiagnostics().storedSnapshotCount)
+  }
+
+  @Test
+  fun storesReasonCodedParseFailuresForSupportedAllowlistedPackages() {
+    settingsStore.setAllowedSourceAppIds(setOf("phonepe"))
+
+    val didCapture = processor.capture(
+      buildStatusBarNotification(
+        packageName = "com.phonepe.app",
+        title = "PhonePe",
+        bodyText = "Paid to Chai Point",
+        subText = "UPI",
+      ),
+    )
+
+    val storedRecord = snapshotStore.getLatestStoredRecord()
+
+    assertTrue(didCapture)
+    assertNotNull(storedRecord)
+    assertEquals("failed", storedRecord?.parseStatus)
+    assertEquals(
+      NotificationParseFailureReasonCodes.UNSUPPORTED_NOTIFICATION_FORMAT,
+      storedRecord?.failureReasonCode,
+    )
+    assertTrue(storedRecord?.parserTrace?.isNotBlank() == true)
   }
 
   private fun buildStatusBarNotification(

@@ -234,12 +234,12 @@
       ],
       "tests": "Fixture suite with at least 30 notification variants; regression tests for parser updates.",
       "done": "Structured capture events generated with auditable parse provenance.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-27",
+      "completed_at": "2026-03-27",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "CAP-002 now ships a native parser registry with package-specific parsers for Google Pay, PhonePe, Paytm, and BHIM plus generic fallback parsing, structured parse provenance, reason-coded failures, and parser-result persistence alongside raw snapshots. The parser fixture suite covers 30-plus variants, Android unit tests passed, and `./gradlew :app:connectedDebugAndroidTest` passed on the attached Android 13 device with 4 connected tests, closing the ticket without spilling into dedupe or Room-repository scope."
     },
     {
       "id": "CAP-003",

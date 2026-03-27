@@ -115,12 +115,12 @@ Within a continuing Codex thread for this repo, a user message of `next` means r
 
 - Android-first onboarding now includes notification education, source-app selection, budget-cycle choice, sync preference, signed remote bootstrap config status, and a cycle-aware local dashboard with budget progress, top items, recent activity, a filtered Inbox, bottom-sheet quick classify, skipped-item recovery, and manual spend entry
 - Mobile UI foundations now live in `@upi-spend-tracker/mobile-ui`, and Home links to a design-system showcase screen that demonstrates the shared primitives in light and dark themes
-- Android dev builds now include a native notification-listener service, per-app allowlist sync, raw snapshot persistence, a dedicated capture processor, and a diagnostics card that reflects real listener permission state; connected Android instrumentation now passes on a real Android 13 device, while parser, dedupe, and spend-domain import are still pending
+- Android dev builds now include a native notification-listener service, per-app allowlist sync, raw snapshot persistence, a dedicated capture processor, auditable parser-registry output with package-specific and generic fallback parsers, and a diagnostics card that reflects real listener permission state; connected Android instrumentation now passes on a real Android 13 device, while dedupe, capture repository, and spend-domain import are still pending
 - Home now includes quick-action entrypoints for budgets and search, while Inbox supports local status, merchant, source-app, amount, and age filters plus skip/delete actions on a FlatList path validated against a seeded 1,000-item local queue; quick classify now runs in a bottom sheet with explicit suggestion chips and a save-as-rule intent toggle; the actual budget creation, search, split, and durable rule screens still arrive in later tickets
 - Onboarding, classified spends, and manual entries persist on device through local SQLite tables with ordered migrations and root-level DB validation; sync and native capture import are still pending
 - Backend skeleton now boots API and worker runtimes through explicit module factories, tested env loaders, and service/repository seams; `GET /health` and `GET /v1/bootstrap/config` are live, but there are still no business APIs, auth, DB, or sync implementation yet
 - Worker runtime now composes scheduled jobs through module contracts, but only the heartbeat job exists; there are still no queues, DB, exports, or real background jobs yet
-- No deployment CI, analytics providers, or full parser/dedupe/native capture pipeline yet
+- No deployment CI, analytics providers, or full dedupe/native capture repository/domain-import pipeline yet
 
 ## Backlog Tracking Convention
 

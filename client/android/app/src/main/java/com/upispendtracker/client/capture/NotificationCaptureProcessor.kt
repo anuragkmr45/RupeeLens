@@ -6,6 +6,7 @@ import android.service.notification.StatusBarNotification
 class NotificationCaptureProcessor(
   private val settingsStore: CaptureSettingsStore,
   private val snapshotStore: CaptureSnapshotStore,
+  private val parserRegistry: NotificationParserRegistry = NotificationParserRegistry.default(),
   private val nowProvider: () -> Long = { System.currentTimeMillis() },
 ) {
   fun capture(statusBarNotification: StatusBarNotification): Boolean {
@@ -18,7 +19,8 @@ class NotificationCaptureProcessor(
     }
 
     val snapshot = buildSnapshot(statusBarNotification, sourceAppId) ?: return false
-    snapshotStore.insertSnapshot(snapshot)
+    val parseResult = parserRegistry.parse(snapshot)
+    snapshotStore.insertSnapshot(snapshot, parseResult)
     return true
   }
 

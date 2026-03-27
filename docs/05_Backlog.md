@@ -233,7 +233,7 @@ Notification listener stable on supported Android versions.
 - **Story points:** 8
 - **Goal:** Convert raw notification text into structured payment events.
 - **Dependencies:** CAP-001, SET-006
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-27 | Completed At: 2026-03-27 | Commit Ref: pending-local-commit | Tracking Notes: CAP-002 now ships a native parser registry with package-specific parsers for Google Pay, PhonePe, Paytm, and BHIM plus generic fallback parsing, structured parse provenance, reason-coded failures, and parser-result persistence alongside raw snapshots. The parser fixture suite covers 30-plus variants, Android unit tests passed, and `./gradlew :app:connectedDebugAndroidTest` passed on the attached Android 13 device with 4 connected tests, closing the ticket without spilling into dedupe or Room-repository scope.
 
 **Description**  
 Define parser interface, package-specific parsers for launch apps, generic regex/token parser fallback, parser versioning, and parser fixtures. Expose confidence, parse errors, and raw-field provenance.
