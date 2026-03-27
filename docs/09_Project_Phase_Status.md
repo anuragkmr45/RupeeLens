@@ -39,7 +39,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 **Remaining**
 
-- Connected-device closeout for dedupe and the new Room-backed native capture repository is still blocked because the attached Android device cancels debug APK installation with `INSTALL_FAILED_USER_RESTRICTED`
+- Connected-device closeout for dedupe and the new Room-backed native capture repository is still blocked because this environment does not currently have a stable connected-Android validation path
 - Native capture domain-import work still remains
 
 ## Sprint 2 — First Usable App
@@ -64,13 +64,12 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Manual add flow
 - Bottom-sheet quick classify flow with explicit suggestion chips, shared form primitives, save/skip controls, and a save-as-rule intent toggle
 - Full-screen split-items flow with add/remove/reorder controls, running totals, explicit remainder handling, and partial-save visibility back in Inbox
-- Local timeline/history flow with grouped day sections, search/filter chips, transaction detail, and local edit/delete handoff
+- Local timeline/history flow with grouped day sections, search/filter chips, transaction detail, local notes, parser context, classification/audit history, and local edit/delete handoff
 - Hardcoded default category options inside the client shell
 
 **Remaining**
 
 - External QA/design acceptance for the split flow
-- Durable parser metadata and classification/audit history are still not attached to local transaction detail records
 - Durable rule creation via `INT-003`
 - Settings/privacy/export screens and captured-spend classify integration
 - Category CRUD, merchant normalization, and rule engine

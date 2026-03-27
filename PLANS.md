@@ -14,6 +14,20 @@ Protocol notes:
 
 - **Status:** completed
 - **Ticket:** UX-006
+- **Goal:** Extend the local transaction model so Timeline detail can show durable parser metadata, notes, edits, and classification history instead of only the latest flat state.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `client/src/features/spend-tracker/domain.ts`, `client/src/features/spend-tracker/persistence.ts`, `client/src/features/spend-tracker/db/migrations.ts`, `client/src/features/spend-tracker/db/migration-runner.ts`, `client/src/app/SpendTrackerApp.tsx`, focused client tests, and repo-truth docs only if ticket status changes.
+- **Rationale:** `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty again, while `UX-006` is still the earliest active ticket whose remaining acceptance is now solvable in repo code. The current blocker is not navigation anymore; it is missing local transaction metadata for parser context, notes, and change history.
+- **Risks:** This pass touches the local transaction schema, migration path, persistence, and multiple client flows. It must stay inside UX-006 scope: durable local parser/note/history support plus detail/search integration. It must not spill into capture import, merchant normalization, or settings/export tickets.
+- **API / schema impact:** No backend/API changes. Local mobile SQLite schema will likely need additive migrations for transaction metadata/history.
+- **Rollout / flag plan:** Keep using the existing local-first Timeline flow and the current search flag; no new rollout surface.
+- **Validation commands:** `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus focused client tests for history search, detail rendering, note/parser persistence, and edit-history behavior.
+- **Done when:** Timeline detail can show real local parser context when present, durable classification/audit history, searchable notes, and clear edit/delete behavior without inventing unavailable capture data; backlog status can move to `done` only if the acceptance criteria are then fully satisfied.
+- **Outcome:** Extended the local transaction model with durable note, parser-metadata, and history fields plus additive mobile SQLite migrations for those records. Timeline search now matches saved notes, transaction detail shows parser context plus classification/audit history, and users can save a local note without leaving detail. Added migration, persistence, domain, and app-flow coverage for parser/note/history persistence and timeline search. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27; the app test harness was also tightened so the async capture-diagnostics effect no longer emits the prior non-failing React `act(...)` warning.
+
+### UX-006 — Build Timeline, Transaction Detail, And Search/Filter Views
+
+- **Status:** completed
+- **Ticket:** UX-006
 - **Goal:** Add a local-first history flow with searchable timeline browsing, transaction detail, and edit/delete handoff that works entirely from the current device data.
 - **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/domain.ts`, `client/src/lib/app-info.ts`, and focused client tests.
 - **Rationale:** `CAP-003` and `CAP-004` remain blocked by connected-Android validation because the attached device still cancels debug APK installation with `INSTALL_FAILED_USER_RESTRICTED`. `UX-005` already has its repo-side split implementation, so `UX-006` is now the earliest actionable `todo` ticket with satisfied dependencies.

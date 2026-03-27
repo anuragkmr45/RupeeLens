@@ -18,12 +18,38 @@ export interface TransactionItem {
   label: string;
 }
 
+export interface TransactionParserInfo {
+  confidenceBps: number | null;
+  parserId: string;
+  parserVersion: string;
+}
+
+export type TransactionHistoryKind =
+  | 'captured'
+  | 'classified'
+  | 'classification_imported'
+  | 'manual_added'
+  | 'note_updated'
+  | 'restored'
+  | 'skipped'
+  | 'split_saved';
+
+export interface TransactionHistoryEntry {
+  at: string;
+  id: string;
+  kind: TransactionHistoryKind;
+  summary: string;
+}
+
 export interface Transaction {
   amountMinor: number;
   capturedAt: string;
+  history?: TransactionHistoryEntry[];
   id: string;
   items: TransactionItem[];
   merchant: string;
+  note?: string;
+  parserInfo?: TransactionParserInfo | null;
   sourceApp: string;
   status: TransactionStatus;
 }
@@ -74,6 +100,7 @@ export interface ManualEntryInput {
   categoryId: CategoryId;
   itemLabel: string;
   merchant: string;
+  note?: string;
   sourceApp?: string;
   transactionId?: string;
 }
@@ -212,28 +239,114 @@ export const categoryOptions: CategoryOption[] = [
   },
 ];
 
+function buildSeededParserInfo(
+  sourceApp: Transaction['sourceApp'],
+): TransactionParserInfo | null {
+  switch (sourceApp) {
+    case 'Google Pay':
+      return {
+        confidenceBps: 9800,
+        parserId: 'gpay_upi_v1',
+        parserVersion: '1.0.0',
+      };
+    case 'PhonePe':
+      return {
+        confidenceBps: 9700,
+        parserId: 'phonepe_upi_v1',
+        parserVersion: '1.0.0',
+      };
+    case 'Paytm':
+      return {
+        confidenceBps: 9650,
+        parserId: 'paytm_upi_v1',
+        parserVersion: '1.0.0',
+      };
+    default:
+      return null;
+  }
+}
+
+function buildSeededHistory(
+  transaction: Pick<Transaction, 'capturedAt' | 'id' | 'items' | 'merchant' | 'sourceApp' | 'status'>,
+): TransactionHistoryEntry[] {
+  const baseEntries: TransactionHistoryEntry[] = [
+    {
+      at: transaction.capturedAt,
+      id: `${transaction.id}_history_captured`,
+      kind: 'captured',
+      summary: `${transaction.sourceApp} capture stored for ${transaction.merchant}.`,
+    },
+  ];
+
+  if (transaction.status === 'classified' && transaction.items.length > 0) {
+    baseEntries.push({
+      at: transaction.capturedAt,
+      id: `${transaction.id}_history_classified`,
+      kind: 'classified',
+      summary: `Saved classification with ${transaction.items.length} item row${transaction.items.length === 1 ? '' : 's'}.`,
+    });
+  }
+
+  return baseEntries;
+}
+
 export const seededTransactions: Transaction[] = [
   {
     amountMinor: 18000,
     capturedAt: '2026-03-25T09:12:00+05:30',
+    history: buildSeededHistory({
+      capturedAt: '2026-03-25T09:12:00+05:30',
+      id: 'txn_blue_tokai',
+      items: [],
+      merchant: 'Blue Tokai Roasters',
+      sourceApp: 'Google Pay',
+      status: 'uncategorized',
+    }),
     id: 'txn_blue_tokai',
     items: [],
     merchant: 'Blue Tokai Roasters',
+    note: '',
+    parserInfo: buildSeededParserInfo('Google Pay'),
     sourceApp: 'Google Pay',
     status: 'uncategorized',
   },
   {
     amountMinor: 64000,
     capturedAt: '2026-03-25T08:34:00+05:30',
+    history: buildSeededHistory({
+      capturedAt: '2026-03-25T08:34:00+05:30',
+      id: 'txn_blinkit',
+      items: [],
+      merchant: 'Blinkit',
+      sourceApp: 'PhonePe',
+      status: 'uncategorized',
+    }),
     id: 'txn_blinkit',
     items: [],
     merchant: 'Blinkit',
+    note: '',
+    parserInfo: buildSeededParserInfo('PhonePe'),
     sourceApp: 'PhonePe',
     status: 'uncategorized',
   },
   {
     amountMinor: 32000,
     capturedAt: '2026-03-25T07:48:00+05:30',
+    history: buildSeededHistory({
+      capturedAt: '2026-03-25T07:48:00+05:30',
+      id: 'txn_metro',
+      items: [
+        {
+          amountMinor: 32000,
+          categoryId: 'transport',
+          id: 'item_metro_1',
+          label: 'Metro card top-up',
+        },
+      ],
+      merchant: 'Bangalore Metro',
+      sourceApp: 'Paytm',
+      status: 'classified',
+    }),
     id: 'txn_metro',
     items: [
       {
@@ -244,12 +357,29 @@ export const seededTransactions: Transaction[] = [
       },
     ],
     merchant: 'Bangalore Metro',
+    note: 'Used for weekday commute.',
+    parserInfo: buildSeededParserInfo('Paytm'),
     sourceApp: 'Paytm',
     status: 'classified',
   },
   {
     amountMinor: 21500,
     capturedAt: '2026-03-24T18:30:00+05:30',
+    history: buildSeededHistory({
+      capturedAt: '2026-03-24T18:30:00+05:30',
+      id: 'txn_third_wave',
+      items: [
+        {
+          amountMinor: 21500,
+          categoryId: 'food_drink',
+          id: 'item_third_wave_1',
+          label: 'Flat white and cookie',
+        },
+      ],
+      merchant: 'Third Wave Coffee',
+      sourceApp: 'Google Pay',
+      status: 'classified',
+    }),
     id: 'txn_third_wave',
     items: [
       {
@@ -260,12 +390,29 @@ export const seededTransactions: Transaction[] = [
       },
     ],
     merchant: 'Third Wave Coffee',
+    note: '',
+    parserInfo: buildSeededParserInfo('Google Pay'),
     sourceApp: 'Google Pay',
     status: 'classified',
   },
   {
     amountMinor: 42000,
     capturedAt: '2026-03-23T20:14:00+05:30',
+    history: buildSeededHistory({
+      capturedAt: '2026-03-23T20:14:00+05:30',
+      id: 'txn_bigbasket',
+      items: [
+        {
+          amountMinor: 42000,
+          categoryId: 'groceries',
+          id: 'item_bigbasket_1',
+          label: 'Weekly vegetables',
+        },
+      ],
+      merchant: 'BigBasket',
+      sourceApp: 'PhonePe',
+      status: 'classified',
+    }),
     id: 'txn_bigbasket',
     items: [
       {
@@ -276,6 +423,8 @@ export const seededTransactions: Transaction[] = [
       },
     ],
     merchant: 'BigBasket',
+    note: '',
+    parserInfo: buildSeededParserInfo('PhonePe'),
     sourceApp: 'PhonePe',
     status: 'classified',
   },
@@ -362,15 +511,31 @@ export function createManualTransaction({
   categoryId,
   itemLabel,
   merchant,
+  note = '',
   sourceApp = 'Manual entry',
   transactionId = `txn_manual_${Date.now()}`,
 }: ManualEntryInput): Transaction {
   const normalizedMerchant = merchant.trim();
   const normalizedItemLabel = itemLabel.trim();
+  const normalizedNote = note.trim();
 
   return {
     amountMinor,
     capturedAt,
+    history: [
+      {
+        at: capturedAt,
+        id: `${transactionId}_history_manual_added`,
+        kind: 'manual_added',
+        summary: `Manual spend saved for ${normalizedMerchant}.`,
+      },
+      {
+        at: capturedAt,
+        id: `${transactionId}_history_classified`,
+        kind: 'classified',
+        summary: 'Manual entry saved with one classified item row.',
+      },
+    ],
     id: transactionId,
     items: [
       {
@@ -381,6 +546,8 @@ export function createManualTransaction({
       },
     ],
     merchant: normalizedMerchant,
+    note: normalizedNote,
+    parserInfo: null,
     sourceApp,
     status: 'classified',
   };
@@ -565,6 +732,20 @@ export function splitTransaction(
 
     return {
       ...transaction,
+      history: appendTransactionHistoryEntry(
+        transaction.history,
+        createHistoryEntry(
+          transaction.id,
+          summary.remainingMinor > 0 &&
+            splitDraft.remainderDisposition === 'leave_unresolved'
+            ? 'split_saved'
+            : 'classified',
+          summary.remainingMinor > 0 &&
+            splitDraft.remainderDisposition === 'leave_unresolved'
+            ? `Saved ${nextItems.length} split rows and left ${formatCurrency(summary.remainingMinor)} unresolved.`
+            : `Saved ${nextItems.length} split rows and fully resolved the payment.`,
+        ),
+      ),
       items: nextItems,
       status:
         summary.remainingMinor > 0 &&
@@ -771,6 +952,14 @@ export function classifyTransaction(
 
     return {
       ...transaction,
+      history: appendTransactionHistoryEntry(
+        transaction.history,
+        createHistoryEntry(
+          transaction.id,
+          'classified',
+          `Saved classification as ${getCategoryLabel(categoryId)} with item "${itemLabel}".`,
+        ),
+      ),
       items: [
         {
           amountMinor: transaction.amountMinor,
@@ -788,14 +977,53 @@ export function skipTransaction(
   transactions: Transaction[],
   transactionId: string,
 ): Transaction[] {
-  return updateTransactionStatus(transactions, transactionId, 'skipped');
+  return updateTransactionStatus(
+    transactions,
+    transactionId,
+    'skipped',
+    'Marked this transaction to review later.',
+  );
 }
 
 export function restoreSkippedTransaction(
   transactions: Transaction[],
   transactionId: string,
 ): Transaction[] {
-  return updateTransactionStatus(transactions, transactionId, 'uncategorized');
+  return updateTransactionStatus(
+    transactions,
+    transactionId,
+    'uncategorized',
+    'Moved this transaction back into needs review.',
+  );
+}
+
+export function updateTransactionNote(
+  transactions: Transaction[],
+  transactionId: string,
+  note: string,
+): Transaction[] {
+  const normalizedNote = note.trim();
+
+  return transactions.map((transaction) => {
+    if (transaction.id !== transactionId || (transaction.note ?? '') === normalizedNote) {
+      return transaction;
+    }
+
+    return {
+      ...transaction,
+      history: appendTransactionHistoryEntry(
+        transaction.history,
+        createHistoryEntry(
+          transaction.id,
+          'note_updated',
+          normalizedNote.length > 0
+            ? 'Saved a local note on this transaction.'
+            : 'Cleared the local note on this transaction.',
+        ),
+      ),
+      note: normalizedNote,
+    };
+  });
 }
 
 export function deleteTransaction(
@@ -1011,6 +1239,7 @@ function matchesTimelineQuery(
 
   const searchHaystacks = [
     transaction.merchant,
+    transaction.note ?? '',
     transaction.sourceApp,
     getTransactionStatusLabel(transaction.status),
     ...transaction.items.map((item) => item.label),
@@ -1154,9 +1383,23 @@ function updateTransactionStatus(
   transactions: Transaction[],
   transactionId: string,
   status: Extract<TransactionStatus, 'skipped' | 'uncategorized'>,
+  summary: string,
 ): Transaction[] {
   return transactions.map((transaction) =>
-    transaction.id === transactionId ? { ...transaction, status } : transaction,
+    transaction.id === transactionId
+      ? {
+          ...transaction,
+          history: appendTransactionHistoryEntry(
+            transaction.history,
+            createHistoryEntry(
+              transaction.id,
+              status === 'skipped' ? 'skipped' : 'restored',
+              summary,
+            ),
+          ),
+          status,
+        }
+      : transaction,
   );
 }
 
@@ -1218,6 +1461,27 @@ function getTopMerchantLabel(merchantSpend: Map<string, number>): string {
   }
 
   return topMerchantLabel;
+}
+
+function appendTransactionHistoryEntry(
+  history: Transaction['history'],
+  nextEntry: TransactionHistoryEntry,
+): TransactionHistoryEntry[] {
+  return [...(history ?? []), nextEntry];
+}
+
+function createHistoryEntry(
+  transactionId: string,
+  kind: TransactionHistoryKind,
+  summary: string,
+  at = new Date().toISOString(),
+): TransactionHistoryEntry {
+  return {
+    at,
+    id: `${transactionId}_${kind}_${Date.parse(at) || Date.now()}`,
+    kind,
+    summary,
+  };
 }
 
 function getCategoryLabel(categoryId: CategoryId): string {

@@ -56,8 +56,8 @@ describe('mobile migration runner', () => {
       now: () => '2026-03-26T00:00:00.000Z',
     });
 
-    expect(database.execAsync).toHaveBeenCalledTimes(5);
-    expect(database.runAsync).toHaveBeenCalledTimes(4);
+    expect(database.execAsync).toHaveBeenCalledTimes(9);
+    expect(database.runAsync).toHaveBeenCalledTimes(8);
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
       '001_create_settings_table',
@@ -65,7 +65,7 @@ describe('mobile migration runner', () => {
     );
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
-      '004_create_transaction_items_index',
+      '008_create_transaction_history_index',
       '2026-03-26T00:00:00.000Z',
     );
   });
@@ -101,6 +101,10 @@ describe('mobile migration runner', () => {
           { id: '002_create_transactions_table' },
           { id: '003_create_transaction_items_table' },
           { id: '004_create_transaction_items_index' },
+          { id: '005_upgrade_transactions_for_history_and_parser_metadata' },
+          { id: '006_create_transaction_history_table' },
+          { id: '007_seed_transaction_history_for_existing_rows' },
+          { id: '008_create_transaction_history_index' },
         ];
       }
 
@@ -114,6 +118,6 @@ describe('mobile migration runner', () => {
     expect(database.execAsync).toHaveBeenCalledWith(
       expect.stringContaining("ALTER TABLE transactions RENAME TO transactions_legacy"),
     );
-    expect(database.runAsync).toHaveBeenCalledTimes(4);
+    expect(database.runAsync).toHaveBeenCalledTimes(8);
   });
 });

@@ -165,6 +165,7 @@ describe('spend-tracker dashboard summary', () => {
       {
         amountMinor: 49900,
         capturedAt: '2026-02-10T10:00:00+05:30',
+        history: [],
         id: 'txn_airtel',
         items: [
           {
@@ -175,6 +176,12 @@ describe('spend-tracker dashboard summary', () => {
           },
         ],
         merchant: 'Airtel Broadband',
+        note: 'Paid before the due date.',
+        parserInfo: {
+          confidenceBps: 9600,
+          parserId: 'gpay_upi_v1',
+          parserVersion: '1.0.0',
+        },
         sourceApp: 'Google Pay',
         status: 'classified',
       },
@@ -212,6 +219,17 @@ describe('spend-tracker dashboard summary', () => {
           ...DEFAULT_TIMELINE_FILTERS,
           dateFilter: 'older',
           query: 'fiber',
+        },
+        '2026-03-25T10:00:00+05:30',
+      ).map((transaction) => transaction.id),
+    ).toEqual(['txn_airtel']);
+
+    expect(
+      getTimelineTransactions(
+        transactions,
+        {
+          ...DEFAULT_TIMELINE_FILTERS,
+          query: 'due date',
         },
         '2026-03-25T10:00:00+05:30',
       ).map((transaction) => transaction.id),

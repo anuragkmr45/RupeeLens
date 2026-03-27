@@ -71,6 +71,9 @@ import {
   type TimelineDayGroup,
   type TimelineFilters,
   type Transaction,
+  type TransactionHistoryEntry,
+  type TransactionParserInfo,
+  updateTransactionNote,
 } from '../features/spend-tracker/domain';
 import {
   clearStoredSpendTrackerState,
@@ -217,6 +220,7 @@ export function SpendTrackerApp() {
     useState<TimelineFilters>(DEFAULT_TIMELINE_FILTERS);
   const [detailTransactionId, setDetailTransactionId] = useState<string | null>(null);
   const [detailReturnScreen, setDetailReturnScreen] = useState<PrimaryScreen>('timeline');
+  const [detailNoteDraft, setDetailNoteDraft] = useState('');
   const [classifyReturnScreen, setClassifyReturnScreen] =
     useState<ScreenReturnTarget | null>(null);
   const [manualReturnScreen, setManualReturnScreen] = useState<PrimaryScreen>('home');
@@ -576,17 +580,21 @@ export function SpendTrackerApp() {
     transactionId: string,
     returnScreen: PrimaryScreen = 'timeline',
   ) {
-    if (!getTransactionById(transactions, transactionId)) {
+    const transaction = getTransactionById(transactions, transactionId);
+
+    if (!transaction) {
       return;
     }
 
     setDetailTransactionId(transactionId);
     setDetailReturnScreen(returnScreen);
+    setDetailNoteDraft(transaction.note ?? '');
     setScreen('detail');
   }
 
   function handleCloseTransactionDetail() {
     setDetailTransactionId(null);
+    setDetailNoteDraft('');
     setScreen(detailReturnScreen);
   }
 
@@ -631,12 +639,26 @@ export function SpendTrackerApp() {
 
             if (detailTransactionId === transactionId) {
               setDetailTransactionId(null);
+              setDetailNoteDraft('');
               setScreen(returnScreen);
             }
           },
         },
       ],
     );
+  }
+
+  function handleSaveDetailNote() {
+    if (!detailTransactionId) {
+      return;
+    }
+
+    const normalizedNote = detailNoteDraft.trim();
+
+    setTransactions((currentTransactions) =>
+      updateTransactionNote(currentTransactions, detailTransactionId, normalizedNote),
+    );
+    setDetailNoteDraft(normalizedNote);
   }
 
   function handleStartSplit(
@@ -877,6 +899,7 @@ export function SpendTrackerApp() {
   async function handleResetDemoData() {
     setActiveTransactionId(null);
     setDetailTransactionId(null);
+    setDetailNoteDraft('');
     setDraft({ ...EMPTY_DRAFT });
     setSplitDraft(EMPTY_SPLIT_DRAFT);
     setInboxFilters({ ...DEFAULT_INBOX_FILTERS });
@@ -956,12 +979,15 @@ export function SpendTrackerApp() {
           />
         ) : !isHydrating && screen === 'detail' && detailTransaction ? (
           <TransactionDetailScreen
+            noteDraft={detailNoteDraft}
             onBack={handleCloseTransactionDetail}
+            onChangeNote={setDetailNoteDraft}
             onDelete={() =>
               handleConfirmDeleteTransaction(detailTransaction.id, detailReturnScreen)
             }
             onOpenClassification={handleOpenDetailClassification}
             onOpenSplit={handleOpenSplitFromDetail}
+            onSaveNote={handleSaveDetailNote}
             transaction={detailTransaction}
           />
         ) : !isHydrating && screen === 'classify' && activeTransaction ? (
@@ -2057,8 +2083,8 @@ function TimelineScreen({
                 Showing {filteredTransactionsCount} of {allTransactionsCount} local transactions
               </Text>
               <Text style={styles.helperCopy}>
-                Parser metadata and durable audit logs still appear only when the current local
-                model actually has them.
+                Parser context, saved notes, and audit history come straight from the local
+                transaction records shown here.
               </Text>
             </View>
             <View style={styles.actionRow}>
@@ -2245,16 +2271,22 @@ function TimelineTransactionRow({
 }
 
 function TransactionDetailScreen({
+  noteDraft,
   onBack,
+  onChangeNote,
   onDelete,
   onOpenClassification,
   onOpenSplit,
+  onSaveNote,
   transaction,
 }: {
+  noteDraft: string;
   onBack: () => void;
+  onChangeNote: (note: string) => void;
   onDelete: () => void;
   onOpenClassification: () => void;
   onOpenSplit: () => void;
+  onSaveNote: () => void;
   transaction: Transaction;
 }) {
   const unresolvedAmountMinor = getUnresolvedAmountMinor(transaction);
@@ -2265,6 +2297,13 @@ function TransactionDetailScreen({
     : transaction.status === 'classified'
       ? 'Edit classification'
       : 'Classify transaction';
+  const parserSummary = formatParserInfo(transaction.parserInfo ?? null);
+  const classificationHistory = (transaction.history ?? []).filter((entry) =>
+    entry.kind === 'classified' ||
+    entry.kind === 'classification_imported' ||
+    entry.kind === 'split_saved',
+  );
+  const noteDirty = noteDraft.trim() !== (transaction.note ?? '');
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -2321,27 +2360,74 @@ function TransactionDetailScreen({
         <Text style={styles.cardTitle}>Source and parser context</Text>
         <View style={styles.helperStack}>
           <Text style={styles.helperCopy}>Source app: {transaction.sourceApp}</Text>
-          <Text style={styles.helperCopy}>Local status: {getTransactionStatusLabel(transaction.status)}</Text>
-          <Text style={styles.helperCopy}>Local record ID: {transaction.id}</Text>
           <Text style={styles.helperCopy}>
-            Parser metadata: not yet attached to this local transaction record in the current app
-            model.
+            Local status: {getTransactionStatusLabel(transaction.status)}
           </Text>
+          <Text style={styles.helperCopy}>Local record ID: {transaction.id}</Text>
+          <Text style={styles.helperCopy}>Parser: {parserSummary.label}</Text>
+          {parserSummary.version ? (
+            <Text style={styles.helperCopy}>Parser version: {parserSummary.version}</Text>
+          ) : null}
+          {parserSummary.confidence ? (
+            <Text style={styles.helperCopy}>Confidence: {parserSummary.confidence}</Text>
+          ) : null}
+          {parserSummary.note ? <Text style={styles.helperCopy}>{parserSummary.note}</Text> : null}
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Local note</Text>
+        <Text style={styles.bodyCopy}>
+          Notes are stored on-device and included in Timeline search so the user can annotate why a
+          payment mattered or how it should be reviewed later.
+        </Text>
+        <View style={styles.fieldStack}>
+          <TextField
+            label="Note"
+            multiline={true}
+            onChangeText={onChangeNote}
+            placeholder="Add a local note for search and detail context"
+            value={noteDraft}
+          />
+        </View>
+        <View style={styles.actionRow}>
+          <ActionButton
+            disabled={!noteDirty}
+            label="Save note"
+            onPress={onSaveNote}
+            tone="secondary"
+          />
         </View>
       </SectionCard>
 
       <SectionCard accentColor={colors.panelWarm}>
-        <Text style={styles.cardTitle}>History and edits</Text>
-        <Text style={styles.bodyCopy}>
-          Durable classification history and audit logs are not stored yet in this local shell. The
-          fields above show the latest saved state only.
-        </Text>
-        <View style={styles.helperStack}>
-          <Text style={styles.helperCopy}>Recorded at: {formatCaptureMoment(transaction.capturedAt)}</Text>
-          <Text style={styles.helperCopy}>
-            Current state: {transaction.items.length > 0 ? `${transaction.items.length} saved item rows` : 'No saved item rows'}
+        <Text style={styles.cardTitle}>Classification history</Text>
+        {classificationHistory.length > 0 ? (
+          <View style={styles.historyStack}>
+            {classificationHistory.map((entry) => (
+              <HistoryEventRow key={entry.id} entry={entry} />
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.bodyCopy}>
+            No classification events are stored yet for this transaction.
           </Text>
-        </View>
+        )}
+      </SectionCard>
+
+      <SectionCard accentColor={colors.successSoft}>
+        <Text style={styles.cardTitle}>Audit history</Text>
+        {(transaction.history ?? []).length > 0 ? (
+          <View style={styles.historyStack}>
+            {(transaction.history ?? []).map((entry) => (
+              <HistoryEventRow key={entry.id} entry={entry} />
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.helperCopy}>
+            No audit events are stored yet for this transaction.
+          </Text>
+        )}
       </SectionCard>
 
       <SectionCard accentColor={colors.successSoft}>
@@ -2363,6 +2449,22 @@ function TransactionDetailScreen({
         </View>
       </SectionCard>
     </ScrollView>
+  );
+}
+
+function HistoryEventRow({
+  entry,
+}: {
+  entry: TransactionHistoryEntry;
+}) {
+  return (
+    <View style={styles.historyRow}>
+      <View style={styles.summaryCopy}>
+        <Text style={styles.summaryPrimary}>{getHistoryEventLabel(entry.kind)}</Text>
+        <Text style={styles.summarySecondary}>{entry.summary}</Text>
+      </View>
+      <Text style={styles.historyTimestamp}>{formatCaptureMoment(entry.at)}</Text>
+    </View>
   );
 }
 
@@ -3247,6 +3349,52 @@ function getCategoryLabel(categoryId: CategoryId): string {
   );
 }
 
+function getHistoryEventLabel(kind: TransactionHistoryEntry['kind']): string {
+  switch (kind) {
+    case 'captured':
+      return 'Captured';
+    case 'classified':
+      return 'Classified';
+    case 'classification_imported':
+      return 'Imported state';
+    case 'manual_added':
+      return 'Manual add';
+    case 'note_updated':
+      return 'Note updated';
+    case 'restored':
+      return 'Moved back to review';
+    case 'skipped':
+      return 'Skipped';
+    case 'split_saved':
+      return 'Split saved';
+    default:
+      return 'History event';
+  }
+}
+
+function formatParserInfo(
+  parserInfo: TransactionParserInfo | null,
+): { confidence: string | null; label: string; note: string | null; version: string | null } {
+  if (!parserInfo) {
+    return {
+      confidence: null,
+      label: 'Not available on this local record',
+      note: 'Manual entries and older local records may not carry parser metadata yet.',
+      version: null,
+    };
+  }
+
+  return {
+    confidence:
+      typeof parserInfo.confidenceBps === 'number'
+        ? `${(parserInfo.confidenceBps / 100).toFixed(0)}%`
+        : null,
+    label: parserInfo.parserId,
+    note: null,
+    version: parserInfo.parserVersion,
+  };
+}
+
 function getStatusTone(status: Transaction['status']): 'pending' | 'ready' {
   return status === 'classified' ? 'ready' : 'pending';
 }
@@ -3405,6 +3553,22 @@ const styles = StyleSheet.create({
   },
   helperStack: {
     gap: 4,
+  },
+  historyRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  historyStack: {
+    gap: 12,
+  },
+  historyTimestamp: {
+    color: colors.inkMuted,
+    fontSize: 12,
+    lineHeight: 18,
+    maxWidth: 120,
+    textAlign: 'right',
   },
   detailItemRow: {
     alignItems: 'flex-start',

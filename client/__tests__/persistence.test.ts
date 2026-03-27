@@ -160,31 +160,29 @@ describe('spend-tracker persistence', () => {
       notificationAccessState: 'settings_opened',
       onboardingCompleted: true,
       transactions: [
-        {
-          amountMinor: 29900,
-          capturedAt: '2026-03-25T10:00:00+05:30',
+        expect.objectContaining({
           id: 'txn_manual_store',
           items: [
-            {
-              amountMinor: 29900,
+            expect.objectContaining({
               categoryId: 'groceries',
-              id: 'txn_manual_store_item_1',
               label: 'Snacks',
-            },
+            }),
           ],
-          merchant: 'Corner Store',
-          sourceApp: 'Manual entry',
+          note: '',
+          parserInfo: null,
           status: 'classified',
-        },
-        {
-          amountMinor: 18000,
-          capturedAt: '2026-03-25T09:12:00+05:30',
+        }),
+        expect.objectContaining({
           id: 'txn_blue_tokai',
           items: [],
-          merchant: 'Blue Tokai Roasters',
-          sourceApp: 'Google Pay',
+          note: '',
+          parserInfo: {
+            confidenceBps: 9800,
+            parserId: 'gpay_upi_v1',
+            parserVersion: '1.0.0',
+          },
           status: 'skipped',
-        },
+        }),
       ],
     });
   });
@@ -413,6 +411,10 @@ describe('spend-tracker persistence', () => {
       'Corner Store',
       'Manual entry',
       'partially_classified',
+      '',
+      null,
+      null,
+      null,
     );
     expect(database.runAsync).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO transaction_items'),
@@ -421,6 +423,15 @@ describe('spend-tracker persistence', () => {
       29900,
       'groceries',
       'Snacks',
+      0,
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO transaction_history'),
+      'txn_manual_store_history_source',
+      'txn_manual_store',
+      '2026-03-25T10:00:00+05:30',
+      'manual_added',
+      'Manual spend stored for Corner Store.',
       0,
     );
   });

@@ -366,7 +366,7 @@
       "started_at": "2026-03-27",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: the client now has a local-first Timeline flow reachable from Home search, grouped day sections, local search across merchant/item/category, source-status-amount-date filters, transaction detail, and clear edit/delete handoff with confirmation. `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27. Status stays `in_progress` because the current mobile transaction model still does not attach durable parser metadata or classification/audit history to each record, so the full transaction-detail acceptance criteria are not closed yet."
+      "tracking_notes": "`CAP-003` and `CAP-004` remain blocked on 2026-03-27 because `adb devices` is empty again, so this run continues `UX-006` instead of starting a later ticket. Scope is limited to extending the local mobile transaction model with durable parser metadata, searchable notes, and classification/audit history so Timeline detail can close truthfully."
     },
     {
       "id": "UX-001",
@@ -489,12 +489,12 @@
       ],
       "tests": "Edge-case tests for rounding, zero remainder, and over-allocation.",
       "done": "Split-flow accepted by QA and design.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-27",
+      "completed_at": "2026-03-27",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: Timeline now reads local SQLite-backed transaction records with parser metadata, saved notes, grouped day sections, and classification/audit history. Transaction detail shows source, parser context, edits, and history; search now covers merchant, item, category, and note; note saves persist locally; and clear edit/delete confirmation remains in place. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27."
     },
     {
       "id": "UX-006",
@@ -514,12 +514,12 @@
       ],
       "tests": "Search accuracy and edit-flow tests on seeded dataset.",
       "done": "History flows stable and discoverable.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-27",
+      "completed_at": "2026-03-27",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: Timeline now reads local SQLite-backed transaction records with parser metadata, saved notes, grouped day sections, and classification/audit history. Transaction detail shows source, parser context, edits, and history; search now covers merchant, item, category, and note; note saves persist locally; and clear edit/delete confirmation remains in place. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27."
     },
     {
       "id": "UX-007",

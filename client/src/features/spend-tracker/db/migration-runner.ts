@@ -2,9 +2,13 @@ import {
   MOBILE_MIGRATION_TABLE,
   MOBILE_MIGRATION_TABLE_SQL,
   SETTINGS_TABLE_SQL,
+  TRANSACTION_HISTORY_INDEX_SQL,
+  TRANSACTION_HISTORY_SEED_SQL,
+  TRANSACTION_HISTORY_TABLE_SQL,
   TRANSACTION_ITEMS_INDEX_SQL,
   TRANSACTION_ITEMS_TABLE_SQL,
   TRANSACTIONS_TABLE_SQL,
+  TRANSACTIONS_V2_REBUILD_SQL,
   mobileMigrations,
 } from './migrations';
 
@@ -31,57 +35,6 @@ interface CountRow {
 export interface ApplyMobileMigrationsOptions {
   now?: () => string;
 }
-
-const LEGACY_TRANSACTIONS_REBUILD_SQL = `
-  PRAGMA foreign_keys = OFF;
-
-  ALTER TABLE transaction_items RENAME TO transaction_items_legacy;
-  ALTER TABLE transactions RENAME TO transactions_legacy;
-
-  ${TRANSACTIONS_TABLE_SQL}
-  ${TRANSACTION_ITEMS_TABLE_SQL}
-
-  INSERT INTO transactions (
-    id,
-    amount_minor,
-    captured_at,
-    merchant,
-    source_app,
-    status
-  )
-  SELECT
-    id,
-    amount_minor,
-    captured_at,
-    merchant,
-    source_app,
-    status
-  FROM transactions_legacy;
-
-  INSERT INTO transaction_items (
-    id,
-    transaction_id,
-    amount_minor,
-    category_id,
-    label,
-    sort_order
-  )
-  SELECT
-    id,
-    transaction_id,
-    amount_minor,
-    category_id,
-    label,
-    sort_order
-  FROM transaction_items_legacy;
-
-  DROP TABLE transaction_items_legacy;
-  DROP TABLE transactions_legacy;
-
-  ${TRANSACTION_ITEMS_INDEX_SQL}
-
-  PRAGMA foreign_keys = ON;
-`;
 
 export async function applyMobileMigrations(
   database: MobileMigrationDatabase,
@@ -138,8 +91,13 @@ async function adoptLegacySchema(
   const transactionsTableSql =
     existingTables.find((table) => table.name === 'transactions')?.sql ?? null;
 
-  if (transactionsTableSql && !transactionsTableSql.includes("'skipped'")) {
-    await database.execAsync(LEGACY_TRANSACTIONS_REBUILD_SQL);
+  if (
+    transactionsTableSql &&
+    (!transactionsTableSql.includes("'partially_classified'") ||
+      !transactionsTableSql.includes('note TEXT') ||
+      !transactionsTableSql.includes('parser_id TEXT'))
+  ) {
+    await database.execAsync(TRANSACTIONS_V2_REBUILD_SQL);
   }
 
   await database.execAsync(`
@@ -148,6 +106,9 @@ async function adoptLegacySchema(
     ${TRANSACTIONS_TABLE_SQL}
     ${TRANSACTION_ITEMS_TABLE_SQL}
     ${TRANSACTION_ITEMS_INDEX_SQL}
+    ${TRANSACTION_HISTORY_TABLE_SQL}
+    ${TRANSACTION_HISTORY_SEED_SQL}
+    ${TRANSACTION_HISTORY_INDEX_SQL}
   `);
 
   for (const migration of mobileMigrations) {

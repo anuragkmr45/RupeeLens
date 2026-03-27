@@ -1,4 +1,4 @@
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor, type RenderAPI } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
 import App from '../App';
@@ -399,6 +399,16 @@ async function flushVirtualizedListTimers(): Promise<void> {
   });
 }
 
+async function renderApp(): Promise<RenderAPI> {
+  const screen = render(<App />);
+
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  return screen;
+}
+
 describe('App', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -452,6 +462,11 @@ describe('App', () => {
 
     expect(screen.getByText('UPI Spend Tracker')).toBeTruthy();
     expect(screen.getByText('Restoring saved state on this device')).toBeTruthy();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
     expect(await screen.findByText('Source apps')).toBeTruthy();
     expect(screen.getByText('Budget cycle')).toBeTruthy();
     expect(await screen.findByText('Continue in local-only mode')).toBeTruthy();
@@ -480,7 +495,7 @@ describe('App', () => {
       ),
     });
 
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
     expect(screen.getByText('Remote bootstrap config')).toBeTruthy();
@@ -493,7 +508,7 @@ describe('App', () => {
   });
 
   it('opens the design system showcase from Home', async () => {
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
 
@@ -537,7 +552,7 @@ describe('App', () => {
       new Error('Network request failed'),
     );
 
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
 
@@ -565,7 +580,7 @@ describe('App', () => {
       transactions: seededTransactions,
     });
 
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     expect(await screen.findByText('Source apps')).toBeTruthy();
     expect(screen.getByText('Settings opened, permission still pending')).toBeTruthy();
@@ -576,7 +591,7 @@ describe('App', () => {
   });
 
   it('syncs the onboarding source-app selection into the native allowlist', async () => {
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     expect(await screen.findByText('Source apps')).toBeTruthy();
 
@@ -616,7 +631,7 @@ describe('App', () => {
     mockedNativeCaptureModule.setNativeCaptureDedupeConfig.mockResolvedValue(diagnostics);
     mockedNativeCaptureModule.setAllowedSourceApps.mockResolvedValue(diagnostics);
 
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
 
@@ -635,7 +650,7 @@ describe('App', () => {
   });
 
   it('syncs bootstrap dedupe config into the native module', async () => {
-    render(<App />);
+    await renderApp();
 
     await waitFor(() =>
       expect(mockedNativeCaptureModule.setNativeCaptureDedupeConfig).toHaveBeenCalledWith({
@@ -647,7 +662,7 @@ describe('App', () => {
   });
 
   it('persists onboarding preferences before onboarding is completed', async () => {
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     expect(await screen.findByText('Source apps')).toBeTruthy();
 
@@ -673,7 +688,7 @@ describe('App', () => {
   });
 
   it('classifies an inbox item and persists the updated session', async () => {
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
 
@@ -717,7 +732,7 @@ describe('App', () => {
   });
 
   it('filters, skips, revisits, and deletes inbox items locally', async () => {
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
     fireEvent.press(screen.getByRole('button', { name: 'Inbox' }));
@@ -769,7 +784,7 @@ describe('App', () => {
     });
 
     try {
-      const screen = render(<App />);
+      const screen = await renderApp();
 
       await flushVirtualizedListTimers();
       fireEvent.press(await screen.findByRole('button', { name: 'Inbox' }));
@@ -809,7 +824,7 @@ describe('App', () => {
   });
 
   it('uses explicit quick-classify suggestions and rule-intent toggle', async () => {
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
     fireEvent.press(screen.getByRole('button', { name: 'Inbox' }));
@@ -844,7 +859,7 @@ describe('App', () => {
   });
 
   it('saves a partial split and keeps the transaction visible in Inbox', async () => {
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
     fireEvent.press(screen.getByRole('button', { name: 'Inbox' }));
@@ -885,7 +900,7 @@ describe('App', () => {
   });
 
   it('adds a manual spend and persists the updated session', async () => {
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
 
@@ -929,7 +944,7 @@ describe('App', () => {
   });
 
   it('opens timeline search, shows local transaction detail, and edits a transaction from detail', async () => {
-    const screen = render(<App />);
+    const screen = await renderApp();
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
     expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
@@ -949,7 +964,8 @@ describe('App', () => {
     );
 
     expect(await screen.findByText('Inspect the local record before changing it')).toBeTruthy();
-    expect(screen.getByText('Parser metadata: not yet attached to this local transaction record in the current app model.')).toBeTruthy();
+    expect(screen.getByText('Parser: paytm_upi_v1')).toBeTruthy();
+    expect(screen.getByText('Classification history')).toBeTruthy();
 
     fireEvent.press(screen.getByRole('button', { name: 'Edit classification' }));
     expect(await screen.findByText('Quick classify sheet')).toBeTruthy();
@@ -993,7 +1009,7 @@ describe('App', () => {
     );
 
     try {
-      const screen = render(<App />);
+      const screen = await renderApp();
 
       fireEvent.press(await screen.findByText('Continue in local-only mode'));
       fireEvent.press(screen.getByRole('button', { name: 'Search' }));
@@ -1016,5 +1032,46 @@ describe('App', () => {
     } finally {
       deleteAlertSpy.mockRestore();
     }
+  });
+
+  it('saves a local note from transaction detail and makes it searchable in timeline', async () => {
+    const screen = await renderApp();
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+    fireEvent.press(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.changeText(screen.getByPlaceholderText('Merchant, item, or category'), 'blue');
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Open transaction details for Blue Tokai Roasters' }),
+    );
+
+    expect(await screen.findByText('Local note')).toBeTruthy();
+
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Add a local note for search and detail context'),
+      'Shared cafe catch-up',
+    );
+    fireEvent.press(screen.getByRole('button', { name: 'Save note' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Back to timeline' }));
+
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Merchant, item, or category'),
+      'catch-up',
+    );
+
+    expect(await screen.findByText('Showing 1 of 5 local transactions')).toBeTruthy();
+    expect(screen.getByText('Blue Tokai Roasters')).toBeTruthy();
+
+    await waitFor(() =>
+      expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          transactions: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'txn_blue_tokai',
+              note: 'Shared cafe catch-up',
+            }),
+          ]),
+        }),
+      ),
+    );
   });
 });

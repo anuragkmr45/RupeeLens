@@ -127,11 +127,13 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `UX-006 — Build timeline, transaction detail, and search/filter views`
+- `INT-001 — Implement category management and seeded default categories`
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `CAP-003` and `CAP-004` both remain blocked on connected-Android validation because the attached device still cancels debug APK installation with `INSTALL_FAILED_USER_RESTRICTED`, so they are no longer the default repo-side choice in the current environment.
+- `CAP-003` and `CAP-004` both remain blocked on connected-Android validation because the current environment does not have a stable attached-device path (`adb devices` is empty again, and the last attached target also rejected debug installation), so they are no longer the default repo-side choice in the current environment.
 - `UX-005` now has its repo-side split implementation and validation, but it stays `in_progress` only because external QA/design acceptance has not happened yet.
-- `UX-006` now has a real local timeline/search/detail flow, but it still remains `in_progress` because the current mobile data model does not yet attach durable parser metadata or classification/audit history to transaction records.
+- `UX-006` is now done with durable local parser metadata, searchable notes, and classification/audit history attached to transaction detail.
+- `UX-007` is not yet actionable because it depends on `CAP-007`.
+- `INT-001` is now the earliest unblocked `todo` ticket with satisfied dependencies (`SET-004` is already done).
