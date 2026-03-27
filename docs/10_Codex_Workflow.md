@@ -127,11 +127,10 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `CAP-001 — Build Android NotificationListenerService and allowlist controls` as a closeout pass only when an Android target is available and not blocked from androidTest install or UI inspection
-- Otherwise `CAP-002 — Implement parser registry with package-specific and generic parsers`
+- `CAP-002 — Implement parser registry with package-specific and generic parsers`
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- Repo truth now includes the CAP-001 native listener foundation plus an instrumentation harness, but its final closeout is still blocked on device policy and UI access rather than missing implementation.
-- If native validation is still blocked by the current Android target, parser work becomes the next best repo-side product step because the listener, allowlist, diagnostics, and closeout test harness already exist locally.
+- `CAP-001` is now done, with the androidTest APK accepted on a connected Android 13 device and `./gradlew :app:connectedDebugAndroidTest` passing on-device.
+- `CAP-002` is the earliest remaining `P0` ticket that builds directly on the finished listener, allowlist, diagnostics, and raw-snapshot foundation.

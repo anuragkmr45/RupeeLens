@@ -206,7 +206,7 @@ Detect payment notifications reliably and turn them into structured capture even
 - **Story points:** 8
 - **Goal:** Observe supported payment notifications only after explicit user opt-in.
 - **Dependencies:** SET-001
-- **Tracking:** Status: blocked | Owner: codex | Started At: 2026-03-26 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth now also includes a dedicated `NotificationCaptureProcessor` and connected-Android instrumentation coverage for allowlist filtering and snapshot persistence. On 2026-03-27, a physical Android 13 device was connected, the listener service was approved and visible in `dumpsys notification`, and supported packages like Google Pay and PhonePe were confirmed on-device. CAP-001 still remains blocked because MIUI rejects the androidTest APK install with `INSTALL_FAILED_USER_RESTRICTED`, and the phone remains pattern-locked for direct UI inspection.
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-26 | Completed At: 2026-03-27 | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: CAP-001 now has a native Android listener service, allowlist filtering, raw snapshot persistence, a React Native diagnostics bridge, permission-state reflection in UI, and connected Android instrumentation coverage. On 2026-03-27 the attached Android 13 device accepted the androidTest APK and `./gradlew :app:connectedDebugAndroidTest` passed with 3 tests, clearing the prior install-policy blocker and closing the ticket.
 
 **Description**  
 Create native Android service to receive notifications, filter by allowed packages, and persist raw payload snapshots needed for parsing. Add onboarding checks and diagnostics.

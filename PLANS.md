@@ -12,6 +12,20 @@ Protocol notes:
 
 ### CAP-001 — Build Android NotificationListenerService and Allowlist Controls
 
+- **Status:** completed
+- **Ticket:** CAP-001
+- **Goal:** Finish the listener closeout now that the connected Android device allows androidTest APK installation, and move CAP-001 to `done` if the remaining native validations pass.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, and `docs/10_Codex_Workflow.md`.
+- **Rationale:** `SET-002` is still blocked, and CAP-001 must be preferred first because the previous blocker changed materially: the connected phone is available and now accepts the androidTest APK install path that previously failed.
+- **Risks:** If connected Android validation still fails, the ticket must go back to `blocked` with the exact device/runtime reason. This pass must stay a closeout pass only and not spill into CAP-002 parser work.
+- **API / schema impact:** None expected. Validation-only closeout unless repo-truth docs change.
+- **Rollout / flag plan:** No rollout change. Confirm the existing Android-only local-first capture foundation rather than expanding scope.
+- **Validation commands:** `adb devices`, `adb install -r -t .../app-debug-androidTest.apk`, `cd client/android && ./gradlew :app:connectedDebugAndroidTest`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** CAP-001 acceptance is supported by real connected-device evidence, the connected Android test suite runs successfully, and backlog tracking can be moved from blocked to done.
+- **Outcome:** The connected Android device (`e342703`, Android 13 / `M2102J20SI`) accepted the androidTest APK, and `./gradlew :app:connectedDebugAndroidTest` passed on-device with 3 instrumentation tests. That clears the prior MIUI install-policy blocker, so CAP-001 is now closed as `done`; repo-truth docs now point to `CAP-002` as the next capture ticket.
+
+### CAP-001 — Build Android NotificationListenerService and Allowlist Controls
+
 - **Status:** blocked
 - **Ticket:** CAP-001
 - **Goal:** Close the Android-native listener ticket by using the newly attached device to validate real permission reflection, allowlist behavior, and listener stability before moving on to parser work.

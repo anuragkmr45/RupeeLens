@@ -1,6 +1,6 @@
 # Project Phase Status
 
-Date: 2026-03-26  
+Date: 2026-03-27  
 Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`, and live source under `client/`, `server/`, and `packages/`
 
 ## Summary
@@ -33,11 +33,10 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 - UI-level onboarding handoff that can open Android notification settings
 - First signed remote bootstrap-config loop with API delivery, mobile cache/refresh handling, rollout channels, feature flags, parser templates, and stale-safe fallback observability
-- Android-native `NotificationListenerService` foundation with allowlist filtering, raw snapshot persistence, a React Native diagnostics bridge, UI permission-state reflection sourced from the native listener permission, and a connected-Android instrumentation harness for allowlist filtering plus snapshot persistence
+- Android-native `NotificationListenerService` foundation with allowlist filtering, raw snapshot persistence, a React Native diagnostics bridge, UI permission-state reflection sourced from the native listener permission, and a connected-Android instrumentation harness for allowlist filtering plus snapshot persistence that now passes on a real Android 13 device
 
 **Remaining**
 
-- Supported-device closeout for the notification listener on an Android target that allows androidTest install and direct UI access
 - Parser registry, dedupe, and native capture repository/domain import work
 
 ## Sprint 2 — First Usable App

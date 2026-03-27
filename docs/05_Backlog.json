@@ -208,12 +208,12 @@
       ],
       "tests": "Instrumented tests for listener callbacks and allowlist filtering; manual tests with sample apps.",
       "done": "Notification listener stable on supported Android versions.",
-      "status": "blocked",
+      "status": "done",
       "owner": "codex",
       "started_at": "2026-03-26",
-      "completed_at": "",
+      "completed_at": "2026-03-27",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth now also includes a dedicated `NotificationCaptureProcessor` and connected-Android instrumentation coverage for allowlist filtering and snapshot persistence. On 2026-03-27, a physical Android 13 device was connected, the listener service was approved and visible in `dumpsys notification`, and supported packages like Google Pay and PhonePe were confirmed on-device. CAP-001 still remains blocked because MIUI rejects the androidTest APK install with `INSTALL_FAILED_USER_RESTRICTED`, and the phone remains pattern-locked for direct UI inspection."
+      "tracking_notes": "Repo truth: CAP-001 now has a native Android listener service, allowlist filtering, raw snapshot persistence, a React Native diagnostics bridge, permission-state reflection in UI, and connected Android instrumentation coverage. On 2026-03-27 the attached Android 13 device accepted the androidTest APK and `./gradlew :app:connectedDebugAndroidTest` passed with 3 tests, clearing the prior install-policy blocker and closing the ticket."
     },
     {
       "id": "CAP-002",
