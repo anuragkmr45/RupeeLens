@@ -285,12 +285,12 @@
       ],
       "tests": "Kill/restart process during capture flow and verify event persistence.",
       "done": "Capture DB stable and integrated into native services.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "blocked",
+      "owner": "codex",
+      "started_at": "2026-03-27",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "CAP-004 now has a Room-backed native capture repository, schema migrations from legacy snapshot storage, repository methods for insert/state updates/pending fetch/reply and sync-marker persistence, retention-safe raw payload pruning, and a connected-Android repository instrumentation suite. `./gradlew :app:testDebugUnitTest`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed, but `./gradlew :app:connectedDebugAndroidTest` could not execute on 2026-03-27 because `adb devices` returned no connected devices."
     },
     {
       "id": "CAP-005",

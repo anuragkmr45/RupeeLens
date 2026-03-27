@@ -132,5 +132,5 @@ Unless repo truth changes first, the default next ticket is:
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `CAP-003` now has repo-side dedupe implementation and local validation, but its connected Android closeout is blocked because the attached device canceled debug APK installation with `INSTALL_FAILED_USER_RESTRICTED`.
-- `CAP-004` is the earliest remaining unblocked `P0` ticket if that device-policy blocker persists.
+- `CAP-003` remains blocked only on prior connected-device closeout work, but `CAP-004` is now the active closeout candidate because its repo-side implementation landed in code.
+- `CAP-004` now has a Room-backed repository plus validation coverage in repo truth, but it is still blocked from completion until a device or emulator is attached and `./gradlew :app:connectedDebugAndroidTest` can execute.

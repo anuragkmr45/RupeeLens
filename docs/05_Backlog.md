@@ -287,7 +287,7 @@ Duplicate prompts reduced to agreed threshold in QA.
 - **Story points:** 5
 - **Goal:** Persist capture events reliably even when JS runtime is not active.
 - **Dependencies:** SET-004, CAP-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: blocked | Owner: codex | Started At: 2026-03-27 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: CAP-004 now has a Room-backed native capture repository, schema migrations from legacy snapshot storage, repository methods for insert/state updates/pending fetch/reply and sync-marker persistence, retention-safe raw payload pruning, and a connected-Android repository instrumentation suite. `./gradlew :app:testDebugUnitTest`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed, but `./gradlew :app:connectedDebugAndroidTest` could not execute on 2026-03-27 because `adb devices` returned no connected devices.
 
 **Description**  
 Use Room for capture_events, capture_replies, and sync markers. Add repository methods for insert, update state, fetch pending, and pruning.
