@@ -2,8 +2,10 @@ import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 import { Storage } from 'expo-sqlite/kv-store';
 
 import {
+  normalizeCategories,
   sortTransactionsByCapturedAtDesc,
   type CategoryId,
+  type CategoryOption,
   type Transaction,
   type TransactionHistoryEntry,
   type TransactionParserInfo,
@@ -29,6 +31,7 @@ export interface OnboardingPreferences {
 }
 
 export interface PersistedSpendTrackerState {
+  categories: CategoryOption[];
   onboardingPreferences: OnboardingPreferences;
   notificationAccessState: NotificationAccessState;
   onboardingCompleted: boolean;
@@ -38,6 +41,13 @@ export interface PersistedSpendTrackerState {
 interface SettingRow {
   key: string;
   value: string;
+}
+
+interface CategoryRow {
+  description: string;
+  id: string;
+  isDefault: number;
+  label: string;
 }
 
 interface TransactionRow {
@@ -89,6 +99,7 @@ export async function clearStoredSpendTrackerState(): Promise<void> {
     await database.runAsync('DELETE FROM transaction_history');
     await database.runAsync('DELETE FROM transaction_items');
     await database.runAsync('DELETE FROM transactions');
+    await database.runAsync('DELETE FROM categories');
     await database.runAsync('DELETE FROM settings');
   });
 
@@ -144,11 +155,18 @@ async function hasStoredState(database: SQLiteDatabase): Promise<boolean> {
   const transactionCountRow = await database.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM transactions',
   );
+  const categoryCountRow = await database.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM categories',
+  );
   const settingsCountRow = await database.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM settings',
   );
 
-  return (transactionCountRow?.count ?? 0) > 0 || (settingsCountRow?.count ?? 0) > 0;
+  return (
+    (transactionCountRow?.count ?? 0) > 0 ||
+    (categoryCountRow?.count ?? 0) > 0 ||
+    (settingsCountRow?.count ?? 0) > 0
+  );
 }
 
 async function writeStateToDatabase(
@@ -159,7 +177,25 @@ async function writeStateToDatabase(
     await database.runAsync('DELETE FROM transaction_history');
     await database.runAsync('DELETE FROM transaction_items');
     await database.runAsync('DELETE FROM transactions');
+    await database.runAsync('DELETE FROM categories');
     await database.runAsync('DELETE FROM settings');
+
+    for (const category of normalizeCategories(state.categories)) {
+      await database.runAsync(
+        `
+          INSERT INTO categories (
+            id,
+            label,
+            description,
+            is_default
+          ) VALUES (?, ?, ?, ?)
+        `,
+        category.id,
+        category.label,
+        category.description,
+        category.isDefault ? 1 : 0,
+      );
+    }
 
     await database.runAsync(
       'INSERT INTO settings (key, value) VALUES (?, ?)',
@@ -263,8 +299,19 @@ async function writeStateToDatabase(
 async function readStateFromDatabase(
   database: SQLiteDatabase,
 ): Promise<PersistedSpendTrackerState> {
-  const [settingRows, transactionRows, itemRows, historyRows] = await Promise.all([
+  const [settingRows, categoryRows, transactionRows, itemRows, historyRows] = await Promise.all([
     database.getAllAsync<SettingRow>('SELECT key, value FROM settings'),
+    database.getAllAsync<CategoryRow>(
+      `
+        SELECT
+          id,
+          label,
+          description,
+          is_default as isDefault
+        FROM categories
+        ORDER BY is_default DESC, label ASC, id ASC
+      `,
+    ),
     database.getAllAsync<TransactionRow>(
       `
         SELECT
@@ -315,6 +362,14 @@ async function readStateFromDatabase(
   const storedSourceAppIds = parseSourceAppIds(settings.get('selected_source_app_ids'));
   const storedBudgetCycleId = settings.get('budget_cycle_id');
   const storedSyncMode = settings.get('sync_mode');
+  const categories = normalizeCategories(
+    categoryRows.map((row) => ({
+      description: row.description,
+      id: row.id,
+      isDefault: row.isDefault === 1,
+      label: row.label,
+    })),
+  );
   const itemsByTransactionId = new Map<string, Transaction['items']>();
   const historyByTransactionId = new Map<string, TransactionHistoryEntry[]>();
 
@@ -375,6 +430,7 @@ async function readStateFromDatabase(
   );
 
   return {
+    categories,
     onboardingPreferences: {
       budgetCycleId: isBudgetCycleId(storedBudgetCycleId)
         ? storedBudgetCycleId
@@ -412,6 +468,11 @@ async function readLegacyState(): Promise<PersistedSpendTrackerState | null> {
     const candidate = parsedValue as Partial<PersistedSpendTrackerState>;
 
     return {
+      categories: normalizeCategories(
+        isCategoryList((candidate as { categories?: unknown }).categories)
+          ? (candidate as { categories?: CategoryOption[] }).categories
+          : undefined,
+      ),
       onboardingPreferences: normalizeOnboardingPreferences(
         candidate.onboardingPreferences,
       ),
@@ -434,6 +495,7 @@ function isPersistedSpendTrackerState(
   const candidate = value as Partial<PersistedSpendTrackerState>;
 
   return (
+    (candidate.categories === undefined || isCategoryList(candidate.categories)) &&
     typeof candidate.onboardingCompleted === 'boolean' &&
     isNotificationAccessState(candidate.notificationAccessState) &&
     (candidate.onboardingPreferences === undefined ||
@@ -659,13 +721,7 @@ function isTransactionItem(value: unknown): boolean {
 }
 
 function isCategoryId(value: unknown): value is CategoryId {
-  return (
-    value === 'bills' ||
-    value === 'food_drink' ||
-    value === 'groceries' ||
-    value === 'shopping' ||
-    value === 'transport'
-  );
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
 function isTransactionStatus(
@@ -699,6 +755,7 @@ function isTransactionHistoryKind(
 ): value is TransactionHistoryEntry['kind'] {
   return (
     value === 'captured' ||
+    value === 'category_merged' ||
     value === 'classified' ||
     value === 'classification_imported' ||
     value === 'manual_added' ||
@@ -707,4 +764,26 @@ function isTransactionHistoryKind(
     value === 'skipped' ||
     value === 'split_saved'
   );
+}
+
+function isCategoryList(value: unknown): value is CategoryOption[] {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  return value.every((category) => {
+    if (!category || typeof category !== 'object') {
+      return false;
+    }
+
+    const candidate = category as Partial<CategoryOption>;
+
+    return (
+      typeof candidate.id === 'string' &&
+      candidate.id.trim().length > 0 &&
+      typeof candidate.label === 'string' &&
+      candidate.label.trim().length > 0 &&
+      typeof candidate.description === 'string'
+    );
+  });
 }

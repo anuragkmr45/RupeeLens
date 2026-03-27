@@ -1,12 +1,16 @@
 import {
+  addCustomCategory,
   appendSplitDraftRow,
   buildSplitDraft,
+  canDeleteCategory,
   classifyTransaction,
   createSplitDraftRow,
   DEFAULT_INBOX_FILTERS,
   DEFAULT_TIMELINE_FILTERS,
   deleteTransaction,
+  deleteCustomCategory,
   getClassificationSuggestions,
+  getDefaultCategories,
   getInboxReviewTransactions,
   getPendingTransactions,
   getTimelineDayGroups,
@@ -15,14 +19,17 @@ import {
   getUnresolvedAmountMinor,
   isClassificationReady,
   isSplitDraftReady,
+  mergeCategories,
   moveSplitDraftRow,
   removeSplitDraftRow,
   restoreSkippedTransaction,
   seededTransactions,
   skipTransaction,
   splitTransaction,
+  summarizeCategoryUsage,
   summarizeSplitDraft,
   summarizeDashboard,
+  updateCustomCategory,
   type Transaction,
 } from '../src/features/spend-tracker/domain';
 
@@ -497,6 +504,113 @@ describe('spend-tracker dashboard summary', () => {
           }),
         ],
         status: 'classified',
+      }),
+    );
+  });
+
+  it('supports category CRUD and keeps custom categories first-class in search and summaries', () => {
+    const withCustomCategory = addCustomCategory(getDefaultCategories(), {
+      description: 'Cafe orders and local treats.',
+      label: 'Weekend Treats',
+    });
+    const updatedCategories = updateCustomCategory(withCustomCategory, 'custom_weekend_treats', {
+      description: 'Cafe orders, desserts, and local treats.',
+      label: 'Weekend Treats',
+    });
+    const classifiedTransactions = classifyTransaction(
+      seededTransactions,
+      'txn_blue_tokai',
+      {
+        categoryId: 'custom_weekend_treats',
+        itemLabel: 'Cold brew',
+        saveAsRule: false,
+      },
+      updatedCategories,
+    );
+    const customCategoryTransactions = classifiedTransactions.filter(
+      (transaction) => transaction.id === 'txn_blue_tokai',
+    );
+
+    expect(
+      summarizeDashboard(
+        customCategoryTransactions,
+        {
+          budgetTargetMinor: 500000,
+          cycleStartDay: 1,
+          now: '2026-03-25T10:00:00+05:30',
+        },
+        updatedCategories,
+      ).topCategoryLabel,
+    ).toBe('Weekend Treats');
+    expect(
+      getTimelineTransactions(
+        classifiedTransactions,
+        {
+          ...DEFAULT_TIMELINE_FILTERS,
+          query: 'weekend',
+        },
+        '2026-03-25T10:00:00+05:30',
+        updatedCategories,
+      ).map((transaction) => transaction.id),
+    ).toContain('txn_blue_tokai');
+    expect(deleteCustomCategory(updatedCategories, 'custom_weekend_treats')).toEqual(
+      getDefaultCategories(),
+    );
+  });
+
+  it('summarizes category usage and preserves historical rows when merging categories', () => {
+    const categories = addCustomCategory(getDefaultCategories(), {
+      description: 'Local snacks and cafe add-ons.',
+      label: 'Weekend Treats',
+    });
+    const transactions = classifyTransaction(
+      seededTransactions,
+      'txn_blue_tokai',
+      {
+        categoryId: 'custom_weekend_treats',
+        itemLabel: 'Cold brew',
+        saveAsRule: false,
+      },
+      categories,
+    );
+    const usage = summarizeCategoryUsage(categories, transactions);
+
+    expect(
+      usage.find((summary) => summary.category.id === 'custom_weekend_treats'),
+    ).toEqual(
+      expect.objectContaining({
+        itemCount: 1,
+        transactionCount: 1,
+      }),
+    );
+    expect(canDeleteCategory(categories, transactions, 'custom_weekend_treats')).toBe(false);
+
+    const merged = mergeCategories(
+      categories,
+      transactions,
+      'custom_weekend_treats',
+      'food_drink',
+    );
+
+    expect(
+      merged.categories.find((category) => category.id === 'custom_weekend_treats'),
+    ).toBeUndefined();
+    expect(
+      merged.transactions.find((transaction) => transaction.id === 'txn_blue_tokai'),
+    ).toEqual(
+      expect.objectContaining({
+        history: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'category_merged',
+            summary: expect.stringContaining('Weekend Treats'),
+          }),
+        ]),
+        items: [
+          expect.objectContaining({
+            categoryId: 'food_drink',
+            label: 'Cold brew',
+          }),
+        ],
       }),
     );
   });

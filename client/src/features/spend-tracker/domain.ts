@@ -1,14 +1,16 @@
-export type CategoryId =
-  | 'bills'
-  | 'food_drink'
-  | 'groceries'
-  | 'shopping'
-  | 'transport';
+export type CategoryId = string;
 
 export interface CategoryOption {
   description: string;
   id: CategoryId;
+  isDefault: boolean;
   label: string;
+}
+
+export interface CategoryUsageSummary {
+  category: CategoryOption;
+  itemCount: number;
+  transactionCount: number;
 }
 
 export interface TransactionItem {
@@ -26,6 +28,7 @@ export interface TransactionParserInfo {
 
 export type TransactionHistoryKind =
   | 'captured'
+  | 'category_merged'
   | 'classified'
   | 'classification_imported'
   | 'manual_added'
@@ -213,31 +216,315 @@ export const SPLIT_REMAINDER_OPTIONS: Array<{
 
 export const categoryOptions: CategoryOption[] = [
   {
+    description: 'Electricity, mobile, and utility bills.',
+    id: 'bills',
+    isDefault: true,
+    label: 'Bills',
+  },
+  {
+    description: 'School fees, tuition, books, and classes.',
+    id: 'education',
+    isDefault: true,
+    label: 'Education',
+  },
+  {
+    description: 'Movies, games, streaming, and fun spends.',
+    id: 'entertainment',
+    isDefault: true,
+    label: 'Entertainment',
+  },
+  {
     description: 'Coffee, dining, snacks, and drinks.',
     id: 'food_drink',
+    isDefault: true,
     label: 'Food & Drink',
   },
   {
     description: 'Groceries and daily essentials.',
     id: 'groceries',
+    isDefault: true,
     label: 'Groceries',
   },
   {
-    description: 'Metro, cab, and fuel spends.',
-    id: 'transport',
-    label: 'Transport',
+    description: 'Medicines, clinics, tests, and wellness.',
+    id: 'healthcare',
+    isDefault: true,
+    label: 'Healthcare',
   },
   {
-    description: 'Electricity, mobile, and utility bills.',
-    id: 'bills',
-    label: 'Bills',
+    description: 'Home supplies, repairs, and recurring essentials.',
+    id: 'household',
+    isDefault: true,
+    label: 'Household',
+  },
+  {
+    description: 'Everything that does not fit a stronger default yet.',
+    id: 'misc',
+    isDefault: true,
+    label: 'Miscellaneous',
+  },
+  {
+    description: 'Salon, grooming, skincare, and toiletries.',
+    id: 'personal_care',
+    isDefault: true,
+    label: 'Personal Care',
   },
   {
     description: 'Personal shopping and one-off purchases.',
     id: 'shopping',
+    isDefault: true,
     label: 'Shopping',
   },
+  {
+    description: 'Metro, cab, fuel, and commute spends.',
+    id: 'transport',
+    isDefault: true,
+    label: 'Transport',
+  },
+  {
+    description: 'Flights, hotels, and long-distance travel.',
+    id: 'travel',
+    isDefault: true,
+    label: 'Travel',
+  },
 ];
+
+export function getDefaultCategories(): CategoryOption[] {
+  return categoryOptions.map((category) => ({ ...category }));
+}
+
+export function normalizeCategories(
+  categories: CategoryOption[] | null | undefined,
+): CategoryOption[] {
+  const defaultCategories = getDefaultCategories();
+
+  if (!Array.isArray(categories)) {
+    return defaultCategories;
+  }
+
+  const seenIds = new Set(defaultCategories.map((category) => category.id));
+  const customCategories: CategoryOption[] = [];
+
+  for (const category of categories) {
+    if (
+      !category ||
+      typeof category !== 'object' ||
+      typeof category.id !== 'string' ||
+      typeof category.label !== 'string' ||
+      typeof category.description !== 'string'
+    ) {
+      continue;
+    }
+
+    const normalizedId = category.id.trim();
+    const normalizedLabel = category.label.trim();
+    const normalizedDescription = category.description.trim();
+
+    if (
+      normalizedId.length === 0 ||
+      normalizedLabel.length === 0 ||
+      seenIds.has(normalizedId)
+    ) {
+      continue;
+    }
+
+    seenIds.add(normalizedId);
+    customCategories.push({
+      description: normalizedDescription,
+      id: normalizedId,
+      isDefault: false,
+      label: normalizedLabel,
+    });
+  }
+
+  customCategories.sort((left, right) => left.label.localeCompare(right.label));
+
+  return [...defaultCategories, ...customCategories];
+}
+
+export function addCustomCategory(
+  categories: CategoryOption[],
+  input: Pick<CategoryOption, 'description' | 'label'>,
+): CategoryOption[] {
+  const normalizedLabel = input.label.trim();
+
+  if (normalizedLabel.length === 0) {
+    return normalizeCategories(categories);
+  }
+
+  const normalizedDescription = input.description.trim();
+  const nextCategory: CategoryOption = {
+    description: normalizedDescription,
+    id: buildCustomCategoryId(normalizedLabel, categories),
+    isDefault: false,
+    label: normalizedLabel,
+  };
+
+  return normalizeCategories([...categories, nextCategory]);
+}
+
+export function updateCustomCategory(
+  categories: CategoryOption[],
+  categoryId: CategoryId,
+  input: Pick<CategoryOption, 'description' | 'label'>,
+): CategoryOption[] {
+  const normalizedLabel = input.label.trim();
+
+  if (normalizedLabel.length === 0) {
+    return normalizeCategories(categories);
+  }
+
+  return normalizeCategories(
+    categories.map((category) =>
+      category.id === categoryId && !category.isDefault
+        ? {
+            ...category,
+            description: input.description.trim(),
+            label: normalizedLabel,
+          }
+        : category,
+    ),
+  );
+}
+
+export function deleteCustomCategory(
+  categories: CategoryOption[],
+  categoryId: CategoryId,
+): CategoryOption[] {
+  return normalizeCategories(
+    categories.filter((category) => category.isDefault || category.id !== categoryId),
+  );
+}
+
+export function summarizeCategoryUsage(
+  categories: CategoryOption[],
+  transactions: Transaction[],
+): CategoryUsageSummary[] {
+  const itemCounts = new Map<CategoryId, number>();
+  const transactionCounts = new Map<CategoryId, number>();
+
+  for (const transaction of transactions) {
+    const categoriesInTransaction = new Set<CategoryId>();
+
+    for (const item of transaction.items) {
+      itemCounts.set(item.categoryId, (itemCounts.get(item.categoryId) ?? 0) + 1);
+      categoriesInTransaction.add(item.categoryId);
+    }
+
+    for (const categoryId of categoriesInTransaction) {
+      transactionCounts.set(categoryId, (transactionCounts.get(categoryId) ?? 0) + 1);
+    }
+  }
+
+  return normalizeCategories(categories).map((category) => ({
+    category,
+    itemCount: itemCounts.get(category.id) ?? 0,
+    transactionCount: transactionCounts.get(category.id) ?? 0,
+  }));
+}
+
+export function mergeCategories(
+  categories: CategoryOption[],
+  transactions: Transaction[],
+  sourceCategoryId: CategoryId,
+  targetCategoryId: CategoryId,
+): { categories: CategoryOption[]; transactions: Transaction[] } {
+  if (sourceCategoryId === targetCategoryId) {
+    return {
+      categories: normalizeCategories(categories),
+      transactions,
+    };
+  }
+
+  const normalizedCategories = normalizeCategories(categories);
+  const sourceCategory = normalizedCategories.find((category) => category.id === sourceCategoryId);
+  const targetCategory = normalizedCategories.find((category) => category.id === targetCategoryId);
+
+  if (!sourceCategory || !targetCategory || sourceCategory.isDefault) {
+    return {
+      categories: normalizedCategories,
+      transactions,
+    };
+  }
+
+  return {
+    categories: deleteCustomCategory(normalizedCategories, sourceCategoryId),
+    transactions: transactions.map((transaction) => {
+      let mergedItems = 0;
+
+      const nextItems = transaction.items.map((item) => {
+        if (item.categoryId !== sourceCategoryId) {
+          return item;
+        }
+
+        mergedItems += 1;
+
+        return {
+          ...item,
+          categoryId: targetCategoryId,
+        };
+      });
+
+      if (mergedItems === 0) {
+        return transaction;
+      }
+
+      return {
+        ...transaction,
+        history: appendTransactionHistoryEntry(
+          transaction.history,
+          createHistoryEntry(
+            transaction.id,
+            'category_merged',
+            `Merged ${sourceCategory.label} into ${targetCategory.label} for ${mergedItems} item row${mergedItems === 1 ? '' : 's'}.`,
+          ),
+        ),
+        items: nextItems,
+      };
+    }),
+  };
+}
+
+export function canDeleteCategory(
+  categories: CategoryOption[],
+  transactions: Transaction[],
+  categoryId: CategoryId,
+): boolean {
+  const category = categories.find((candidate) => candidate.id === categoryId);
+
+  if (!category || category.isDefault) {
+    return false;
+  }
+
+  return !transactions.some((transaction) =>
+    transaction.items.some((item) => item.categoryId === categoryId),
+  );
+}
+
+function buildCustomCategoryId(
+  label: string,
+  categories: CategoryOption[],
+): CategoryId {
+  const baseSlug = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'category';
+  const prefix = `custom_${baseSlug}`;
+  const existingIds = new Set(categories.map((category) => category.id));
+
+  if (!existingIds.has(prefix)) {
+    return prefix;
+  }
+
+  let suffix = 2;
+
+  while (existingIds.has(`${prefix}_${suffix}`)) {
+    suffix += 1;
+  }
+
+  return `${prefix}_${suffix}`;
+}
 
 function buildSeededParserInfo(
   sourceApp: Transaction['sourceApp'],
@@ -811,13 +1098,14 @@ export function getTimelineTransactions(
   transactions: Transaction[],
   filters: TimelineFilters,
   now = new Date().toISOString(),
+  categories: CategoryOption[] = categoryOptions,
 ): Transaction[] {
   return sortTransactionsByCapturedAtDesc(transactions)
     .filter((transaction) => matchesTimelineStatusFilter(transaction, filters.statusFilter))
     .filter((transaction) => matchesSourceAppFilter(transaction, filters.sourceApp))
     .filter((transaction) => matchesAmountFilter(transaction, filters.amountFilter))
     .filter((transaction) => matchesTimelineDateFilter(transaction, filters.dateFilter, now))
-    .filter((transaction) => matchesTimelineQuery(transaction, filters.query));
+    .filter((transaction) => matchesTimelineQuery(transaction, filters.query, categories));
 }
 
 export function getTimelineSourceAppOptions(transactions: Transaction[]): string[] {
@@ -830,9 +1118,10 @@ export function getTimelineDayGroups(
   transactions: Transaction[],
   filters: TimelineFilters,
   now = new Date().toISOString(),
+  categories: CategoryOption[] = categoryOptions,
 ): TimelineDayGroup[] {
   const groupedTransactions = new Map<string, Transaction[]>();
-  const filteredTransactions = getTimelineTransactions(transactions, filters, now);
+  const filteredTransactions = getTimelineTransactions(transactions, filters, now, categories);
 
   for (const transaction of filteredTransactions) {
     const dayKey = transaction.capturedAt.slice(0, 10);
@@ -937,6 +1226,7 @@ export function classifyTransaction(
   transactions: Transaction[],
   transactionId: string,
   classification: ClassificationDraft,
+  categories: CategoryOption[] = categoryOptions,
 ): Transaction[] {
   const categoryId = classification.categoryId;
   const itemLabel = classification.itemLabel.trim();
@@ -957,7 +1247,7 @@ export function classifyTransaction(
         createHistoryEntry(
           transaction.id,
           'classified',
-          `Saved classification as ${getCategoryLabel(categoryId)} with item "${itemLabel}".`,
+          `Saved classification as ${getCategoryLabel(categoryId, categories)} with item "${itemLabel}".`,
         ),
       ),
       items: [
@@ -1036,6 +1326,7 @@ export function deleteTransaction(
 export function summarizeDashboard(
   transactions: Transaction[],
   options: DashboardSummaryOptions,
+  categories: CategoryOption[] = categoryOptions,
 ): DashboardSummary {
   const periodTransactions = getCurrentCycleTransactions(
     transactions,
@@ -1083,9 +1374,7 @@ export function summarizeDashboard(
       );
       itemSummaries.push({
         amountMinor: item.amountMinor,
-        categoryLabel:
-          categoryOptions.find((category) => category.id === item.categoryId)?.label ??
-          'Needs data',
+        categoryLabel: getCategoryLabel(item.categoryId, categories, 'Needs data'),
         label: item.label,
         merchant: transaction.merchant,
         transactionId: transaction.id,
@@ -1100,7 +1389,7 @@ export function summarizeDashboard(
     classifiedCount,
     inboxCount,
     recentActivity: sortTransactionsByCapturedAtDesc(periodTransactions).slice(0, recentActivityLimit),
-    topCategoryLabel: getTopCategoryLabel(categorySpend),
+    topCategoryLabel: getTopCategoryLabel(categorySpend, categories),
     topItems: itemSummaries
       .sort((left, right) => right.amountMinor - left.amountMinor)
       .slice(0, topItemsLimit),
@@ -1226,6 +1515,7 @@ function matchesMerchantFilter(
 function matchesTimelineQuery(
   transaction: Transaction,
   query: string,
+  categories: CategoryOption[],
 ): boolean {
   const normalizedTokens = query
     .trim()
@@ -1243,7 +1533,7 @@ function matchesTimelineQuery(
     transaction.sourceApp,
     getTransactionStatusLabel(transaction.status),
     ...transaction.items.map((item) => item.label),
-    ...transaction.items.map((item) => getCategoryLabel(item.categoryId)),
+    ...transaction.items.map((item) => getCategoryLabel(item.categoryId, categories)),
   ].map((value) => value.toLowerCase());
 
   return normalizedTokens.every((token) =>
@@ -1428,7 +1718,10 @@ function getRemainderLabel(
   }
 }
 
-function getTopCategoryLabel(categorySpend: Map<CategoryId, number>): string {
+function getTopCategoryLabel(
+  categorySpend: Map<CategoryId, number>,
+  categories: CategoryOption[] = categoryOptions,
+): string {
   let topCategoryId: CategoryId | null = null;
   let topCategorySpend = -1;
 
@@ -1443,10 +1736,7 @@ function getTopCategoryLabel(categorySpend: Map<CategoryId, number>): string {
     return 'Needs data';
   }
 
-  return (
-    categoryOptions.find((category) => category.id === topCategoryId)?.label ??
-    'Needs data'
-  );
+  return getCategoryLabel(topCategoryId, categories, 'Needs data');
 }
 
 function getTopMerchantLabel(merchantSpend: Map<string, number>): string {
@@ -1484,10 +1774,14 @@ function createHistoryEntry(
   };
 }
 
-function getCategoryLabel(categoryId: CategoryId): string {
+function getCategoryLabel(
+  categoryId: CategoryId,
+  categories: CategoryOption[] = categoryOptions,
+  fallback = 'Needs category',
+): string {
   return (
-    categoryOptions.find((category) => category.id === categoryId)?.label ??
-    'Needs category'
+    categories.find((category) => category.id === categoryId)?.label ??
+    fallback
   );
 }
 

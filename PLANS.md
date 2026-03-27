@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### INT-001 — Implement Category Management And Seeded Default Categories
+
+- **Status:** completed
+- **Ticket:** INT-001
+- **Goal:** Replace the hardcoded category list with a persisted local category model that ships seeded defaults, supports user CRUD plus merge, and flows through classification, split, search, and dashboard summaries as first-class data.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `client/src/features/spend-tracker/domain.ts`, `client/src/features/spend-tracker/persistence.ts`, `client/src/features/spend-tracker/db/migrations.ts`, `client/src/features/spend-tracker/db/migration-runner.ts`, `client/src/app/SpendTrackerApp.tsx`, focused client tests, and repo-truth docs only if ticket status changes.
+- **Rationale:** `CAP-003` and `CAP-004` remain blocked by the current Android environment, `UX-005` still depends on external QA/design acceptance, and `UX-007` is blocked on `CAP-007`. `INT-001` is now the earliest unblocked `todo` ticket with satisfied dependencies, and repo truth still uses hardcoded category options instead of the seeded, user-managed category model required by the PRD/backlog.
+- **Risks:** This pass touches the local app-domain schema, persistence, and several mobile flows that currently assume hardcoded categories. It must stay within seeded defaults plus user CRUD/merge and must not spill into merchant normalization, rules, budgets, or sync.
+- **API / schema impact:** No backend/API changes. Local mobile SQLite schema will need additive category-table migrations and category-aware persistence.
+- **Rollout / flag plan:** Keep all category management local-first with no new remote flags.
+- **Validation commands:** `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus focused client tests for category CRUD, merge preservation, default seeding, and migration behavior.
+- **Done when:** Default categories seed on first launch and migration, custom categories can be added/edited/deleted/merged locally, merged categories preserve historical transaction meaning, classification flows use the persisted category list, and backlog status can move to `done` only if those acceptance criteria are satisfied.
+- **Outcome:** Added a first-class local category model with seeded default categories, persisted category rows plus additive SQLite migrations, and create/edit/delete/merge helpers that now flow through dashboard summaries, Timeline search/detail, quick classify, split items, and manual add. Added focused app, domain, persistence, and migration coverage for category CRUD, merge preservation, first-launch defaults, and category-aware persistence. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27. This pass also corrected stale backlog tracking drift where `CAP-006` and `UX-007` had incorrectly inherited unrelated `INT-001` progress in one or more backlog files.
+
 ### UX-006 — Build Timeline, Transaction Detail, And Search/Filter Views
 
 - **Status:** completed

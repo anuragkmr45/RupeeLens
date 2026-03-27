@@ -2,7 +2,11 @@ import { act, fireEvent, render, waitFor, type RenderAPI } from '@testing-librar
 import { Alert } from 'react-native';
 
 import App from '../App';
-import { seededTransactions, type Transaction } from '../src/features/spend-tracker/domain';
+import {
+  getDefaultCategories,
+  seededTransactions,
+  type Transaction,
+} from '../src/features/spend-tracker/domain';
 import type {
   NativeCaptureDedupeConfig,
   NativeCaptureDiagnostics,
@@ -409,6 +413,10 @@ async function renderApp(): Promise<RenderAPI> {
   return screen;
 }
 
+function buildDefaultCategories() {
+  return getDefaultCategories();
+}
+
 describe('App', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -474,6 +482,7 @@ describe('App', () => {
 
   it('hydrates a previously completed local session', async () => {
     mockedLoadStoredSpendTrackerState.mockResolvedValue({
+      categories: buildDefaultCategories(),
       onboardingPreferences: DEFAULT_ONBOARDING_PREFERENCES,
       notificationAccessState: 'settings_opened',
       onboardingCompleted: true,
@@ -570,6 +579,7 @@ describe('App', () => {
 
   it('resumes a partially completed onboarding flow with saved choices', async () => {
     mockedLoadStoredSpendTrackerState.mockResolvedValue({
+      categories: buildDefaultCategories(),
       onboardingPreferences: {
         budgetCycleId: 'salary_cycle',
         selectedSourceAppIds: ['bhim'],
@@ -674,6 +684,7 @@ describe('App', () => {
     await waitFor(() =>
       expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
         expect.objectContaining({
+          categories: buildDefaultCategories(),
           onboardingCompleted: false,
           onboardingPreferences: {
             budgetCycleId: 'salary_cycle',
@@ -711,6 +722,7 @@ describe('App', () => {
     await waitFor(() =>
       expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
         expect.objectContaining({
+          categories: buildDefaultCategories(),
           notificationAccessState: 'not_started',
           onboardingCompleted: true,
           onboardingPreferences: DEFAULT_ONBOARDING_PREFERENCES,
@@ -777,6 +789,7 @@ describe('App', () => {
   it('keeps the inbox usable with 1000 local items and all filter types', async () => {
     jest.useFakeTimers();
     mockedLoadStoredSpendTrackerState.mockResolvedValue({
+      categories: buildDefaultCategories(),
       onboardingPreferences: DEFAULT_ONBOARDING_PREFERENCES,
       notificationAccessState: 'settings_opened',
       onboardingCompleted: true,
@@ -848,6 +861,60 @@ describe('App', () => {
                 expect.objectContaining({
                   categoryId: 'food_drink',
                   label: 'Coffee run',
+                }),
+              ],
+              status: 'classified',
+            }),
+          ]),
+        }),
+      ),
+    );
+  });
+
+  it('creates a custom category and uses it like a first-class classify option', async () => {
+    const screen = await renderApp();
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+    fireEvent.press(screen.getByRole('button', { name: 'Manage categories' }));
+
+    expect(
+      await screen.findByText('Manage the labels used across your local spend data'),
+    ).toBeTruthy();
+
+    fireEvent.changeText(screen.getByPlaceholderText('Weekend treats'), 'Weekend Treats');
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Short note shown while choosing this category'),
+      'Cafe orders and local treats.',
+    );
+    fireEvent.press(screen.getByRole('button', { name: 'Create category' }));
+
+    expect(await screen.findByText('Weekend Treats')).toBeTruthy();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Back to home' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Inbox' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Classify Blue Tokai Roasters' }));
+    fireEvent.changeText(screen.getByPlaceholderText('What did you buy?'), 'Cold brew');
+    fireEvent.press(screen.getByRole('button', { name: 'Weekend Treats' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Save classification' }));
+
+    await waitFor(() =>
+      expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          categories: expect.arrayContaining([
+            expect.objectContaining({
+              description: 'Cafe orders and local treats.',
+              id: 'custom_weekend_treats',
+              isDefault: false,
+              label: 'Weekend Treats',
+            }),
+          ]),
+          transactions: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'txn_blue_tokai',
+              items: [
+                expect.objectContaining({
+                  categoryId: 'custom_weekend_treats',
+                  label: 'Cold brew',
                 }),
               ],
               status: 'classified',

@@ -585,7 +585,7 @@ Normalize merchants, suggest items, and manage budgets.
 - **Story points:** 5
 - **Goal:** Provide a flexible but opinionated classification framework for Indian consumers.
 - **Dependencies:** SET-004
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-27 | Completed At: 2026-03-27 | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the client now seeds default categories on first launch and migration, persists categories as first-class SQLite-backed local data, supports local create/edit/delete/merge for custom categories, preserves historical transaction meaning when categories merge, and uses the saved category list across quick classify, split items, manual add, dashboard summaries, Timeline search/detail, and local persistence. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27.
 
 **Description**  
 Seed default categories such as Groceries, Food Delivery, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Education, Personal Care, Household, Travel, and Miscellaneous. Support add/edit/delete/merge for user categories.

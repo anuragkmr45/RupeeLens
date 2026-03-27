@@ -1,4 +1,7 @@
 import {
+  CATEGORIES_LABEL_INDEX_SQL,
+  CATEGORIES_TABLE_SQL,
+  DEFAULT_CATEGORIES_SEED_SQL,
   MOBILE_MIGRATION_TABLE,
   MOBILE_MIGRATION_TABLE_SQL,
   SETTINGS_TABLE_SQL,
@@ -79,7 +82,7 @@ async function adoptLegacySchema(
       SELECT name, sql
       FROM sqlite_master
       WHERE type = 'table'
-        AND name IN ('settings', 'transactions', 'transaction_items')
+        AND name IN ('categories', 'settings', 'transactions', 'transaction_items')
       ORDER BY name ASC
     `,
   );
@@ -109,6 +112,9 @@ async function adoptLegacySchema(
     ${TRANSACTION_HISTORY_TABLE_SQL}
     ${TRANSACTION_HISTORY_SEED_SQL}
     ${TRANSACTION_HISTORY_INDEX_SQL}
+    ${CATEGORIES_TABLE_SQL}
+    ${DEFAULT_CATEGORIES_SEED_SQL}
+    ${CATEGORIES_LABEL_INDEX_SQL}
   `);
 
   for (const migration of mobileMigrations) {

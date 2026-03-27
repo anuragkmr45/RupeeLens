@@ -1,4 +1,4 @@
-import { seededTransactions } from '../src/features/spend-tracker/domain';
+import { getDefaultCategories, seededTransactions } from '../src/features/spend-tracker/domain';
 import type * as PersistenceModule from '../src/features/spend-tracker/persistence';
 
 jest.mock('expo-sqlite', () => ({
@@ -90,6 +90,10 @@ describe('spend-tracker persistence', () => {
         return { count: 2 };
       }
 
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM categories')) {
+        return { count: 12 };
+      }
+
       return null;
     });
     database.getAllAsync.mockImplementation(async (sql: string) => {
@@ -110,6 +114,15 @@ describe('spend-tracker persistence', () => {
           { key: 'notification_access_state', value: 'settings_opened' },
           { key: 'onboarding_completed', value: 'true' },
         ];
+      }
+
+      if (includesSql(sql, 'FROM categories')) {
+        return getDefaultCategories().map((category) => ({
+          description: category.description,
+          id: category.id,
+          isDefault: category.isDefault ? 1 : 0,
+          label: category.label,
+        }));
       }
 
       if (includesSql(sql, 'FROM transactions')) {
@@ -152,6 +165,7 @@ describe('spend-tracker persistence', () => {
     const { loadStoredSpendTrackerState } = loadPersistenceModule();
 
     await expect(loadStoredSpendTrackerState()).resolves.toEqual({
+      categories: getDefaultCategories(),
       onboardingPreferences: {
         budgetCycleId: 'salary_cycle',
         selectedSourceAppIds: ['google_pay', 'phonepe'],
@@ -231,6 +245,7 @@ describe('spend-tracker persistence', () => {
     const { loadStoredSpendTrackerState } = loadPersistenceModule();
 
     await expect(loadStoredSpendTrackerState()).resolves.toEqual({
+      categories: getDefaultCategories(),
       onboardingPreferences: {
         budgetCycleId: 'calendar_month',
         selectedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
@@ -268,6 +283,10 @@ describe('spend-tracker persistence', () => {
         return { count: 1 };
       }
 
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM categories')) {
+        return { count: 12 };
+      }
+
       return null;
     });
     database.getAllAsync.mockImplementation(async (sql: string) => {
@@ -282,6 +301,15 @@ describe('spend-tracker persistence', () => {
 
       if (includesSql(sql, 'SELECT key, value FROM settings')) {
         return [{ key: 'onboarding_completed', value: 'true' }];
+      }
+
+      if (includesSql(sql, 'FROM categories')) {
+        return getDefaultCategories().map((category) => ({
+          description: category.description,
+          id: category.id,
+          isDefault: category.isDefault ? 1 : 0,
+          label: category.label,
+        }));
       }
 
       if (includesSql(sql, 'FROM transactions')) {
@@ -316,6 +344,7 @@ describe('spend-tracker persistence', () => {
     const { loadStoredSpendTrackerState } = loadPersistenceModule();
     const state = await loadStoredSpendTrackerState();
 
+    expect(state?.categories).toEqual(getDefaultCategories());
     expect(state?.transactions).toEqual([
       expect.objectContaining({
         id: 'txn_blue_tokai',
@@ -357,6 +386,7 @@ describe('spend-tracker persistence', () => {
     const { saveStoredSpendTrackerState } = loadPersistenceModule();
 
     await saveStoredSpendTrackerState({
+      categories: getDefaultCategories(),
       onboardingPreferences: {
         budgetCycleId: 'billing_cycle',
         selectedSourceAppIds: ['bhim', 'paytm'],
@@ -387,7 +417,15 @@ describe('spend-tracker persistence', () => {
     expect(database.withTransactionAsync).toHaveBeenCalledTimes(1);
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM transaction_items');
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM transactions');
+    expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM categories');
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM settings');
+    expect(database.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO categories'),
+      'food_drink',
+      'Food & Drink',
+      'Coffee, dining, snacks, and drinks.',
+      1,
+    );
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT INTO settings (key, value) VALUES (?, ?)',
       'selected_source_app_ids',

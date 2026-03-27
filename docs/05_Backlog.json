@@ -336,12 +336,12 @@
       ],
       "tests": "Launch app after multiple native captures; verify no duplicate imports.",
       "done": "Native-to-JS bridge documented and reliable.",
-      "status": "in_progress",
-      "owner": "codex",
-      "started_at": "2026-03-27",
+      "status": "todo",
+      "owner": "",
+      "started_at": "",
       "completed_at": "",
-      "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: the client now has a full-screen split-items flow with dynamic rows, local reorder/remove/add controls, running allocated-vs-remaining totals, explicit remainder handling, and Inbox visibility for partially classified transactions. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27. Status stays `in_progress` because the backlog done-when still requires external QA/design acceptance, which was not performed in this environment."
+      "commit_ref": "",
+      "tracking_notes": ""
     },
     {
       "id": "CAP-007",
@@ -564,12 +564,12 @@
       ],
       "tests": "Category CRUD tests and migration seed tests.",
       "done": "Categories ready for classification flows.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-27",
+      "completed_at": "2026-03-27",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: the client now seeds default categories on first launch and migration, persists categories as first-class SQLite-backed local data, supports local create/edit/delete/merge for custom categories, preserves historical transaction meaning when categories merge, and uses the saved category list across quick classify, split items, manual add, dashboard summaries, Timeline search/detail, and local persistence. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27."
     },
     {
       "id": "INT-002",

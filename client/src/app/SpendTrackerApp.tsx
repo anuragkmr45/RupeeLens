@@ -25,16 +25,19 @@ import {
 } from '@upi-spend-tracker/mobile-ui';
 
 import {
+  addCustomCategory,
   appendSplitDraftRow,
   buildClassificationDraft,
   buildSplitDraft,
-  categoryOptions,
+  canDeleteCategory,
   classifyTransaction,
   createSplitDraftRow,
   getClassificationSuggestions,
+  getDefaultCategories,
   createManualTransaction,
   DEFAULT_INBOX_FILTERS,
   DEFAULT_TIMELINE_FILTERS,
+  deleteCustomCategory,
   deleteTransaction,
   formatCaptureMoment,
   formatCurrency,
@@ -49,6 +52,7 @@ import {
   getUnresolvedAmountMinor,
   isClassificationReady,
   isSplitDraftReady,
+  mergeCategories,
   moveSplitDraftRow,
   parseCurrencyInputToMinor,
   removeSplitDraftRow,
@@ -58,9 +62,12 @@ import {
   splitTransaction,
   SPLIT_REMAINDER_OPTIONS,
   sortTransactionsByCapturedAtDesc,
+  summarizeCategoryUsage,
   summarizeSplitDraft,
   summarizeDashboard,
   type CategoryId,
+  type CategoryOption,
+  type CategoryUsageSummary,
   type ClassificationDraft,
   type ClassificationSuggestion,
   type DashboardSummary,
@@ -74,6 +81,7 @@ import {
   type TransactionHistoryEntry,
   type TransactionParserInfo,
   updateTransactionNote,
+  updateCustomCategory,
 } from '../features/spend-tracker/domain';
 import {
   clearStoredSpendTrackerState,
@@ -110,6 +118,7 @@ import { colors } from '../theme/colors';
 import { DesignSystemShowcaseScreen } from './DesignSystemShowcaseScreen';
 
 type Screen =
+  | 'categories'
   | 'classify'
   | 'detail'
   | 'home'
@@ -142,11 +151,21 @@ interface ManualEntryDraft {
   merchant: string;
 }
 
+interface CategoryDraft {
+  description: string;
+  label: string;
+}
+
 const EMPTY_MANUAL_ENTRY_DRAFT: ManualEntryDraft = {
   amountInput: '',
   categoryId: null,
   itemLabel: '',
   merchant: '',
+};
+
+const EMPTY_CATEGORY_DRAFT: CategoryDraft = {
+  description: '',
+  label: '',
 };
 
 interface SourceAppOption {
@@ -207,6 +226,7 @@ export function SpendTrackerApp() {
   const [onboardingPreferences, setOnboardingPreferences] = useState<OnboardingPreferences>(
     DEFAULT_ONBOARDING_PREFERENCES,
   );
+  const [categories, setCategories] = useState<CategoryOption[]>(getDefaultCategories());
   const [notificationAccessState, setNotificationAccessState] =
     useState<NotificationAccessState>('not_started');
   const [transactions, setTransactions] = useState<Transaction[]>(seededTransactions);
@@ -240,13 +260,28 @@ export function SpendTrackerApp() {
   });
   const filteredReviewTransactions = getInboxReviewTransactions(transactions, inboxFilters);
   const inboxSourceAppOptions = getInboxSourceAppOptions(transactions);
-  const timelineTransactions = getTimelineTransactions(transactions, timelineFilters);
-  const timelineDayGroups = getTimelineDayGroups(transactions, timelineFilters);
+  const timelineTransactions = getTimelineTransactions(
+    transactions,
+    timelineFilters,
+    undefined,
+    categories,
+  );
+  const timelineDayGroups = getTimelineDayGroups(
+    transactions,
+    timelineFilters,
+    undefined,
+    categories,
+  );
   const timelineSourceAppOptions = getTimelineSourceAppOptions(transactions);
-  const summary = summarizeDashboard(transactions, {
-    budgetTargetMinor: DASHBOARD_BUDGET_TARGET_MINOR,
-    cycleStartDay: getBudgetCycleStartDay(onboardingPreferences.budgetCycleId),
-  });
+  const summary = summarizeDashboard(
+    transactions,
+    {
+      budgetTargetMinor: DASHBOARD_BUDGET_TARGET_MINOR,
+      cycleStartDay: getBudgetCycleStartDay(onboardingPreferences.budgetCycleId),
+    },
+    categories,
+  );
+  const categoryUsage = summarizeCategoryUsage(categories, transactions);
   const activeTransaction = activeTransactionId
     ? getTransactionById(transactions, activeTransactionId)
     : null;
@@ -277,6 +312,7 @@ export function SpendTrackerApp() {
       }
 
       if (storedState) {
+        setCategories(storedState.categories);
         setOnboardingPreferences(storedState.onboardingPreferences);
         setNotificationAccessState(storedState.notificationAccessState);
         setOnboardingCompleted(storedState.onboardingCompleted);
@@ -418,12 +454,14 @@ export function SpendTrackerApp() {
     }
 
     void saveStoredSpendTrackerState({
+      categories,
       onboardingPreferences,
       notificationAccessState,
       onboardingCompleted,
       transactions,
     });
   }, [
+    categories,
     isHydrating,
     notificationAccessState,
     onboardingCompleted,
@@ -492,7 +530,12 @@ export function SpendTrackerApp() {
       return;
     }
 
-    const nextTransactions = classifyTransaction(transactions, activeTransactionId, draft);
+    const nextTransactions = classifyTransaction(
+      transactions,
+      activeTransactionId,
+      draft,
+      categories,
+    );
 
     setTransactions(nextTransactions);
     setActiveTransactionId(null);
@@ -565,6 +608,10 @@ export function SpendTrackerApp() {
     setScreen('timeline');
   }
 
+  function handleOpenCategories() {
+    setScreen('categories');
+  }
+
   function handleUpdateTimelineFilters(nextFilters: Partial<TimelineFilters>) {
     setTimelineFilters((currentFilters) => ({
       ...currentFilters,
@@ -574,6 +621,36 @@ export function SpendTrackerApp() {
 
   function handleClearTimelineFilters() {
     setTimelineFilters({ ...DEFAULT_TIMELINE_FILTERS });
+  }
+
+  function handleCreateCategory(nextDraft: CategoryDraft) {
+    setCategories((currentCategories) => addCustomCategory(currentCategories, nextDraft));
+  }
+
+  function handleUpdateCategory(categoryId: CategoryId, nextDraft: CategoryDraft) {
+    setCategories((currentCategories) =>
+      updateCustomCategory(currentCategories, categoryId, nextDraft),
+    );
+  }
+
+  function handleDeleteCategory(categoryId: CategoryId) {
+    if (!canDeleteCategory(categories, transactions, categoryId)) {
+      return;
+    }
+
+    setCategories((currentCategories) => deleteCustomCategory(currentCategories, categoryId));
+  }
+
+  function handleMergeCategory(sourceCategoryId: CategoryId, targetCategoryId: CategoryId) {
+    const mergedState = mergeCategories(
+      categories,
+      transactions,
+      sourceCategoryId,
+      targetCategoryId,
+    );
+
+    setCategories(mergedState.categories);
+    setTransactions(mergedState.transactions);
   }
 
   function handleOpenTransactionDetail(
@@ -908,6 +985,7 @@ export function SpendTrackerApp() {
     setOnboardingPreferences(DEFAULT_ONBOARDING_PREFERENCES);
     setNotificationAccessState('not_started');
     setOnboardingCompleted(false);
+    setCategories(getDefaultCategories());
     setTransactions(seededTransactions);
     setScreen('onboarding');
 
@@ -964,6 +1042,7 @@ export function SpendTrackerApp() {
         ) : !isHydrating && screen === 'timeline' ? (
           <TimelineScreen
             allTransactionsCount={transactions.length}
+            categories={categories}
             filteredTransactionsCount={timelineTransactions.length}
             filters={timelineFilters}
             hasActiveFilters={hasActiveTimelineFilters(timelineFilters)}
@@ -977,8 +1056,19 @@ export function SpendTrackerApp() {
             timelineDayGroups={timelineDayGroups}
             timelineSourceAppOptions={timelineSourceAppOptions}
           />
+        ) : !isHydrating && screen === 'categories' ? (
+          <CategoryManagementScreen
+            categories={categories}
+            categoryUsage={categoryUsage}
+            onBack={() => setScreen('home')}
+            onCreateCategory={handleCreateCategory}
+            onDeleteCategory={handleDeleteCategory}
+            onMergeCategory={handleMergeCategory}
+            onUpdateCategory={handleUpdateCategory}
+          />
         ) : !isHydrating && screen === 'detail' && detailTransaction ? (
           <TransactionDetailScreen
+            categories={categories}
             noteDraft={detailNoteDraft}
             onBack={handleCloseTransactionDetail}
             onChangeNote={setDetailNoteDraft}
@@ -992,6 +1082,7 @@ export function SpendTrackerApp() {
           />
         ) : !isHydrating && screen === 'classify' && activeTransaction ? (
           <ClassifyScreen
+            categories={categories}
             draft={draft}
             onApplySuggestion={handleApplyClassificationSuggestion}
             onCancel={handleCancelClassification}
@@ -1010,6 +1101,7 @@ export function SpendTrackerApp() {
           />
         ) : !isHydrating && screen === 'split' && activeTransaction && splitSummary ? (
           <SplitItemsScreen
+            categories={categories}
             onAddRow={handleAddSplitRow}
             onCancel={handleCancelSplit}
             onMoveRow={handleMoveSplitRow}
@@ -1051,11 +1143,13 @@ export function SpendTrackerApp() {
             {!isHydrating && screen === 'home' ? (
               <HomeScreen
                 bootstrapState={bootstrapState}
+                categories={categories}
                 captureDiagnostics={captureDiagnostics}
                 nextPendingTransaction={pendingTransactions[0] ?? null}
                 notificationAccessState={notificationAccessState}
                 onboardingPreferences={onboardingPreferences}
                 onOpenBudgetPlaceholder={handleOpenBudgetPlaceholder}
+                onOpenCategories={handleOpenCategories}
                 onOpenInbox={() => setScreen('inbox')}
                 onOpenManualEntry={() => handleOpenManualEntry('home')}
                 onOpenNotificationAccess={handleOpenNotificationAccess}
@@ -1074,6 +1168,7 @@ export function SpendTrackerApp() {
             {!isHydrating && screen === 'manual' ? (
               <ManualEntryScreen
                 amountMinor={manualAmountMinor}
+                categories={categories}
                 draft={manualDraft}
                 onApplySuggestion={handleApplyManualSuggestion}
                 onCancel={handleCancelManualEntry}
@@ -1353,11 +1448,13 @@ function OnboardingScreen({
 
 function HomeScreen({
   bootstrapState,
+  categories,
   captureDiagnostics,
   nextPendingTransaction,
   notificationAccessState,
   onboardingPreferences,
   onOpenBudgetPlaceholder,
+  onOpenCategories,
   onOpenInbox,
   onOpenManualEntry,
   onOpenNotificationAccess,
@@ -1370,11 +1467,13 @@ function HomeScreen({
   summary,
 }: {
   bootstrapState: BootstrapConfigState;
+  categories: CategoryOption[];
   captureDiagnostics: NativeCaptureDiagnostics;
   nextPendingTransaction: Transaction | null;
   notificationAccessState: NotificationAccessState;
   onboardingPreferences: OnboardingPreferences;
   onOpenBudgetPlaceholder: () => void;
+  onOpenCategories: () => void;
   onOpenInbox: () => void;
   onOpenManualEntry: () => void;
   onOpenNotificationAccess: () => Promise<void>;
@@ -1461,7 +1560,8 @@ function HomeScreen({
         <Text style={styles.cardTitle}>Quick actions</Text>
         <Text style={styles.bodyCopy}>
           Manual add and Inbox are live now. Budget creation, search, and showcase access follow
-          the active remote flags so staged rollout does not require a native release.
+          the active remote flags so staged rollout does not require a native release. Categories
+          are now managed locally and reused across classify, split, manual add, and timeline.
         </Text>
         <View style={styles.helperStack}>
           <Text style={styles.helperCopy}>
@@ -1470,10 +1570,14 @@ function HomeScreen({
           <Text style={styles.helperCopy}>
             Search: {searchEnabled ? 'enabled for this channel' : 'disabled remotely'}
           </Text>
+          <Text style={styles.helperCopy}>
+            Categories: {categories.length} available in this local profile
+          </Text>
         </View>
         <View style={styles.actionRow}>
           <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
           <ActionButton label="Review inbox" onPress={onOpenInbox} tone="secondary" />
+          <ActionButton label="Manage categories" onPress={onOpenCategories} tone="secondary" />
           <ActionButton
             disabled={!budgetsEnabled}
             label="Create budget"
@@ -2008,6 +2112,7 @@ function InboxScreen({
 
 function TimelineScreen({
   allTransactionsCount,
+  categories,
   filteredTransactionsCount,
   filters,
   hasActiveFilters,
@@ -2022,6 +2127,7 @@ function TimelineScreen({
   timelineSourceAppOptions,
 }: {
   allTransactionsCount: number;
+  categories: CategoryOption[];
   filteredTransactionsCount: number;
   filters: TimelineFilters;
   hasActiveFilters: boolean;
@@ -2229,6 +2335,7 @@ function TimelineScreen({
           <View style={styles.timelineGroupStack}>
             {item.transactions.map((transaction) => (
               <TimelineTransactionRow
+                categories={categories}
                 key={transaction.id}
                 onPress={() => onOpenTransaction(transaction.id, 'timeline')}
                 transaction={transaction}
@@ -2243,16 +2350,18 @@ function TimelineScreen({
 }
 
 function TimelineTransactionRow({
+  categories,
   onPress,
   transaction,
 }: {
+  categories: CategoryOption[];
   onPress: () => void;
   transaction: Transaction;
 }) {
   const itemSummary =
     transaction.items.length > 0
       ? transaction.items
-          .map((item) => `${item.label} · ${getCategoryLabel(item.categoryId)}`)
+          .map((item) => `${item.label} · ${getCategoryLabel(item.categoryId, categories)}`)
           .join(', ')
       : 'No saved items yet';
 
@@ -2270,7 +2379,314 @@ function TimelineTransactionRow({
   );
 }
 
+function CategoryManagementScreen({
+  categories,
+  categoryUsage,
+  onBack,
+  onCreateCategory,
+  onDeleteCategory,
+  onMergeCategory,
+  onUpdateCategory,
+}: {
+  categories: CategoryOption[];
+  categoryUsage: CategoryUsageSummary[];
+  onBack: () => void;
+  onCreateCategory: (draft: CategoryDraft) => void;
+  onDeleteCategory: (categoryId: CategoryId) => void;
+  onMergeCategory: (sourceCategoryId: CategoryId, targetCategoryId: CategoryId) => void;
+  onUpdateCategory: (categoryId: CategoryId, draft: CategoryDraft) => void;
+}) {
+  const [draft, setDraft] = useState<CategoryDraft>(EMPTY_CATEGORY_DRAFT);
+  const [editingCategoryId, setEditingCategoryId] = useState<CategoryId | null>(null);
+  const [mergeSourceCategoryId, setMergeSourceCategoryId] = useState<CategoryId | null>(null);
+  const [mergeTargetCategoryId, setMergeTargetCategoryId] = useState<CategoryId | null>(null);
+
+  const defaultCategoryUsage = categoryUsage.filter(({ category }) => category.isDefault);
+  const customCategoryUsage = categoryUsage.filter(({ category }) => !category.isDefault);
+  const normalizedLabel = draft.label.trim().toLowerCase();
+  const hasDuplicateLabel =
+    normalizedLabel.length > 0 &&
+    categories.some(
+      (category) =>
+        category.label.trim().toLowerCase() === normalizedLabel &&
+        category.id !== editingCategoryId,
+    );
+  const saveDisabled = draft.label.trim().length === 0 || hasDuplicateLabel;
+  const mergeTargets = mergeSourceCategoryId
+    ? categories.filter((category) => category.id !== mergeSourceCategoryId)
+    : [];
+
+  function resetEditor() {
+    setDraft(EMPTY_CATEGORY_DRAFT);
+    setEditingCategoryId(null);
+  }
+
+  function handleStartCreate() {
+    resetEditor();
+  }
+
+  function handleStartEdit(category: CategoryOption) {
+    setDraft({
+      description: category.description,
+      label: category.label,
+    });
+    setEditingCategoryId(category.id);
+    setMergeSourceCategoryId(null);
+    setMergeTargetCategoryId(null);
+  }
+
+  function handleSaveCategory() {
+    if (saveDisabled) {
+      return;
+    }
+
+    if (editingCategoryId) {
+      onUpdateCategory(editingCategoryId, draft);
+    } else {
+      onCreateCategory(draft);
+    }
+
+    resetEditor();
+  }
+
+  function handleDelete(categorySummary: CategoryUsageSummary) {
+    if (categorySummary.itemCount > 0) {
+      Alert.alert(
+        'Merge before deleting',
+        'This category is still used on saved transaction rows. Merge it into another category to preserve history first.',
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Delete custom category?',
+      `${categorySummary.category.label} will be removed from the local category list on this device.`,
+      [
+        { style: 'cancel', text: 'Cancel' },
+        {
+          style: 'destructive',
+          text: 'Delete',
+          onPress: () => {
+            onDeleteCategory(categorySummary.category.id);
+
+            if (editingCategoryId === categorySummary.category.id) {
+              resetEditor();
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  function handleConfirmMerge() {
+    if (!mergeSourceCategoryId || !mergeTargetCategoryId) {
+      return;
+    }
+
+    const sourceCategory = categories.find((category) => category.id === mergeSourceCategoryId);
+    const targetCategory = categories.find((category) => category.id === mergeTargetCategoryId);
+
+    if (!sourceCategory || !targetCategory) {
+      return;
+    }
+
+    Alert.alert(
+      'Merge category locally?',
+      `${sourceCategory.label} will be folded into ${targetCategory.label}. Existing transaction rows will keep their meaning through the merged target category.`,
+      [
+        { style: 'cancel', text: 'Cancel' },
+        {
+          text: 'Merge',
+          onPress: () => {
+            onMergeCategory(sourceCategory.id, targetCategory.id);
+            setMergeSourceCategoryId(null);
+            setMergeTargetCategoryId(null);
+
+            if (editingCategoryId === sourceCategory.id) {
+              resetEditor();
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <SectionCard accentColor={colors.accentSoft}>
+        <Text style={styles.sectionEyebrow}>Categories</Text>
+        <Text style={styles.sectionTitle}>Manage the labels used across your local spend data</Text>
+        <Text style={styles.bodyCopy}>
+          Seeded defaults ship on first launch. Custom categories now behave like first-class
+          options in quick classify, split items, manual add, dashboard summaries, and Timeline.
+        </Text>
+        <View style={styles.actionRow}>
+          <ActionButton label="Back to home" onPress={onBack} tone="secondary" />
+          <ActionButton label="Add custom category" onPress={handleStartCreate} tone="primary" />
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.cardTitle}>
+          {editingCategoryId ? 'Edit custom category' : 'Create a custom category'}
+        </Text>
+        <Text style={styles.bodyCopy}>
+          Custom categories are local-first. Merge them when you want to preserve existing
+          transaction history while consolidating labels.
+        </Text>
+        <View style={styles.inputStack}>
+          <TextField
+            autoCapitalize="words"
+            label="Category label"
+            onChangeText={(label) => setDraft((currentDraft) => ({ ...currentDraft, label }))}
+            placeholder="Weekend treats"
+            value={draft.label}
+          />
+          <TextField
+            label="Description"
+            multiline={true}
+            onChangeText={(description) =>
+              setDraft((currentDraft) => ({ ...currentDraft, description }))
+            }
+            placeholder="Short note shown while choosing this category"
+            value={draft.description}
+          />
+        </View>
+        {hasDuplicateLabel ? (
+          <Text style={styles.helperCopy}>
+            That label already exists. Choose a different name before saving.
+          </Text>
+        ) : null}
+        <View style={styles.actionRow}>
+          <ActionButton label="Clear draft" onPress={resetEditor} tone="secondary" />
+          <ActionButton
+            disabled={saveDisabled}
+            label={editingCategoryId ? 'Save changes' : 'Create category'}
+            onPress={handleSaveCategory}
+            tone="primary"
+          />
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Seeded defaults</Text>
+        <Text style={styles.bodyCopy}>
+          These defaults anchor the first classification experience and remain available even if the
+          user never creates a custom category.
+        </Text>
+        <View style={styles.listStack}>
+          {defaultCategoryUsage.map((summary) => (
+            <View key={summary.category.id} style={styles.summaryRow}>
+              <View style={styles.summaryCopy}>
+                <Text style={styles.summaryPrimary}>{summary.category.label}</Text>
+                <Text style={styles.summarySecondary}>{summary.category.description}</Text>
+              </View>
+              <Text style={styles.helperCopy}>{summary.itemCount} rows</Text>
+            </View>
+          ))}
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.successSoft}>
+        <Text style={styles.cardTitle}>Custom categories</Text>
+        <Text style={styles.bodyCopy}>
+          Edit custom labels directly. Delete only when unused, or merge into another category to
+          preserve historical transaction rows.
+        </Text>
+        {customCategoryUsage.length > 0 ? (
+          <View style={styles.listStack}>
+            {customCategoryUsage.map((summary) => (
+              <View key={summary.category.id} style={styles.summaryCard}>
+                <View style={styles.summaryCopy}>
+                  <Text style={styles.summaryPrimary}>{summary.category.label}</Text>
+                  <Text style={styles.summarySecondary}>{summary.category.description}</Text>
+                  <Text style={styles.helperCopy}>
+                    {summary.itemCount} item rows across {summary.transactionCount} transaction
+                    {summary.transactionCount === 1 ? '' : 's'}
+                  </Text>
+                </View>
+                <View style={styles.actionRow}>
+                  <ActionButton
+                    label="Edit"
+                    onPress={() => handleStartEdit(summary.category)}
+                    tone="secondary"
+                  />
+                  <ActionButton
+                    label="Merge"
+                    onPress={() => {
+                      setMergeSourceCategoryId(summary.category.id);
+                      setMergeTargetCategoryId(null);
+                    }}
+                    tone="secondary"
+                  />
+                  <ActionButton
+                    disabled={summary.itemCount > 0}
+                    label="Delete"
+                    onPress={() => handleDelete(summary)}
+                    tone="secondary"
+                  />
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <EmptyState
+            description="Create a custom category to reflect the way this device owner actually spends."
+            title="No custom categories yet"
+            actions={
+              <View style={styles.actionRow}>
+                <ActionButton
+                  label="Create custom category"
+                  onPress={handleStartCreate}
+                  tone="primary"
+                />
+              </View>
+            }
+          />
+        )}
+      </SectionCard>
+
+      {mergeSourceCategoryId ? (
+        <SectionCard accentColor={colors.panelWarm}>
+          <Text style={styles.cardTitle}>Merge category</Text>
+          <Text style={styles.bodyCopy}>
+            Pick the target category that should keep the historical rows currently using the source
+            category.
+          </Text>
+          <View style={styles.categoryGrid}>
+            {mergeTargets.map((category) => (
+              <CategoryChip
+                isActive={mergeTargetCategoryId === category.id}
+                key={category.id}
+                label={category.label}
+                onPress={() => setMergeTargetCategoryId(category.id)}
+              />
+            ))}
+          </View>
+          <View style={styles.actionRow}>
+            <ActionButton
+              label="Cancel merge"
+              onPress={() => {
+                setMergeSourceCategoryId(null);
+                setMergeTargetCategoryId(null);
+              }}
+              tone="secondary"
+            />
+            <ActionButton
+              disabled={!mergeTargetCategoryId}
+              label="Merge into target"
+              onPress={handleConfirmMerge}
+              tone="primary"
+            />
+          </View>
+        </SectionCard>
+      ) : null}
+    </ScrollView>
+  );
+}
+
 function TransactionDetailScreen({
+  categories,
   noteDraft,
   onBack,
   onChangeNote,
@@ -2280,6 +2696,7 @@ function TransactionDetailScreen({
   onSaveNote,
   transaction,
 }: {
+  categories: CategoryOption[];
   noteDraft: string;
   onBack: () => void;
   onChangeNote: (note: string) => void;
@@ -2333,13 +2750,15 @@ function TransactionDetailScreen({
         {transaction.items.length > 0 ? (
           <View style={styles.detailItemStack}>
             {transaction.items.map((item) => (
-              <View key={item.id} style={styles.detailItemRow}>
-                <View style={styles.summaryCopy}>
-                  <Text style={styles.summaryPrimary}>{item.label}</Text>
-                  <Text style={styles.summarySecondary}>{getCategoryLabel(item.categoryId)}</Text>
+                <View key={item.id} style={styles.detailItemRow}>
+                  <View style={styles.summaryCopy}>
+                    <Text style={styles.summaryPrimary}>{item.label}</Text>
+                    <Text style={styles.summarySecondary}>
+                      {getCategoryLabel(item.categoryId, categories)}
+                    </Text>
+                  </View>
+                  <Text style={styles.summaryAmount}>{formatCurrency(item.amountMinor)}</Text>
                 </View>
-                <Text style={styles.summaryAmount}>{formatCurrency(item.amountMinor)}</Text>
-              </View>
             ))}
           </View>
         ) : (
@@ -2469,6 +2888,7 @@ function HistoryEventRow({
 }
 
 function ClassifyScreen({
+  categories,
   draft,
   onApplySuggestion,
   onCancel,
@@ -2481,6 +2901,7 @@ function ClassifyScreen({
   suggestions,
   transaction,
 }: {
+  categories: CategoryOption[];
   draft: ClassificationDraft;
   onApplySuggestion: (suggestion: ClassificationSuggestion) => void;
   onCancel: () => void;
@@ -2516,6 +2937,7 @@ function ClassifyScreen({
         </SectionCard>
 
         <ClassificationFieldsCard
+          categories={categories}
           categoryId={draft.categoryId}
           description="Suggestions stay explicit and editable. Tap one to fill both the item label and category in one move."
           emptyStateCopy="Suggestions will appear here when the merchant or local history gives us a confident starting point."
@@ -2553,6 +2975,7 @@ function ClassifyScreen({
 }
 
 function SplitItemsScreen({
+  categories,
   onAddRow,
   onCancel,
   onMoveRow,
@@ -2565,6 +2988,7 @@ function SplitItemsScreen({
   splitSummary,
   transaction,
 }: {
+  categories: CategoryOption[];
   onAddRow: () => void;
   onCancel: () => void;
   onMoveRow: (rowId: string, direction: 'down' | 'up') => void;
@@ -2671,6 +3095,7 @@ function SplitItemsScreen({
         <View style={styles.splitRowStack}>
           {splitDraft.rows.map((row, index) => (
             <SplitRowCard
+              categories={categories}
               index={index}
               key={row.id}
               onMoveRow={onMoveRow}
@@ -2708,7 +3133,7 @@ function SplitItemsScreen({
             <View style={styles.fieldStack}>
               <Text style={styles.fieldLabel}>Remainder category</Text>
               <View style={styles.categoryGrid}>
-                {categoryOptions.map((category) => (
+                {categories.map((category) => (
                   <CategoryChip
                     isActive={splitDraft.remainderCategoryId === category.id}
                     key={category.id}
@@ -2748,6 +3173,7 @@ function SplitItemsScreen({
 }
 
 function SplitRowCard({
+  categories,
   index,
   onMoveRow,
   onRemoveRow,
@@ -2755,6 +3181,7 @@ function SplitRowCard({
   row,
   totalRows,
 }: {
+  categories: CategoryOption[];
   index: number;
   onMoveRow: (rowId: string, direction: 'down' | 'up') => void;
   onRemoveRow: (rowId: string) => void;
@@ -2770,7 +3197,7 @@ function SplitRowCard({
       <View style={styles.splitRowHeader}>
         <Text style={styles.fieldLabel}>Item {index + 1}</Text>
         <Text style={styles.helperCopy}>
-          {row.categoryId ? getCategoryLabel(row.categoryId) : 'Category still needed'}
+          {row.categoryId ? getCategoryLabel(row.categoryId, categories) : 'Category still needed'}
         </Text>
       </View>
 
@@ -2794,7 +3221,7 @@ function SplitRowCard({
       <View style={styles.fieldStack}>
         <Text style={styles.fieldLabel}>Category</Text>
         <View style={styles.categoryGrid}>
-          {categoryOptions.map((category) => (
+          {categories.map((category) => (
             <CategoryChip
               isActive={row.categoryId === category.id}
               key={category.id}
@@ -2830,6 +3257,7 @@ function SplitRowCard({
 
 function ManualEntryScreen({
   amountMinor,
+  categories,
   draft,
   onApplySuggestion,
   onCancel,
@@ -2841,6 +3269,7 @@ function ManualEntryScreen({
   suggestions,
 }: {
   amountMinor: number | null;
+  categories: CategoryOption[];
   draft: ManualEntryDraft;
   onApplySuggestion: (suggestion: ClassificationSuggestion) => void;
   onCancel: () => void;
@@ -2894,6 +3323,7 @@ function ManualEntryScreen({
       </SectionCard>
 
       <ClassificationFieldsCard
+        categories={categories}
         categoryId={draft.categoryId}
         description="Manual add now reuses the same item-label and category primitives as quick classify."
         emptyStateCopy="Start with the merchant name to unlock local suggestions, or type the item manually."
@@ -2929,6 +3359,7 @@ function ManualEntryScreen({
 }
 
 function ClassificationFieldsCard({
+  categories,
   categoryId,
   description,
   emptyStateCopy,
@@ -2939,6 +3370,7 @@ function ClassificationFieldsCard({
   suggestions,
   title,
 }: {
+  categories: CategoryOption[];
   categoryId: CategoryId | null;
   description: string;
   emptyStateCopy: string;
@@ -2960,6 +3392,7 @@ function ClassificationFieldsCard({
           <View style={styles.suggestionStack}>
             {suggestions.map((suggestion) => (
               <SuggestionCard
+                categories={categories}
                 key={suggestion.id}
                 onPress={() => onApplySuggestion(suggestion)}
                 suggestion={suggestion}
@@ -2983,7 +3416,7 @@ function ClassificationFieldsCard({
       <View style={styles.fieldStack}>
         <Text style={styles.fieldLabel}>Category</Text>
         <View style={styles.categoryGrid}>
-          {categoryOptions.map((category) => (
+          {categories.map((category) => (
             <CategoryChip
               isActive={categoryId === category.id}
               key={category.id}
@@ -2998,9 +3431,11 @@ function ClassificationFieldsCard({
 }
 
 function SuggestionCard({
+  categories,
   onPress,
   suggestion,
 }: {
+  categories: CategoryOption[];
   onPress: () => void;
   suggestion: ClassificationSuggestion;
 }) {
@@ -3013,7 +3448,7 @@ function SuggestionCard({
     >
       <Text style={styles.suggestionTitle}>{suggestion.itemLabel}</Text>
       <Text style={styles.suggestionMeta}>
-        {getCategoryLabel(suggestion.categoryId)} · {suggestion.reason}
+        {getCategoryLabel(suggestion.categoryId, categories)} · {suggestion.reason}
       </Text>
     </Pressable>
   );
@@ -3342,9 +3777,12 @@ function getSyncModeLabel(syncMode: SyncMode): string {
   return SYNC_MODE_OPTIONS.find((option) => option.id === syncMode)?.label ?? 'Local-only for now';
 }
 
-function getCategoryLabel(categoryId: CategoryId): string {
+function getCategoryLabel(
+  categoryId: CategoryId,
+  categories: CategoryOption[],
+): string {
   return (
-    categoryOptions.find((category) => category.id === categoryId)?.label ??
+    categories.find((category) => category.id === categoryId)?.label ??
     'Needs category'
   );
 }
@@ -3353,6 +3791,8 @@ function getHistoryEventLabel(kind: TransactionHistoryEntry['kind']): string {
   switch (kind) {
     case 'captured':
       return 'Captured';
+    case 'category_merged':
+      return 'Category merged';
     case 'classified':
       return 'Classified';
     case 'classification_imported':
@@ -3904,6 +4344,14 @@ const styles = StyleSheet.create({
   summaryCopy: {
     flex: 1,
     gap: 2,
+  },
+  summaryCard: {
+    backgroundColor: colors.panel,
+    borderColor: colors.edgeStrong,
+    borderRadius: 24,
+    borderWidth: 1,
+    gap: 12,
+    padding: 16,
   },
   summaryPrimary: {
     color: colors.ink,

@@ -65,14 +65,14 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Bottom-sheet quick classify flow with explicit suggestion chips, shared form primitives, save/skip controls, and a save-as-rule intent toggle
 - Full-screen split-items flow with add/remove/reorder controls, running totals, explicit remainder handling, and partial-save visibility back in Inbox
 - Local timeline/history flow with grouped day sections, search/filter chips, transaction detail, local notes, parser context, classification/audit history, and local edit/delete handoff
-- Hardcoded default category options inside the client shell
+- Seeded default categories plus local category create/edit/delete/merge, with the saved category list reused across classify, split, manual add, dashboard summaries, and Timeline search/detail
 
 **Remaining**
 
 - External QA/design acceptance for the split flow
 - Durable rule creation via `INT-003`
 - Settings/privacy/export screens and captured-spend classify integration
-- Category CRUD, merchant normalization, and rule engine
+- Merchant normalization and rule engine
 
 ## Sprint 4 — Budgets And Sync Foundation
 

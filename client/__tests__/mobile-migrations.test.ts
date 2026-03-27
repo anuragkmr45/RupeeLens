@@ -56,8 +56,8 @@ describe('mobile migration runner', () => {
       now: () => '2026-03-26T00:00:00.000Z',
     });
 
-    expect(database.execAsync).toHaveBeenCalledTimes(9);
-    expect(database.runAsync).toHaveBeenCalledTimes(8);
+    expect(database.execAsync).toHaveBeenCalledTimes(12);
+    expect(database.runAsync).toHaveBeenCalledTimes(11);
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
       '001_create_settings_table',
@@ -65,7 +65,7 @@ describe('mobile migration runner', () => {
     );
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
-      '008_create_transaction_history_index',
+      '011_create_categories_label_index',
       '2026-03-26T00:00:00.000Z',
     );
   });
@@ -105,6 +105,9 @@ describe('mobile migration runner', () => {
           { id: '006_create_transaction_history_table' },
           { id: '007_seed_transaction_history_for_existing_rows' },
           { id: '008_create_transaction_history_index' },
+          { id: '009_create_categories_table' },
+          { id: '010_seed_default_categories' },
+          { id: '011_create_categories_label_index' },
         ];
       }
 
@@ -118,6 +121,9 @@ describe('mobile migration runner', () => {
     expect(database.execAsync).toHaveBeenCalledWith(
       expect.stringContaining("ALTER TABLE transactions RENAME TO transactions_legacy"),
     );
-    expect(database.runAsync).toHaveBeenCalledTimes(8);
+    expect(database.execAsync).toHaveBeenCalledWith(
+      expect.stringContaining('CREATE TABLE IF NOT EXISTS categories'),
+    );
+    expect(database.runAsync).toHaveBeenCalledTimes(11);
   });
 });

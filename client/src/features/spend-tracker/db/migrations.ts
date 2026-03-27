@@ -16,6 +16,33 @@ export const SETTINGS_TABLE_SQL = `
     value TEXT NOT NULL
   );
 `;
+export const CATEGORIES_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS categories (
+    id TEXT PRIMARY KEY NOT NULL,
+    label TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    is_default INTEGER NOT NULL DEFAULT 0 CHECK(is_default IN (0, 1))
+  );
+`;
+export const CATEGORIES_LABEL_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_categories_label
+  ON categories(label);
+`;
+export const DEFAULT_CATEGORIES_SEED_SQL = `
+  INSERT OR IGNORE INTO categories (id, label, description, is_default) VALUES
+    ('bills', 'Bills', 'Electricity, mobile, and utility bills.', 1),
+    ('education', 'Education', 'School fees, tuition, books, and classes.', 1),
+    ('entertainment', 'Entertainment', 'Movies, games, streaming, and fun spends.', 1),
+    ('food_drink', 'Food & Drink', 'Coffee, dining, snacks, and drinks.', 1),
+    ('groceries', 'Groceries', 'Groceries and daily essentials.', 1),
+    ('healthcare', 'Healthcare', 'Medicines, clinics, tests, and wellness.', 1),
+    ('household', 'Household', 'Home supplies, repairs, and recurring essentials.', 1),
+    ('misc', 'Miscellaneous', 'Everything that does not fit a stronger default yet.', 1),
+    ('personal_care', 'Personal Care', 'Salon, grooming, skincare, and toiletries.', 1),
+    ('shopping', 'Shopping', 'Personal shopping and one-off purchases.', 1),
+    ('transport', 'Transport', 'Metro, cab, fuel, and commute spends.', 1),
+    ('travel', 'Travel', 'Flights, hotels, and long-distance travel.', 1);
+`;
 export const TRANSACTIONS_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS transactions (
     id TEXT PRIMARY KEY NOT NULL,
@@ -236,5 +263,17 @@ export const mobileMigrations: readonly MobileMigration[] = [
   {
     id: '008_create_transaction_history_index',
     sql: TRANSACTION_HISTORY_INDEX_SQL,
+  },
+  {
+    id: '009_create_categories_table',
+    sql: CATEGORIES_TABLE_SQL,
+  },
+  {
+    id: '010_seed_default_categories',
+    sql: DEFAULT_CATEGORIES_SEED_SQL,
+  },
+  {
+    id: '011_create_categories_label_index',
+    sql: CATEGORIES_LABEL_INDEX_SQL,
   },
 ] as const;
