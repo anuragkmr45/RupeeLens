@@ -56,8 +56,8 @@ describe('mobile migration runner', () => {
       now: () => '2026-03-26T00:00:00.000Z',
     });
 
-    expect(database.execAsync).toHaveBeenCalledTimes(16);
-    expect(database.runAsync).toHaveBeenCalledTimes(15);
+    expect(database.execAsync).toHaveBeenCalledTimes(18);
+    expect(database.runAsync).toHaveBeenCalledTimes(17);
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
       '001_create_settings_table',
@@ -65,7 +65,7 @@ describe('mobile migration runner', () => {
     );
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
-      '015_add_transaction_merchant_raw',
+      '017_create_classification_rules_merchant_index',
       '2026-03-26T00:00:00.000Z',
     );
   });
@@ -112,6 +112,8 @@ describe('mobile migration runner', () => {
           { id: '013_create_merchant_aliases_table' },
           { id: '014_create_merchant_aliases_merchant_id_index' },
           { id: '015_add_transaction_merchant_raw' },
+          { id: '016_create_classification_rules_table' },
+          { id: '017_create_classification_rules_merchant_index' },
         ];
       }
 
@@ -132,8 +134,11 @@ describe('mobile migration runner', () => {
       expect.stringContaining('CREATE TABLE IF NOT EXISTS merchants'),
     );
     expect(database.execAsync).toHaveBeenCalledWith(
+      expect.stringContaining('CREATE TABLE IF NOT EXISTS classification_rules'),
+    );
+    expect(database.execAsync).toHaveBeenCalledWith(
       expect.stringContaining('ADD COLUMN merchant_raw TEXT NOT NULL DEFAULT'),
     );
-    expect(database.runAsync).toHaveBeenCalledTimes(15);
+    expect(database.runAsync).toHaveBeenCalledTimes(17);
   });
 });

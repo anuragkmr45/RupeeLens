@@ -5,12 +5,14 @@ import {
   normalizeMerchantAliases,
   normalizeMerchants,
   normalizeCategories,
+  normalizeSpendRules,
   reconcileMerchantState,
   sortTransactionsByCapturedAtDesc,
   type CategoryId,
   type CategoryOption,
   type MerchantAliasRecord,
   type MerchantRecord,
+  type SpendRule,
   type Transaction,
   type TransactionHistoryEntry,
   type TransactionParserInfo,
@@ -43,6 +45,7 @@ export interface PersistedSpendTrackerState {
   onboardingPreferences: OnboardingPreferences;
   notificationAccessState: NotificationAccessState;
   onboardingCompleted: boolean;
+  rules?: SpendRule[];
   transactions: Transaction[];
 }
 
@@ -71,6 +74,21 @@ interface MerchantAliasRow {
   merchantId: string;
   normalizedAlias: string;
   source: string;
+}
+
+interface ClassificationRuleRow {
+  amountBucket: string;
+  autoApply: number;
+  categoryId: string;
+  createdAt: string;
+  hourBucket: string;
+  id: string;
+  itemLabel: string;
+  merchantId: string | null;
+  merchantLabel: string;
+  merchantNormalizedLabel: string;
+  updatedAt: string;
+  weekday: string;
 }
 
 interface TransactionRow {
@@ -123,6 +141,7 @@ export async function clearStoredSpendTrackerState(): Promise<void> {
     await database.runAsync('DELETE FROM transaction_history');
     await database.runAsync('DELETE FROM transaction_items');
     await database.runAsync('DELETE FROM transactions');
+    await database.runAsync('DELETE FROM classification_rules');
     await database.runAsync('DELETE FROM merchant_aliases');
     await database.runAsync('DELETE FROM merchants');
     await database.runAsync('DELETE FROM categories');
@@ -187,6 +206,9 @@ async function hasStoredState(database: SQLiteDatabase): Promise<boolean> {
   const merchantAliasCountRow = await database.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM merchant_aliases',
   );
+  const ruleCountRow = await database.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM classification_rules',
+  );
   const categoryCountRow = await database.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM categories',
   );
@@ -198,6 +220,7 @@ async function hasStoredState(database: SQLiteDatabase): Promise<boolean> {
     (transactionCountRow?.count ?? 0) > 0 ||
     (merchantCountRow?.count ?? 0) > 0 ||
     (merchantAliasCountRow?.count ?? 0) > 0 ||
+    (ruleCountRow?.count ?? 0) > 0 ||
     (categoryCountRow?.count ?? 0) > 0 ||
     (settingsCountRow?.count ?? 0) > 0
   );
@@ -212,11 +235,13 @@ async function writeStateToDatabase(
     state.merchants,
     state.merchantAliases,
   );
+  const normalizedRules = normalizeSpendRules(state.rules);
 
   await database.withTransactionAsync(async () => {
     await database.runAsync('DELETE FROM transaction_history');
     await database.runAsync('DELETE FROM transaction_items');
     await database.runAsync('DELETE FROM transactions');
+    await database.runAsync('DELETE FROM classification_rules');
     await database.runAsync('DELETE FROM merchant_aliases');
     await database.runAsync('DELETE FROM merchants');
     await database.runAsync('DELETE FROM categories');
@@ -264,6 +289,39 @@ async function writeStateToDatabase(
       'onboarding_completed',
       state.onboardingCompleted ? 'true' : 'false',
     );
+
+    for (const rule of normalizedRules) {
+      await database.runAsync(
+        `
+          INSERT INTO classification_rules (
+            id,
+            merchant_id,
+            merchant_label,
+            merchant_normalized_label,
+            amount_bucket,
+            hour_bucket,
+            weekday,
+            category_id,
+            item_label,
+            auto_apply,
+            created_at,
+            updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        rule.id,
+        rule.merchantId,
+        rule.merchantLabel,
+        rule.merchantNormalizedLabel,
+        rule.amountBucket,
+        rule.hourBucket,
+        rule.weekday,
+        rule.categoryId,
+        rule.itemLabel,
+        rule.autoApply ? 1 : 0,
+        rule.createdAt,
+        rule.updatedAt,
+      );
+    }
 
     for (const merchant of merchantDirectory.merchants) {
       await database.runAsync(
@@ -384,6 +442,7 @@ async function readStateFromDatabase(
     categoryRows,
     merchantRows,
     merchantAliasRows,
+    ruleRows,
     transactionRows,
     itemRows,
     historyRows,
@@ -421,6 +480,25 @@ async function readStateFromDatabase(
           source
         FROM merchant_aliases
         ORDER BY alias ASC, id ASC
+      `,
+    ),
+    database.getAllAsync<ClassificationRuleRow>(
+      `
+        SELECT
+          id,
+          merchant_id as merchantId,
+          merchant_label as merchantLabel,
+          merchant_normalized_label as merchantNormalizedLabel,
+          amount_bucket as amountBucket,
+          hour_bucket as hourBucket,
+          weekday,
+          category_id as categoryId,
+          item_label as itemLabel,
+          auto_apply as autoApply,
+          created_at as createdAt,
+          updated_at as updatedAt
+        FROM classification_rules
+        ORDER BY datetime(updated_at) DESC, id ASC
       `,
     ),
     database.getAllAsync<TransactionRow>(
@@ -482,6 +560,7 @@ async function readStateFromDatabase(
       label: row.label,
     })),
   );
+  const validCategoryIds = new Set(categories.map((category) => category.id));
   const itemsByTransactionId = new Map<string, Transaction['items']>();
   const historyByTransactionId = new Map<string, TransactionHistoryEntry[]>();
 
@@ -568,6 +647,22 @@ async function readStateFromDatabase(
       ),
     ),
   );
+  const rules = normalizeSpendRules(
+    ruleRows.map((row) => ({
+      amountBucket: row.amountBucket as SpendRule['amountBucket'],
+      autoApply: row.autoApply === 1,
+      categoryId: row.categoryId,
+      createdAt: row.createdAt,
+      hourBucket: row.hourBucket as SpendRule['hourBucket'],
+      id: row.id,
+      itemLabel: row.itemLabel,
+      merchantId: row.merchantId,
+      merchantLabel: row.merchantLabel,
+      merchantNormalizedLabel: row.merchantNormalizedLabel,
+      updatedAt: row.updatedAt,
+      weekday: row.weekday as SpendRule['weekday'],
+    })),
+  ).filter((rule) => validCategoryIds.has(rule.categoryId));
 
   return {
     categories,
@@ -589,6 +684,7 @@ async function readStateFromDatabase(
       ? storedNotificationAccessState
       : 'not_started',
     onboardingCompleted: settings.get('onboarding_completed') === 'true',
+    rules,
     transactions: merchantDirectory.transactions,
   };
 }
@@ -608,6 +704,11 @@ async function readLegacyState(): Promise<PersistedSpendTrackerState | null> {
     }
 
     const candidate = parsedValue as Partial<PersistedSpendTrackerState>;
+    const normalizedCategories = normalizeCategories(
+      isCategoryList((candidate as { categories?: unknown }).categories)
+        ? (candidate as { categories?: CategoryOption[] }).categories
+        : undefined,
+    );
     const merchantDirectory = reconcileMerchantState(
       candidate.transactions as Transaction[],
       isMerchantList((candidate as { merchants?: unknown }).merchants)
@@ -619,11 +720,7 @@ async function readLegacyState(): Promise<PersistedSpendTrackerState | null> {
     );
 
     return {
-      categories: normalizeCategories(
-        isCategoryList((candidate as { categories?: unknown }).categories)
-          ? (candidate as { categories?: CategoryOption[] }).categories
-          : undefined,
-      ),
+      categories: normalizedCategories,
       merchantAliases: merchantDirectory.merchantAliases,
       merchants: merchantDirectory.merchants,
       onboardingPreferences: normalizeOnboardingPreferences(
@@ -631,6 +728,13 @@ async function readLegacyState(): Promise<PersistedSpendTrackerState | null> {
       ),
       notificationAccessState: candidate.notificationAccessState as NotificationAccessState,
       onboardingCompleted: candidate.onboardingCompleted as boolean,
+      rules:
+        (candidate as { rules?: unknown }).rules !== undefined &&
+        isSpendRuleList((candidate as { rules?: unknown }).rules)
+          ? normalizeSpendRules((candidate as { rules?: SpendRule[] }).rules).filter((rule) =>
+              normalizedCategories.some((category) => category.id === rule.categoryId),
+            )
+          : [],
       transactions: merchantDirectory.transactions,
     };
   } catch {
@@ -651,6 +755,7 @@ function isPersistedSpendTrackerState(
     (candidate.categories === undefined || isCategoryList(candidate.categories)) &&
     (candidate.merchants === undefined || isMerchantList(candidate.merchants)) &&
     (candidate.merchantAliases === undefined || isMerchantAliasList(candidate.merchantAliases)) &&
+    (candidate.rules === undefined || isSpendRuleList(candidate.rules)) &&
     typeof candidate.onboardingCompleted === 'boolean' &&
     isNotificationAccessState(candidate.notificationAccessState) &&
     (candidate.onboardingPreferences === undefined ||
@@ -983,6 +1088,36 @@ function isMerchantAliasList(value: unknown): value is MerchantAliasRecord[] {
       candidate.merchantId.trim().length > 0 &&
       typeof candidate.confidenceBps === 'number' &&
       (candidate.source === 'manual' || candidate.source === 'merged')
+    );
+  });
+}
+
+function isSpendRuleList(value: unknown): value is SpendRule[] {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  return value.every((rule) => {
+    if (!rule || typeof rule !== 'object') {
+      return false;
+    }
+
+    const candidate = rule as Partial<SpendRule>;
+
+    return (
+      typeof candidate.id === 'string' &&
+      candidate.id.trim().length > 0 &&
+      typeof candidate.categoryId === 'string' &&
+      candidate.categoryId.trim().length > 0 &&
+      typeof candidate.itemLabel === 'string' &&
+      typeof candidate.merchantLabel === 'string' &&
+      typeof candidate.merchantNormalizedLabel === 'string' &&
+      (candidate.merchantId === undefined ||
+        candidate.merchantId === null ||
+        typeof candidate.merchantId === 'string') &&
+      typeof candidate.createdAt === 'string' &&
+      typeof candidate.updatedAt === 'string' &&
+      typeof candidate.autoApply === 'boolean'
     );
   });
 }

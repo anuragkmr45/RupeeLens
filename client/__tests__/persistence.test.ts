@@ -90,6 +90,10 @@ describe('spend-tracker persistence', () => {
         return { count: 2 };
       }
 
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM classification_rules')) {
+        return { count: 1 };
+      }
+
       if (includesSql(sql, 'SELECT COUNT(*) as count FROM categories')) {
         return { count: 12 };
       }
@@ -123,6 +127,25 @@ describe('spend-tracker persistence', () => {
           isDefault: category.isDefault ? 1 : 0,
           label: category.label,
         }));
+      }
+
+      if (includesSql(sql, 'FROM classification_rules')) {
+        return [
+          {
+            amountBucket: 'under_250',
+            autoApply: 1,
+            categoryId: 'food_drink',
+            createdAt: '2026-03-25T09:15:00+05:30',
+            hourBucket: 'morning',
+            id: 'rule_blue_tokai_under_250_morning_tuesday',
+            itemLabel: 'Morning coffee',
+            merchantId: 'merchant_blue_tokai_roasters',
+            merchantLabel: 'Blue Tokai Roasters',
+            merchantNormalizedLabel: 'blue tokai roasters',
+            updatedAt: '2026-03-25T09:15:00+05:30',
+            weekday: 'tuesday',
+          },
+        ];
       }
 
       if (includesSql(sql, 'FROM transactions')) {
@@ -180,6 +203,13 @@ describe('spend-tracker persistence', () => {
       },
       notificationAccessState: 'settings_opened',
       onboardingCompleted: true,
+      rules: [
+        expect.objectContaining({
+          autoApply: true,
+          categoryId: 'food_drink',
+          itemLabel: 'Morning coffee',
+        }),
+      ],
       transactions: [
         expect.objectContaining({
           id: 'txn_manual_store',
@@ -268,6 +298,7 @@ describe('spend-tracker persistence', () => {
       },
       notificationAccessState: 'not_started',
       onboardingCompleted: true,
+      rules: [],
       transactions: seededTransactions,
     });
 
@@ -427,6 +458,22 @@ describe('spend-tracker persistence', () => {
       ],
       notificationAccessState: 'settings_opened',
       onboardingCompleted: true,
+      rules: [
+        {
+          amountBucket: 'under_250',
+          autoApply: true,
+          categoryId: 'groceries',
+          createdAt: '2026-03-25T10:05:00+05:30',
+          hourBucket: 'morning',
+          id: 'rule_corner_store_under_250_morning_tuesday',
+          itemLabel: 'Snack refill',
+          merchantId: 'merchant_corner_store',
+          merchantLabel: 'Corner Store',
+          merchantNormalizedLabel: 'corner store',
+          updatedAt: '2026-03-25T10:05:00+05:30',
+          weekday: 'tuesday',
+        },
+      ],
       transactions: [
         {
           amountMinor: 29900,
@@ -451,6 +498,7 @@ describe('spend-tracker persistence', () => {
     expect(database.withTransactionAsync).toHaveBeenCalledTimes(1);
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM transaction_items');
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM transactions');
+    expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM classification_rules');
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM categories');
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM settings');
     expect(database.runAsync).toHaveBeenCalledWith(
@@ -474,6 +522,21 @@ describe('spend-tracker persistence', () => {
       'INSERT INTO settings (key, value) VALUES (?, ?)',
       'sync_mode',
       'local_only',
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO classification_rules'),
+      'rule_corner_store_under_250_morning_tuesday',
+      'merchant_corner_store',
+      'Corner Store',
+      'corner store',
+      'under_250',
+      'morning',
+      'tuesday',
+      'groceries',
+      'Snack refill',
+      1,
+      '2026-03-25T10:05:00+05:30',
+      '2026-03-25T10:05:00+05:30',
     );
     expect(database.runAsync).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO merchants'),

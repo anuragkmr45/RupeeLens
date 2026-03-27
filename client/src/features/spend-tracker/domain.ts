@@ -104,7 +104,40 @@ export interface Transaction {
   status: TransactionStatus;
 }
 
+export type RuleAmountBucket =
+  | 'any'
+  | 'under_250'
+  | 'between_250_and_500'
+  | 'between_500_and_1000'
+  | 'over_1000';
+export type RuleHourBucket = 'any' | 'morning' | 'afternoon' | 'evening' | 'night';
+export type RuleWeekday =
+  | 'any'
+  | 'sunday'
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday';
+
+export interface SpendRule {
+  amountBucket: RuleAmountBucket;
+  autoApply: boolean;
+  categoryId: CategoryId;
+  createdAt: string;
+  hourBucket: RuleHourBucket;
+  id: string;
+  itemLabel: string;
+  merchantId: MerchantId | null;
+  merchantLabel: string;
+  merchantNormalizedLabel: string;
+  updatedAt: string;
+  weekday: RuleWeekday;
+}
+
 export interface ClassificationDraft {
+  autoApplyRule: boolean;
   categoryId: CategoryId | null;
   itemLabel: string;
   saveAsRule: boolean;
@@ -211,11 +244,26 @@ export interface TimelineDayGroup {
   transactions: Transaction[];
 }
 
+export interface ClassificationSuggestionContext {
+  amountMinor?: number | null | undefined;
+  capturedAt?: string | null | undefined;
+  currentTransactionId?: string;
+  merchant: string;
+  merchantId?: MerchantId | null | undefined;
+}
+
+export type ClassificationSuggestionSource = 'heuristic' | 'history' | 'rule';
+
 export interface ClassificationSuggestion {
+  autoApply: boolean;
   categoryId: CategoryId;
+  explanation: string[];
   id: string;
   itemLabel: string;
   reason: string;
+  ruleId?: string;
+  score: number;
+  source: ClassificationSuggestionSource;
 }
 
 export interface DashboardSummaryOptions {
@@ -710,6 +758,73 @@ export function normalizeMerchantAliases(
   normalizedAliases.sort((left, right) => left.alias.localeCompare(right.alias));
 
   return normalizedAliases;
+}
+
+export function normalizeSpendRules(
+  rules: SpendRule[] | null | undefined,
+): SpendRule[] {
+  if (!Array.isArray(rules)) {
+    return [];
+  }
+
+  const normalizedRules: SpendRule[] = [];
+
+  for (const rule of rules) {
+    if (
+      !rule ||
+      typeof rule !== 'object' ||
+      typeof rule.id !== 'string' ||
+      typeof rule.categoryId !== 'string' ||
+      typeof rule.itemLabel !== 'string' ||
+      typeof rule.merchantLabel !== 'string' ||
+      typeof rule.merchantNormalizedLabel !== 'string' ||
+      typeof rule.createdAt !== 'string' ||
+      typeof rule.updatedAt !== 'string' ||
+      typeof rule.autoApply !== 'boolean' ||
+      !isRuleAmountBucket(rule.amountBucket) ||
+      !isRuleHourBucket(rule.hourBucket) ||
+      !isRuleWeekday(rule.weekday)
+    ) {
+      continue;
+    }
+
+    const normalizedCategoryId = rule.categoryId.trim();
+    const normalizedItemLabel = rule.itemLabel.trim();
+    const normalizedMerchantLabel = rule.merchantLabel.trim();
+    const normalizedMerchantId =
+      typeof rule.merchantId === 'string' && rule.merchantId.trim().length > 0
+        ? rule.merchantId.trim()
+        : null;
+    const normalizedMerchantNormalizedLabel = normalizeMerchantLabel(
+      rule.merchantNormalizedLabel || normalizedMerchantLabel,
+    );
+
+    if (
+      normalizedCategoryId.length === 0 ||
+      normalizedItemLabel.length === 0 ||
+      normalizedMerchantLabel.length === 0 ||
+      normalizedMerchantNormalizedLabel.length === 0
+    ) {
+      continue;
+    }
+
+    normalizedRules.push({
+      amountBucket: rule.amountBucket,
+      autoApply: rule.autoApply,
+      categoryId: normalizedCategoryId,
+      createdAt: rule.createdAt,
+      hourBucket: rule.hourBucket,
+      id: rule.id.trim(),
+      itemLabel: normalizedItemLabel,
+      merchantId: normalizedMerchantId,
+      merchantLabel: normalizedMerchantLabel,
+      merchantNormalizedLabel: normalizedMerchantNormalizedLabel,
+      updatedAt: rule.updatedAt,
+      weekday: rule.weekday,
+    });
+  }
+
+  return normalizedRules.sort(compareRulesForDeterministicPriority);
 }
 
 export function reconcileMerchantState(
@@ -1387,6 +1502,7 @@ export function buildClassificationDraft(
   const firstItem = transaction.items[0];
 
   return {
+    autoApplyRule: false,
     categoryId: firstItem?.categoryId ?? null,
     itemLabel: firstItem?.label ?? '',
     saveAsRule: false,
@@ -1830,24 +1946,228 @@ export function getUnresolvedAmountMinor(transaction: Transaction): number {
   );
 }
 
+export function saveClassificationRule(
+  rules: SpendRule[],
+  context: Pick<ClassificationSuggestionContext, 'amountMinor' | 'capturedAt' | 'merchant' | 'merchantId'>,
+  classification: Pick<ClassificationDraft, 'categoryId' | 'itemLabel'>,
+  {
+    autoApply = false,
+    merchantAliases = [],
+    merchants = [],
+    now = new Date().toISOString(),
+  }: {
+    autoApply?: boolean;
+    merchantAliases?: MerchantAliasRecord[];
+    merchants?: MerchantRecord[];
+    now?: string;
+  } = {},
+): SpendRule[] {
+  const categoryId = classification.categoryId;
+  const itemLabel = classification.itemLabel.trim();
+  const resolvedMerchant = resolveMerchantSuggestionKey(
+    context.merchant,
+    merchants,
+    merchantAliases,
+    context.merchantId,
+  );
+
+  if (!categoryId || itemLabel.length === 0 || resolvedMerchant.normalizedLabel.length === 0) {
+    return normalizeSpendRules(rules);
+  }
+
+  const amountBucket = getRuleAmountBucket(context.amountMinor);
+  const hourBucket = getRuleHourBucket(context.capturedAt);
+  const weekday = getRuleWeekday(context.capturedAt);
+  const nextRuleId = buildSpendRuleId(
+    resolvedMerchant.normalizedLabel,
+    amountBucket,
+    hourBucket,
+    weekday,
+  );
+  const normalizedRules = normalizeSpendRules(rules);
+  const existingRule = normalizedRules.find((rule) => rule.id === nextRuleId);
+
+  return normalizeSpendRules([
+    ...normalizedRules.filter((rule) => rule.id !== nextRuleId),
+    {
+      amountBucket,
+      autoApply,
+      categoryId,
+      createdAt: existingRule?.createdAt ?? now,
+      hourBucket,
+      id: nextRuleId,
+      itemLabel,
+      merchantId: resolvedMerchant.merchantId,
+      merchantLabel: resolvedMerchant.label,
+      merchantNormalizedLabel: resolvedMerchant.normalizedLabel,
+      updatedAt: now,
+      weekday,
+    },
+  ]);
+}
+
+export function deleteRulesForCategory(
+  rules: SpendRule[],
+  categoryId: CategoryId,
+): SpendRule[] {
+  return normalizeSpendRules(rules).filter((rule) => rule.categoryId !== categoryId);
+}
+
+export function mergeRuleCategories(
+  rules: SpendRule[],
+  sourceCategoryId: CategoryId,
+  targetCategoryId: CategoryId,
+  now = new Date().toISOString(),
+): SpendRule[] {
+  return normalizeSpendRules(
+    rules.map((rule) =>
+      rule.categoryId === sourceCategoryId
+        ? {
+            ...rule,
+            categoryId: targetCategoryId,
+            updatedAt: now,
+          }
+        : rule,
+    ),
+  );
+}
+
+export function mergeRuleMerchants(
+  rules: SpendRule[],
+  sourceMerchantId: MerchantId,
+  targetMerchantId: MerchantId,
+  merchants: MerchantRecord[],
+  now = new Date().toISOString(),
+): SpendRule[] {
+  const targetMerchant = normalizeMerchants(merchants).find(
+    (merchant) => merchant.id === targetMerchantId,
+  );
+
+  if (!targetMerchant) {
+    return normalizeSpendRules(rules);
+  }
+
+  return normalizeSpendRules(
+    rules.map((rule) =>
+      rule.merchantId === sourceMerchantId
+        ? {
+            ...rule,
+            merchantId: targetMerchant.id,
+            merchantLabel: targetMerchant.label,
+            merchantNormalizedLabel: targetMerchant.normalizedLabel,
+            updatedAt: now,
+          }
+        : rule,
+    ),
+  );
+}
+
+export function applyAutoClassificationRules(
+  transactions: Transaction[],
+  rules: SpendRule[],
+  merchants: MerchantRecord[] = [],
+  merchantAliases: MerchantAliasRecord[] = [],
+  categories: CategoryOption[] = categoryOptions,
+): Transaction[] {
+  const normalizedRules = normalizeSpendRules(rules);
+
+  if (normalizedRules.length === 0) {
+    return transactions;
+  }
+
+  return transactions.map((transaction) => {
+    if (transaction.status !== 'uncategorized' || transaction.items.length > 0) {
+      return transaction;
+    }
+
+    const autoSuggestion = getClassificationSuggestions(
+      transactions,
+      {
+        amountMinor: transaction.amountMinor,
+        capturedAt: transaction.capturedAt,
+        currentTransactionId: transaction.id,
+        merchant: transaction.merchantRaw ?? transaction.merchant,
+        merchantId: transaction.merchantId,
+      },
+      normalizedRules,
+      merchants,
+      merchantAliases,
+    ).find((suggestion) => suggestion.source === 'rule' && suggestion.autoApply);
+
+    if (!autoSuggestion) {
+      return transaction;
+    }
+
+    return {
+      ...transaction,
+      history: appendTransactionHistoryEntry(
+        transaction.history,
+        createHistoryEntry(
+          transaction.id,
+          'classified',
+          `Auto-applied your saved rule as ${getCategoryLabel(autoSuggestion.categoryId, categories)} with item "${autoSuggestion.itemLabel}".`,
+        ),
+      ),
+      items: [
+        {
+          amountMinor: transaction.amountMinor,
+          categoryId: autoSuggestion.categoryId,
+          id: `${transaction.id}_item_1`,
+          label: autoSuggestion.itemLabel,
+        },
+      ],
+      status: 'classified',
+    };
+  });
+}
+
 export function getClassificationSuggestions(
   transactions: Transaction[],
-  merchant: string,
-  currentTransactionId?: string,
+  context: ClassificationSuggestionContext,
+  rules: SpendRule[] = [],
   merchants: MerchantRecord[] = [],
   merchantAliases: MerchantAliasRecord[] = [],
 ): ClassificationSuggestion[] {
   const suggestions = new Map<string, ClassificationSuggestion>();
   const resolvedMerchant = resolveMerchantSuggestionKey(
-    merchant,
+    context.merchant,
     merchants,
     merchantAliases,
+    context.merchantId,
   );
   const normalizedMerchant = resolvedMerchant.normalizedLabel;
+  const amountBucket = getRuleAmountBucket(context.amountMinor);
+  const hourBucket = getRuleHourBucket(context.capturedAt);
+  const weekday = getRuleWeekday(context.capturedAt);
+
+  for (const rule of normalizeSpendRules(rules)) {
+    const matchedFactors = getMatchedRuleFactors(rule, {
+      amountBucket,
+      hourBucket,
+      normalizedMerchant,
+      weekday,
+    });
+
+    if (!matchedFactors) {
+      continue;
+    }
+
+    upsertSuggestion(suggestions, {
+      autoApply: rule.autoApply,
+      categoryId: rule.categoryId,
+      explanation: matchedFactors,
+      id: `rule_${rule.id}`,
+      itemLabel: rule.itemLabel,
+      reason: buildRuleSuggestionReason(rule, matchedFactors),
+      ruleId: rule.id,
+      score: 100 + getRuleSpecificity(rule),
+      source: 'rule',
+    });
+  }
 
   for (const transaction of transactions) {
     if (
-      transaction.id === currentTransactionId ||
+      transaction.id === context.currentTransactionId ||
       transaction.status !== 'classified' ||
       transaction.items.length === 0
     ) {
@@ -1860,39 +2180,43 @@ export function getClassificationSuggestions(
       merchantAliases,
       transaction.merchantId,
     ).normalizedLabel;
-
-    if (
-      normalizedMerchant.length === 0 ||
-      normalizedTransactionMerchant !== normalizedMerchant
-    ) {
-      continue;
-    }
-
     const firstItem = transaction.items[0];
 
     if (!firstItem) {
       continue;
     }
 
-    const suggestionKey = `${firstItem.categoryId}:${firstItem.label.toLowerCase()}`;
+    const matchedFactors = getMatchedHistoryFactors({
+      amountBucket,
+      currentTransactionMerchant: normalizedMerchant,
+      historyTransactionAmountMinor: transaction.amountMinor,
+      historyTransactionCapturedAt: transaction.capturedAt,
+      historyTransactionMerchant: normalizedTransactionMerchant,
+      hourBucket,
+      weekday,
+    });
 
-    suggestions.set(suggestionKey, {
+    if (!matchedFactors) {
+      continue;
+    }
+
+    upsertSuggestion(suggestions, {
+      autoApply: false,
       categoryId: firstItem.categoryId,
+      explanation: matchedFactors,
       id: `history_${transaction.id}`,
       itemLabel: firstItem.label,
-      reason: 'Used before for this merchant',
+      reason: buildHistorySuggestionReason(matchedFactors),
+      score: getHistorySuggestionScore(matchedFactors),
+      source: 'history',
     });
   }
 
   for (const suggestion of getMerchantKeywordSuggestions(normalizedMerchant)) {
-    const suggestionKey = `${suggestion.categoryId}:${suggestion.itemLabel.toLowerCase()}`;
-
-    if (!suggestions.has(suggestionKey)) {
-      suggestions.set(suggestionKey, suggestion);
-    }
+    upsertSuggestion(suggestions, suggestion);
   }
 
-  return [...suggestions.values()].slice(0, 3);
+  return [...suggestions.values()].sort(compareSuggestionsForPriority).slice(0, 3);
 }
 
 export function isClassificationReady(classification: ClassificationDraft): boolean {
@@ -2163,10 +2487,14 @@ function getMerchantKeywordSuggestions(
       template.keywords.some((keyword) => normalizedMerchant.includes(keyword)),
     )
     .map((template, index) => ({
+      autoApply: false,
       categoryId: template.categoryId,
+      explanation: ['merchant keyword'],
       id: `heuristic_${template.categoryId}_${index}`,
       itemLabel: template.itemLabel,
       reason: template.reason,
+      score: 10,
+      source: 'heuristic' as const,
     }));
 }
 
@@ -2440,11 +2768,15 @@ function resolveMerchantSuggestionKey(
   merchants: MerchantRecord[],
   merchantAliases: MerchantAliasRecord[],
   merchantId?: MerchantId | null,
-): { normalizedLabel: string } {
+): { label: string; merchantId: MerchantId | null; normalizedLabel: string } {
   const normalizedMerchant = normalizeMerchantLabel(merchant);
 
   if (normalizedMerchant.length === 0) {
-    return { normalizedLabel: '' };
+    return {
+      label: merchant.trim(),
+      merchantId: null,
+      normalizedLabel: '',
+    };
   }
 
   const normalizedMerchants = normalizeMerchants(merchants);
@@ -2470,8 +2802,381 @@ function resolveMerchantSuggestionKey(
     })();
 
   return {
+    label: directMerchant?.label ?? formatMerchantLabel(normalizedMerchant, merchant),
+    merchantId: directMerchant?.id ?? (merchantId ?? null),
     normalizedLabel: directMerchant?.normalizedLabel ?? normalizedMerchant,
   };
+}
+
+function isRuleAmountBucket(value: unknown): value is RuleAmountBucket {
+  return (
+    value === 'any' ||
+    value === 'under_250' ||
+    value === 'between_250_and_500' ||
+    value === 'between_500_and_1000' ||
+    value === 'over_1000'
+  );
+}
+
+function isRuleHourBucket(value: unknown): value is RuleHourBucket {
+  return (
+    value === 'any' ||
+    value === 'morning' ||
+    value === 'afternoon' ||
+    value === 'evening' ||
+    value === 'night'
+  );
+}
+
+function isRuleWeekday(value: unknown): value is RuleWeekday {
+  return (
+    value === 'any' ||
+    value === 'sunday' ||
+    value === 'monday' ||
+    value === 'tuesday' ||
+    value === 'wednesday' ||
+    value === 'thursday' ||
+    value === 'friday' ||
+    value === 'saturday'
+  );
+}
+
+function getRuleAmountBucket(amountMinor?: number | null): RuleAmountBucket {
+  if (typeof amountMinor !== 'number' || amountMinor <= 0) {
+    return 'any';
+  }
+
+  if (amountMinor < 25_000) {
+    return 'under_250';
+  }
+
+  if (amountMinor <= 50_000) {
+    return 'between_250_and_500';
+  }
+
+  if (amountMinor <= 100_000) {
+    return 'between_500_and_1000';
+  }
+
+  return 'over_1000';
+}
+
+function getRuleHourBucket(capturedAt?: string | null): RuleHourBucket {
+  if (!capturedAt) {
+    return 'any';
+  }
+
+  const capturedDate = new Date(capturedAt);
+  const hours = capturedDate.getHours();
+
+  if (hours >= 5 && hours <= 11) {
+    return 'morning';
+  }
+
+  if (hours >= 12 && hours <= 16) {
+    return 'afternoon';
+  }
+
+  if (hours >= 17 && hours <= 21) {
+    return 'evening';
+  }
+
+  return 'night';
+}
+
+function getRuleWeekday(capturedAt?: string | null): RuleWeekday {
+  if (!capturedAt) {
+    return 'any';
+  }
+
+  const dayIndex = new Date(capturedAt).getDay();
+  const weekdays: RuleWeekday[] = [
+    'sunday',
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+  ];
+
+  return weekdays[dayIndex] ?? 'any';
+}
+
+function getRuleSpecificity(rule: SpendRule): number {
+  return [
+    true,
+    rule.amountBucket !== 'any',
+    rule.hourBucket !== 'any',
+    rule.weekday !== 'any',
+  ].filter(Boolean).length;
+}
+
+function compareRulesForDeterministicPriority(left: SpendRule, right: SpendRule): number {
+  const specificityDelta = getRuleSpecificity(right) - getRuleSpecificity(left);
+
+  if (specificityDelta !== 0) {
+    return specificityDelta;
+  }
+
+  const updatedAtDelta =
+    new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+
+  if (updatedAtDelta !== 0) {
+    return updatedAtDelta;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function compareSuggestionsForPriority(
+  left: ClassificationSuggestion,
+  right: ClassificationSuggestion,
+): number {
+  const scoreDelta = right.score - left.score;
+
+  if (scoreDelta !== 0) {
+    return scoreDelta;
+  }
+
+  if (left.autoApply !== right.autoApply) {
+    return left.autoApply ? -1 : 1;
+  }
+
+  return left.itemLabel.localeCompare(right.itemLabel);
+}
+
+function upsertSuggestion(
+  suggestions: Map<string, ClassificationSuggestion>,
+  suggestion: ClassificationSuggestion,
+): void {
+  const suggestionKey = buildSuggestionKey(suggestion.categoryId, suggestion.itemLabel);
+  const existingSuggestion = suggestions.get(suggestionKey);
+
+  if (
+    !existingSuggestion ||
+    compareSuggestionsForPriority(existingSuggestion, suggestion) > 0
+  ) {
+    suggestions.set(suggestionKey, suggestion);
+  }
+}
+
+function buildSuggestionKey(categoryId: CategoryId, itemLabel: string): string {
+  return `${categoryId}:${itemLabel.trim().toLowerCase()}`;
+}
+
+function buildSpendRuleId(
+  merchantNormalizedLabel: string,
+  amountBucket: RuleAmountBucket,
+  hourBucket: RuleHourBucket,
+  weekday: RuleWeekday,
+): string {
+  const merchantSlug = merchantNormalizedLabel.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+  return `rule_${merchantSlug || 'merchant'}_${amountBucket}_${hourBucket}_${weekday}`;
+}
+
+function getMatchedRuleFactors(
+  rule: SpendRule,
+  context: {
+    amountBucket: RuleAmountBucket;
+    hourBucket: RuleHourBucket;
+    normalizedMerchant: string;
+    weekday: RuleWeekday;
+  },
+): string[] | null {
+  if (
+    context.normalizedMerchant.length === 0 ||
+    rule.merchantNormalizedLabel !== context.normalizedMerchant
+  ) {
+    return null;
+  }
+
+  const matchedFactors = [`merchant ${rule.merchantLabel}`];
+
+  if (rule.amountBucket !== 'any') {
+    if (context.amountBucket !== rule.amountBucket) {
+      return null;
+    }
+
+    matchedFactors.push(`amount ${formatRuleAmountBucket(rule.amountBucket)}`);
+  }
+
+  if (rule.hourBucket !== 'any') {
+    if (context.hourBucket !== rule.hourBucket) {
+      return null;
+    }
+
+    matchedFactors.push(`${formatRuleHourBucket(rule.hourBucket)} timing`);
+  }
+
+  if (rule.weekday !== 'any') {
+    if (context.weekday !== rule.weekday) {
+      return null;
+    }
+
+    matchedFactors.push(formatRuleWeekday(rule.weekday));
+  }
+
+  return matchedFactors;
+}
+
+function buildRuleSuggestionReason(rule: SpendRule, matchedFactors: string[]): string {
+  const factorSummary = formatMatchedFactors(matchedFactors.slice(1));
+
+  if (factorSummary.length === 0) {
+    return rule.autoApply ? 'Auto-apply rule matched this merchant' : 'Saved rule matched this merchant';
+  }
+
+  return rule.autoApply
+    ? `Auto-apply rule matched ${factorSummary}`
+    : `Saved rule matched ${factorSummary}`;
+}
+
+function getMatchedHistoryFactors({
+  amountBucket,
+  currentTransactionMerchant,
+  historyTransactionAmountMinor,
+  historyTransactionCapturedAt,
+  historyTransactionMerchant,
+  hourBucket,
+  weekday,
+}: {
+  amountBucket: RuleAmountBucket;
+  currentTransactionMerchant: string;
+  historyTransactionAmountMinor: number;
+  historyTransactionCapturedAt: string;
+  historyTransactionMerchant: string;
+  hourBucket: RuleHourBucket;
+  weekday: RuleWeekday;
+}): string[] | null {
+  const matchedFactors: string[] = [];
+
+  if (
+    currentTransactionMerchant.length > 0 &&
+    historyTransactionMerchant === currentTransactionMerchant
+  ) {
+    matchedFactors.push('merchant');
+  }
+
+  if (
+    amountBucket !== 'any' &&
+    getRuleAmountBucket(historyTransactionAmountMinor) === amountBucket
+  ) {
+    matchedFactors.push('amount bucket');
+  }
+
+  if (
+    hourBucket !== 'any' &&
+    getRuleHourBucket(historyTransactionCapturedAt) === hourBucket
+  ) {
+    matchedFactors.push('hour bucket');
+  }
+
+  if (
+    weekday !== 'any' &&
+    getRuleWeekday(historyTransactionCapturedAt) === weekday
+  ) {
+    matchedFactors.push('weekday');
+  }
+
+  const score = getHistorySuggestionScore(matchedFactors);
+
+  if (matchedFactors.length === 0 || (!matchedFactors.includes('merchant') && score < 5)) {
+    return null;
+  }
+
+  return matchedFactors;
+}
+
+function getHistorySuggestionScore(matchedFactors: string[]): number {
+  return matchedFactors.reduce((score, factor) => {
+    switch (factor) {
+      case 'merchant':
+        return score + 6;
+      case 'amount bucket':
+        return score + 3;
+      case 'hour bucket':
+      case 'weekday':
+        return score + 1;
+      default:
+        return score;
+    }
+  }, 0);
+}
+
+function buildHistorySuggestionReason(matchedFactors: string[]): string {
+  return `Local history matched ${formatMatchedFactors(matchedFactors)}`;
+}
+
+function formatMatchedFactors(factors: string[]): string {
+  if (factors.length === 0) {
+    return '';
+  }
+
+  if (factors.length === 1) {
+    return factors[0] ?? '';
+  }
+
+  if (factors.length === 2) {
+    return `${factors[0]} and ${factors[1]}`;
+  }
+
+  return `${factors.slice(0, -1).join(', ')}, and ${factors[factors.length - 1]}`;
+}
+
+function formatRuleAmountBucket(amountBucket: RuleAmountBucket): string {
+  switch (amountBucket) {
+    case 'under_250':
+      return 'under Rs 250';
+    case 'between_250_and_500':
+      return 'Rs 250-Rs 500';
+    case 'between_500_and_1000':
+      return 'Rs 500-Rs 1,000';
+    case 'over_1000':
+      return 'over Rs 1,000';
+    case 'any':
+    default:
+      return 'any amount';
+  }
+}
+
+function formatRuleHourBucket(hourBucket: RuleHourBucket): string {
+  switch (hourBucket) {
+    case 'morning':
+      return 'morning';
+    case 'afternoon':
+      return 'afternoon';
+    case 'evening':
+      return 'evening';
+    case 'night':
+      return 'night';
+    case 'any':
+    default:
+      return 'anytime';
+  }
+}
+
+function formatRuleWeekday(weekday: RuleWeekday): string {
+  switch (weekday) {
+    case 'sunday':
+      return 'Sunday';
+    case 'monday':
+      return 'Monday';
+    case 'tuesday':
+      return 'Tuesday';
+    case 'wednesday':
+      return 'Wednesday';
+    case 'thursday':
+      return 'Thursday';
+    case 'friday':
+      return 'Friday';
+    case 'saturday':
+      return 'Saturday';
+    case 'any':
+    default:
+      return 'Any day';
+  }
 }
 
 function appendTransactionHistoryEntry(

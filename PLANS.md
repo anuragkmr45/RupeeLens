@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### INT-003 — Implement Rule Engine For Merchant, Amount, And Time-Based Suggestions
+
+- **Status:** completed
+- **Ticket:** INT-003
+- **Goal:** Add a deterministic local rule engine that gives explicit user rules priority over history and keyword heuristics, persists those rules in SQLite, and uses them in quick classify and manual add without silently auto-saving heuristic matches.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `client/src/features/spend-tracker/domain.ts`, `client/src/features/spend-tracker/persistence.ts`, `client/src/features/spend-tracker/db/migrations.ts`, `client/src/features/spend-tracker/db/migration-runner.ts`, `client/src/app/SpendTrackerApp.tsx`, focused client tests, and repo-truth docs only if ticket status changes.
+- **Rationale:** The workflow required a recheck of blocked tickets before starting new work. `CAP-003` is still blocked on 2026-03-28 because `adb devices` shows a connected phone but `./gradlew :app:connectedDebugAndroidTest` still fails to install the debug APK on `M2102J20SI - 13` with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`. `CAP-004` remains blocked by the same connected-Android closeout class, and `UX-005` still depends on external QA/design acceptance. `INT-003` is therefore now the earliest actionable canonical `todo` with satisfied dependencies.
+- **Risks:** This pass touches the local transaction/classification model, mobile SQLite schema, and several client flows that already rely on history-based suggestions. It must stay within deterministic explicit rules, explanation metadata, priority/conflict handling, and local classify/manual integration. It must not spill into server sync, budgets, or later history-ranker work.
+- **API / schema impact:** No backend/API changes. Local mobile SQLite will likely need additive rule-table migrations and rule-aware persistence.
+- **Rollout / flag plan:** Keep rule evaluation entirely local-first with no new remote flag. Explicit user-approved rules may auto-apply; heuristic suggestions must remain suggestion-only.
+- **Validation commands:** `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus focused client tests for rule evaluation priority/conflicts, persistence/migration behavior, and quick-classify/manual rule integration.
+- **Done when:** Explicit user rules persist locally, override history/keyword suggestions deterministically, expose explanation metadata and optional auto-apply only for user-approved rules, integrate into classify/manual flows, and backlog status can move to `done` only if those acceptance criteria are fully satisfied.
+- **Outcome:** Added a deterministic local rule engine with SQLite-backed `classification_rules`, additive mobile migrations, and rule evaluation that now runs before history and merchant-keyword heuristics using merchant, amount bucket, hour bucket, and weekday factors. Quick classify and manual add both persist reusable rules through real toggles, explanation metadata is exposed on suggestions, auto-apply now runs only for explicit user-approved rules, and saved rules stay aligned when categories or merchants merge. Focused client typecheck/tests plus `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-28. Ticket status moved to `done`.
+
 ### INT-002 — Build Merchant Normalization And Alias Management Pipeline
 
 - **Status:** completed

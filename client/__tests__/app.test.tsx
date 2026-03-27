@@ -836,7 +836,7 @@ describe('App', () => {
     }
   });
 
-  it('uses explicit quick-classify suggestions and rule-intent toggle', async () => {
+  it('uses explicit quick-classify suggestions and persists reusable rules', async () => {
     const screen = await renderApp();
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
@@ -848,12 +848,20 @@ describe('App', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Coffee run suggestion' }));
     expect(screen.getByDisplayValue('Coffee run')).toBeTruthy();
 
-    fireEvent.press(screen.getByRole('button', { name: 'Save as rule later' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Save as reusable rule' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Auto-apply this rule' }));
     fireEvent.press(screen.getByRole('button', { name: 'Save classification' }));
 
     await waitFor(() =>
       expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
         expect.objectContaining({
+          rules: [
+            expect.objectContaining({
+              autoApply: true,
+              categoryId: 'food_drink',
+              itemLabel: 'Coffee run',
+            }),
+          ],
           transactions: expect.arrayContaining([
             expect.objectContaining({
               id: 'txn_blue_tokai',

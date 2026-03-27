@@ -65,6 +65,26 @@ export const MERCHANT_ALIASES_MERCHANT_ID_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_merchant_aliases_merchant_id
   ON merchant_aliases(merchant_id, alias);
 `;
+export const CLASSIFICATION_RULES_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS classification_rules (
+    id TEXT PRIMARY KEY NOT NULL,
+    merchant_id TEXT,
+    merchant_label TEXT NOT NULL,
+    merchant_normalized_label TEXT NOT NULL,
+    amount_bucket TEXT NOT NULL CHECK(amount_bucket IN ('any', 'under_250', 'between_250_and_500', 'between_500_and_1000', 'over_1000')),
+    hour_bucket TEXT NOT NULL CHECK(hour_bucket IN ('any', 'morning', 'afternoon', 'evening', 'night')),
+    weekday TEXT NOT NULL CHECK(weekday IN ('any', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday')),
+    category_id TEXT NOT NULL,
+    item_label TEXT NOT NULL,
+    auto_apply INTEGER NOT NULL DEFAULT 0 CHECK(auto_apply IN (0, 1)),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+`;
+export const CLASSIFICATION_RULES_MERCHANT_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_classification_rules_merchant_normalized_label
+  ON classification_rules(merchant_normalized_label, updated_at DESC);
+`;
 export const TRANSACTIONS_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS transactions (
     id TEXT PRIMARY KEY NOT NULL,
@@ -321,5 +341,13 @@ export const mobileMigrations: readonly MobileMigration[] = [
   {
     id: '015_add_transaction_merchant_raw',
     sql: TRANSACTIONS_V3_ADD_MERCHANT_RAW_SQL,
+  },
+  {
+    id: '016_create_classification_rules_table',
+    sql: CLASSIFICATION_RULES_TABLE_SQL,
+  },
+  {
+    id: '017_create_classification_rules_merchant_index',
+    sql: CLASSIFICATION_RULES_MERCHANT_INDEX_SQL,
   },
 ] as const;

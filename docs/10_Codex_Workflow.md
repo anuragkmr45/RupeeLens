@@ -127,7 +127,7 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `INT-003 — Implement rule engine for merchant, amount, and time-based suggestions`
+- `INT-004 — Implement history-based suggestion ranker`
 
 Reason:
 
@@ -135,5 +135,5 @@ Reason:
 - `CAP-003` and `CAP-004` both remain blocked on connected-Android validation because the current environment still does not have a stable attached-device closeout path.
 - `UX-005` remains `in_progress`, but its remaining acceptance is external QA/design signoff rather than repo-side implementation.
 - `UX-007` is not yet actionable because it depends on `CAP-007`.
-- `INT-002` is now done with deterministic merchant normalization, local merchant plus alias persistence, review-only merge suggestions, and merchant-management controls in the client.
-- `INT-003` is now the earliest unblocked `todo` ticket with satisfied dependencies because it depends only on `INT-002`, which is complete in repo truth.
+- `INT-003` is now done with deterministic local rules, SQLite-backed rule persistence, explanation metadata, and explicit auto-apply only for user-approved matches in the client.
+- `INT-004` is now the earliest unblocked `todo` ticket with satisfied dependencies because it depends on `INT-003`, which is complete in repo truth.

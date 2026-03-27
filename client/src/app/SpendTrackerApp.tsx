@@ -26,6 +26,7 @@ import {
 
 import {
   addCustomCategory,
+  applyAutoClassificationRules,
   appendSplitDraftRow,
   buildClassificationDraft,
   buildSplitDraft,
@@ -38,6 +39,7 @@ import {
   DEFAULT_INBOX_FILTERS,
   DEFAULT_TIMELINE_FILTERS,
   deleteCustomCategory,
+  deleteRulesForCategory,
   deleteTransaction,
   formatCaptureMoment,
   formatCurrency,
@@ -54,11 +56,14 @@ import {
   isClassificationReady,
   isSplitDraftReady,
   mergeCategories,
+  mergeRuleCategories,
+  mergeRuleMerchants,
   moveSplitDraftRow,
   parseCurrencyInputToMinor,
   reconcileMerchantState,
   removeSplitDraftRow,
   restoreSkippedTransaction,
+  saveClassificationRule,
   seededMerchantAliases,
   seededMerchants,
   seededTransactions,
@@ -86,6 +91,7 @@ import {
   type MerchantRecord,
   type SplitDraft,
   type SplitRemainderDisposition,
+  type SpendRule,
   type TimelineDayGroup,
   type TimelineFilters,
   type Transaction,
@@ -145,6 +151,7 @@ type ScreenReturnTarget = 'detail' | PrimaryScreen;
 type SplitReturnScreen = 'classify' | 'detail' | 'inbox';
 
 const EMPTY_DRAFT: ClassificationDraft = {
+  autoApplyRule: false,
   categoryId: null,
   itemLabel: '',
   saveAsRule: false,
@@ -157,10 +164,13 @@ const EMPTY_SPLIT_DRAFT: SplitDraft = {
 };
 
 interface ManualEntryDraft {
+  autoApplyRule: boolean;
   amountInput: string;
+  capturedAt: string;
   categoryId: CategoryId | null;
   itemLabel: string;
   merchant: string;
+  saveAsRule: boolean;
 }
 
 interface CategoryDraft {
@@ -169,10 +179,13 @@ interface CategoryDraft {
 }
 
 const EMPTY_MANUAL_ENTRY_DRAFT: ManualEntryDraft = {
+  autoApplyRule: false,
   amountInput: '',
+  capturedAt: '',
   categoryId: null,
   itemLabel: '',
   merchant: '',
+  saveAsRule: false,
 };
 
 const EMPTY_CATEGORY_DRAFT: CategoryDraft = {
@@ -242,6 +255,7 @@ export function SpendTrackerApp() {
   const [merchants, setMerchants] = useState<MerchantRecord[]>(seededMerchants);
   const [merchantAliases, setMerchantAliases] =
     useState<MerchantAliasRecord[]>(seededMerchantAliases);
+  const [rules, setRules] = useState<SpendRule[]>([]);
   const [notificationAccessState, setNotificationAccessState] =
     useState<NotificationAccessState>('not_started');
   const [transactions, setTransactions] = useState<Transaction[]>(seededTransactions);
@@ -308,8 +322,14 @@ export function SpendTrackerApp() {
   const activeTransactionSuggestions = activeTransaction
     ? getClassificationSuggestions(
         transactions,
-        activeTransaction.merchantRaw ?? activeTransaction.merchant,
-        activeTransaction.id,
+        {
+          amountMinor: activeTransaction.amountMinor,
+          capturedAt: activeTransaction.capturedAt,
+          currentTransactionId: activeTransaction.id,
+          merchant: activeTransaction.merchantRaw ?? activeTransaction.merchant,
+          merchantId: activeTransaction.merchantId,
+        },
+        rules,
         merchants,
         merchantAliases,
       )
@@ -317,14 +337,18 @@ export function SpendTrackerApp() {
   const splitSummary = activeTransaction
     ? summarizeSplitDraft(activeTransaction.amountMinor, splitDraft)
     : null;
+  const manualAmountMinor = parseCurrencyInputToMinor(manualDraft.amountInput);
   const manualEntrySuggestions = getClassificationSuggestions(
     transactions,
-    manualDraft.merchant,
-    undefined,
+    {
+      amountMinor: manualAmountMinor,
+      capturedAt: manualDraft.capturedAt || undefined,
+      merchant: manualDraft.merchant,
+    },
+    rules,
     merchants,
     merchantAliases,
   );
-  const manualAmountMinor = parseCurrencyInputToMinor(manualDraft.amountInput);
   const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
 
   useEffect(() => {
@@ -350,6 +374,7 @@ export function SpendTrackerApp() {
         setOnboardingCompleted(storedState.onboardingCompleted);
         setMerchants(merchantDirectory.merchants);
         setMerchantAliases(merchantDirectory.merchantAliases);
+        setRules(storedState.rules ?? []);
         setTransactions(merchantDirectory.transactions);
         setScreen(storedState.onboardingCompleted ? 'home' : 'onboarding');
       }
@@ -494,6 +519,7 @@ export function SpendTrackerApp() {
       onboardingPreferences,
       notificationAccessState,
       onboardingCompleted,
+      rules,
       transactions,
     });
   }, [
@@ -504,6 +530,7 @@ export function SpendTrackerApp() {
     notificationAccessState,
     onboardingCompleted,
     onboardingPreferences,
+    rules,
     transactions,
   ]);
 
@@ -582,18 +609,50 @@ export function SpendTrackerApp() {
   }
 
   function handleSaveClassification() {
-    if (!activeTransactionId || !isClassificationReady(draft)) {
+    if (!activeTransactionId || !activeTransaction || !isClassificationReady(draft)) {
       return;
     }
 
-    const nextTransactions = classifyTransaction(
+    let nextRules = rules;
+
+    if (draft.saveAsRule) {
+      nextRules = saveClassificationRule(
+        rules,
+        {
+          amountMinor: activeTransaction.amountMinor,
+          capturedAt: activeTransaction.capturedAt,
+          merchant: activeTransaction.merchantRaw ?? activeTransaction.merchant,
+          merchantId: activeTransaction.merchantId,
+        },
+        draft,
+        {
+          autoApply: draft.autoApplyRule,
+          merchantAliases,
+          merchants,
+        },
+      );
+    }
+
+    let nextTransactions = classifyTransaction(
       transactions,
       activeTransactionId,
       draft,
       categories,
     );
+
+    if (draft.saveAsRule && draft.autoApplyRule) {
+      nextTransactions = applyAutoClassificationRules(
+        nextTransactions,
+        nextRules,
+        merchants,
+        merchantAliases,
+        categories,
+      );
+    }
+
     const merchantDirectory = applyMerchantDirectoryState(nextTransactions);
 
+    setRules(nextRules);
     setActiveTransactionId(null);
     setClassifyReturnScreen(null);
     setDraft({ ...EMPTY_DRAFT });
@@ -620,7 +679,16 @@ export function SpendTrackerApp() {
   function handleToggleSaveAsRule() {
     setDraft((currentDraft) => ({
       ...currentDraft,
+      autoApplyRule: currentDraft.saveAsRule ? false : currentDraft.autoApplyRule,
       saveAsRule: !currentDraft.saveAsRule,
+    }));
+  }
+
+  function handleToggleAutoApplyRule() {
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      autoApplyRule: !currentDraft.autoApplyRule,
+      saveAsRule: true,
     }));
   }
 
@@ -649,7 +717,10 @@ export function SpendTrackerApp() {
 
   function handleOpenManualEntry(returnScreen: PrimaryScreen) {
     setManualReturnScreen(returnScreen);
-    setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
+    setManualDraft({
+      ...EMPTY_MANUAL_ENTRY_DRAFT,
+      capturedAt: new Date().toISOString(),
+    });
     setScreen('manual');
   }
 
@@ -699,6 +770,7 @@ export function SpendTrackerApp() {
     }
 
     setCategories((currentCategories) => deleteCustomCategory(currentCategories, categoryId));
+    setRules((currentRules) => deleteRulesForCategory(currentRules, categoryId));
   }
 
   function handleMergeCategory(sourceCategoryId: CategoryId, targetCategoryId: CategoryId) {
@@ -711,6 +783,7 @@ export function SpendTrackerApp() {
 
     setCategories(mergedState.categories);
     setTransactions(mergedState.transactions);
+    setRules((currentRules) => mergeRuleCategories(currentRules, sourceCategoryId, targetCategoryId));
   }
 
   function handleOpenTransactionDetail(
@@ -958,6 +1031,7 @@ export function SpendTrackerApp() {
   function handleSaveManualEntry() {
     const categoryId = manualDraft.categoryId;
     const itemLabel = manualDraft.itemLabel.trim();
+    const capturedAt = manualDraft.capturedAt || new Date().toISOString();
     const merchant = manualDraft.merchant.trim();
 
     if (
@@ -965,6 +1039,7 @@ export function SpendTrackerApp() {
       manualAmountMinor <= 0 ||
       !categoryId ||
       !isClassificationReady({
+        autoApplyRule: false,
         categoryId,
         itemLabel,
         saveAsRule: false,
@@ -974,9 +1049,29 @@ export function SpendTrackerApp() {
       return;
     }
 
-    const nextTransactions = sortTransactionsByCapturedAtDesc([
+    let nextRules = rules;
+
+    if (manualDraft.saveAsRule) {
+      nextRules = saveClassificationRule(
+        rules,
+        {
+          amountMinor: manualAmountMinor,
+          capturedAt,
+          merchant,
+        },
+        manualDraft,
+        {
+          autoApply: manualDraft.autoApplyRule,
+          merchantAliases,
+          merchants,
+        },
+      );
+    }
+
+    let nextTransactions = sortTransactionsByCapturedAtDesc([
       createManualTransaction({
         amountMinor: manualAmountMinor,
+        capturedAt,
         categoryId,
         itemLabel,
         merchant,
@@ -984,7 +1079,18 @@ export function SpendTrackerApp() {
       ...transactions,
     ]);
 
+    if (manualDraft.saveAsRule && manualDraft.autoApplyRule) {
+      nextTransactions = applyAutoClassificationRules(
+        nextTransactions,
+        nextRules,
+        merchants,
+        merchantAliases,
+        categories,
+      );
+    }
+
     applyMerchantDirectoryState(nextTransactions);
+    setRules(nextRules);
     setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
     setScreen(manualReturnScreen === 'timeline' ? 'timeline' : 'home');
   }
@@ -999,6 +1105,22 @@ export function SpendTrackerApp() {
       ...currentDraft,
       categoryId: suggestion.categoryId,
       itemLabel: suggestion.itemLabel,
+    }));
+  }
+
+  function handleToggleManualSaveAsRule() {
+    setManualDraft((currentDraft) => ({
+      ...currentDraft,
+      autoApplyRule: currentDraft.saveAsRule ? false : currentDraft.autoApplyRule,
+      saveAsRule: !currentDraft.saveAsRule,
+    }));
+  }
+
+  function handleToggleManualAutoApplyRule() {
+    setManualDraft((currentDraft) => ({
+      ...currentDraft,
+      autoApplyRule: !currentDraft.autoApplyRule,
+      saveAsRule: true,
     }));
   }
 
@@ -1043,6 +1165,14 @@ export function SpendTrackerApp() {
     setMerchants(merchantDirectory.merchants);
     setMerchantAliases(merchantDirectory.merchantAliases);
     setTransactions(merchantDirectory.transactions);
+    setRules((currentRules) =>
+      mergeRuleMerchants(
+        currentRules,
+        sourceMerchantId,
+        targetMerchantId,
+        merchantDirectory.merchants,
+      ),
+    );
   }
 
   function handleSplitMerchantAlias(aliasId: string) {
@@ -1073,6 +1203,7 @@ export function SpendTrackerApp() {
     setCategories(getDefaultCategories());
     setMerchants(seededMerchants);
     setMerchantAliases(seededMerchantAliases);
+    setRules([]);
     setTransactions(seededTransactions);
     setScreen('onboarding');
 
@@ -1191,6 +1322,7 @@ export function SpendTrackerApp() {
               setDraft((currentDraft) => ({ ...currentDraft, categoryId }))
             }
             onSkip={handleSkipFromClassification}
+            onToggleAutoApplyRule={handleToggleAutoApplyRule}
             onToggleSaveAsRule={handleToggleSaveAsRule}
             suggestions={activeTransactionSuggestions}
             transaction={activeTransaction}
@@ -1284,6 +1416,8 @@ export function SpendTrackerApp() {
                 onSelectCategory={(categoryId) =>
                   setManualDraft((currentDraft) => ({ ...currentDraft, categoryId }))
                 }
+                onToggleAutoApplyRule={handleToggleManualAutoApplyRule}
+                onToggleSaveAsRule={handleToggleManualSaveAsRule}
                 suggestions={manualEntrySuggestions}
               />
             ) : null}
@@ -3267,6 +3401,7 @@ function ClassifyScreen({
   onSave,
   onSelectCategory,
   onSkip,
+  onToggleAutoApplyRule,
   onToggleSaveAsRule,
   suggestions,
   transaction,
@@ -3280,6 +3415,7 @@ function ClassifyScreen({
   onSave: () => void;
   onSelectCategory: (categoryId: CategoryId) => void;
   onSkip: () => void;
+  onToggleAutoApplyRule: () => void;
   onToggleSaveAsRule: () => void;
   suggestions: ClassificationSuggestion[];
   transaction: Transaction;
@@ -3326,7 +3462,22 @@ function ClassifyScreen({
             updated transaction back into local SQLite tables. Split opens a full-screen editor
             when one payment needs to become multiple items first.
           </Text>
-          <RuleIntentToggle isActive={draft.saveAsRule} onPress={onToggleSaveAsRule} />
+          <RuleIntentToggle
+            accessibilityLabel="Save as reusable rule"
+            description="Store this merchant, amount bucket, and timing pattern as an explicit local rule."
+            isActive={draft.saveAsRule}
+            label="Save as reusable rule"
+            onPress={onToggleSaveAsRule}
+          />
+          {draft.saveAsRule ? (
+            <RuleIntentToggle
+              accessibilityLabel="Auto-apply this rule"
+              description="Future uncategorized captures that match this saved rule can be classified automatically."
+              isActive={draft.autoApplyRule}
+              label="Auto-apply matching captures"
+              onPress={onToggleAutoApplyRule}
+            />
+          ) : null}
           <View style={styles.actionRow}>
             <ActionButton label="Back to inbox" onPress={onCancel} tone="secondary" />
             <ActionButton label="Skip for now" onPress={onSkip} tone="secondary" />
@@ -3636,6 +3787,8 @@ function ManualEntryScreen({
   onChangeMerchant,
   onSave,
   onSelectCategory,
+  onToggleAutoApplyRule,
+  onToggleSaveAsRule,
   suggestions,
 }: {
   amountMinor: number | null;
@@ -3648,12 +3801,15 @@ function ManualEntryScreen({
   onChangeMerchant: (merchant: string) => void;
   onSave: () => void;
   onSelectCategory: (categoryId: CategoryId) => void;
+  onToggleAutoApplyRule: () => void;
+  onToggleSaveAsRule: () => void;
   suggestions: ClassificationSuggestion[];
 }) {
   const saveDisabled =
     !amountMinor ||
     amountMinor <= 0 ||
     !isClassificationReady({
+      autoApplyRule: false,
       categoryId: draft.categoryId,
       itemLabel: draft.itemLabel,
       saveAsRule: false,
@@ -3695,7 +3851,7 @@ function ManualEntryScreen({
       <ClassificationFieldsCard
         categories={categories}
         categoryId={draft.categoryId}
-        description="Manual add now reuses the same item-label and category primitives as quick classify."
+        description="Manual add now reuses the same item-label and category primitives as quick classify, with saved rules appearing before history or merchant heuristics."
         emptyStateCopy="Start with the merchant name to unlock local suggestions, or type the item manually."
         itemLabel={draft.itemLabel}
         onApplySuggestion={onApplySuggestion}
@@ -3704,6 +3860,30 @@ function ManualEntryScreen({
         suggestions={suggestions}
         title="Classify this spend"
       />
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Rule behavior</Text>
+        <Text style={styles.bodyCopy}>
+          Save this combination as an explicit local rule if the same merchant, amount range, and
+          timing pattern keeps repeating.
+        </Text>
+        <RuleIntentToggle
+          accessibilityLabel="Save manual rule"
+          description="This keeps a reusable local rule on-device for future suggestions."
+          isActive={draft.saveAsRule}
+          label="Save as reusable rule"
+          onPress={onToggleSaveAsRule}
+        />
+        {draft.saveAsRule ? (
+          <RuleIntentToggle
+            accessibilityLabel="Auto-apply manual rule"
+            description="Matching uncategorized captures can classify themselves from this explicit rule."
+            isActive={draft.autoApplyRule}
+            label="Auto-apply matching captures"
+            onPress={onToggleAutoApplyRule}
+          />
+        ) : null}
+      </SectionCard>
 
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Preview</Text>
@@ -3820,20 +4000,30 @@ function SuggestionCard({
       <Text style={styles.suggestionMeta}>
         {getCategoryLabel(suggestion.categoryId, categories)} · {suggestion.reason}
       </Text>
+      <Text style={styles.helperCopy}>
+        {suggestion.explanation.join(' · ')}
+        {suggestion.autoApply ? ' · Auto-apply enabled' : ''}
+      </Text>
     </Pressable>
   );
 }
 
 function RuleIntentToggle({
+  accessibilityLabel,
+  description,
   isActive,
+  label,
   onPress,
 }: {
+  accessibilityLabel: string;
+  description: string;
   isActive: boolean;
+  label: string;
   onPress: () => void;
 }) {
   return (
     <Pressable
-      accessibilityLabel="Save as rule later"
+      accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       onPress={onPress}
       style={styles.ruleToggle}
@@ -3842,10 +4032,8 @@ function RuleIntentToggle({
         {isActive ? <View style={styles.ruleToggleIndicatorDot} /> : null}
       </View>
       <View style={styles.ruleToggleCopy}>
-        <Text style={styles.fieldLabel}>Save as rule later</Text>
-        <Text style={styles.helperCopy}>
-          This only records user intent in the current UI. Reusable rules still depend on INT-003.
-        </Text>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        <Text style={styles.helperCopy}>{description}</Text>
       </View>
     </Pressable>
   );

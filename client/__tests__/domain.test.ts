@@ -1,5 +1,6 @@
 import {
   addCustomCategory,
+  applyAutoClassificationRules,
   appendSplitDraftRow,
   buildSplitDraft,
   canDeleteCategory,
@@ -21,11 +22,14 @@ import {
   isClassificationReady,
   isSplitDraftReady,
   mergeCategories,
+  mergeRuleCategories,
+  mergeRuleMerchants,
   mergeMerchants,
   moveSplitDraftRow,
   reconcileMerchantState,
   removeSplitDraftRow,
   restoreSkippedTransaction,
+  saveClassificationRule,
   seededTransactions,
   skipTransaction,
   splitMerchantAlias,
@@ -34,6 +38,7 @@ import {
   summarizeSplitDraft,
   summarizeDashboard,
   updateCustomCategory,
+  type SpendRule,
   type Transaction,
 } from '../src/features/spend-tracker/domain';
 
@@ -285,6 +290,7 @@ describe('spend-tracker dashboard summary', () => {
 
   it('supports classify, skip, restore, and delete inbox actions', () => {
     const classifiedTransactions = classifyTransaction(seededTransactions, 'txn_blue_tokai', {
+      autoApplyRule: false,
       categoryId: 'food_drink',
       itemLabel: ' Cold brew ',
       saveAsRule: false,
@@ -352,31 +358,234 @@ describe('spend-tracker dashboard summary', () => {
     ];
 
     expect(
-      getClassificationSuggestions(transactions, 'Blue Tokai Roasters', 'txn_blue_tokai'),
+      getClassificationSuggestions(transactions, {
+        amountMinor: 18_000,
+        capturedAt: '2026-03-25T09:12:00+05:30',
+        currentTransactionId: 'txn_blue_tokai',
+        merchant: 'Blue Tokai Roasters',
+      }),
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          explanation: expect.arrayContaining(['merchant']),
           categoryId: 'food_drink',
           itemLabel: 'Cold brew',
-          reason: 'Used before for this merchant',
+          source: 'history',
         }),
         expect.objectContaining({
           categoryId: 'food_drink',
           itemLabel: 'Coffee run',
+          source: 'heuristic',
         }),
       ]),
     );
 
     expect(
-      getClassificationSuggestions(seededTransactions, 'Blinkit').map((suggestion) => suggestion.itemLabel),
+      getClassificationSuggestions(seededTransactions, {
+        amountMinor: 64_000,
+        capturedAt: '2026-03-25T07:50:00+05:30',
+        merchant: 'Blinkit',
+      }).map((suggestion) => suggestion.itemLabel),
     ).toContain('Groceries');
     expect(
       isClassificationReady({
+        autoApplyRule: false,
         categoryId: 'food_drink',
         itemLabel: ' Coffee run ',
         saveAsRule: true,
       }),
     ).toBe(true);
+  });
+
+  it('prioritizes explicit saved rules and only auto-applies user-approved matches', () => {
+    const savedRules = saveClassificationRule(
+      [],
+      {
+        amountMinor: 18_000,
+        capturedAt: '2026-03-25T09:12:00+05:30',
+        merchant: 'Blue Tokai Roasters',
+      },
+      {
+        categoryId: 'food_drink',
+        itemLabel: 'Morning coffee',
+      },
+      {
+        autoApply: true,
+        now: '2026-03-25T09:15:00+05:30',
+      },
+    );
+    const updatedRules = saveClassificationRule(
+      savedRules,
+      {
+        amountMinor: 18_100,
+        capturedAt: '2026-04-01T09:05:00+05:30',
+        merchant: 'Blue Tokai Roasters',
+      },
+      {
+        categoryId: 'food_drink',
+        itemLabel: 'Flat white',
+      },
+      {
+        autoApply: false,
+        now: '2026-04-01T09:15:00+05:30',
+      },
+    );
+
+    expect(updatedRules).toHaveLength(1);
+    expect(updatedRules[0]).toEqual(
+      expect.objectContaining({
+        autoApply: false,
+        categoryId: 'food_drink',
+        itemLabel: 'Flat white',
+      }),
+    );
+
+    const suggestions = getClassificationSuggestions(
+      [
+        {
+          amountMinor: 17_900,
+          capturedAt: '2026-03-18T09:10:00+05:30',
+          id: 'txn_history_rule_candidate',
+          items: [
+            {
+              amountMinor: 17_900,
+              categoryId: 'food_drink',
+              id: 'txn_history_rule_candidate_item_1',
+              label: 'Cold brew',
+            },
+          ],
+          merchant: 'Blue Tokai Roasters',
+          sourceApp: 'Google Pay',
+          status: 'classified',
+        },
+      ],
+      {
+        amountMinor: 18_050,
+        capturedAt: '2026-04-08T09:20:00+05:30',
+        merchant: 'Blue Tokai Roasters',
+      },
+      updatedRules,
+    );
+
+    expect(suggestions[0]).toEqual(
+      expect.objectContaining({
+        autoApply: false,
+        itemLabel: 'Flat white',
+        source: 'rule',
+      }),
+    );
+
+    const autoApplyRules = saveClassificationRule(
+      [],
+      {
+        amountMinor: 18_000,
+        capturedAt: '2026-03-25T09:12:00+05:30',
+        merchant: 'Blue Tokai Roasters',
+      },
+      {
+        categoryId: 'food_drink',
+        itemLabel: 'Morning coffee',
+      },
+      {
+        autoApply: true,
+        now: '2026-03-25T09:15:00+05:30',
+      },
+    );
+
+    const autoAppliedTransactions = applyAutoClassificationRules(
+      [
+        {
+          amountMinor: 18_100,
+          capturedAt: '2026-04-08T09:20:00+05:30',
+          id: 'txn_rule_match',
+          items: [],
+          merchant: 'Blue Tokai Roasters',
+          sourceApp: 'Google Pay',
+          status: 'uncategorized',
+        },
+        {
+          amountMinor: 18_100,
+          capturedAt: '2026-04-08T21:20:00+05:30',
+          id: 'txn_rule_miss',
+          items: [],
+          merchant: 'Blue Tokai Roasters',
+          sourceApp: 'Google Pay',
+          status: 'uncategorized',
+        },
+      ],
+      autoApplyRules,
+      [],
+      [],
+      getDefaultCategories(),
+    );
+
+    expect(autoAppliedTransactions).toEqual([
+      expect.objectContaining({
+        id: 'txn_rule_match',
+        items: [
+          expect.objectContaining({
+            categoryId: 'food_drink',
+            label: 'Morning coffee',
+          }),
+        ],
+        status: 'classified',
+      }),
+      expect.objectContaining({
+        id: 'txn_rule_miss',
+        items: [],
+        status: 'uncategorized',
+      }),
+    ]);
+  });
+
+  it('updates saved rules when categories or merchants merge', () => {
+    const rules: SpendRule[] = [
+      {
+        amountBucket: 'under_250',
+        autoApply: true,
+        categoryId: 'food_drink',
+        createdAt: '2026-03-25T09:15:00+05:30',
+        hourBucket: 'morning',
+        id: 'rule_blue_tokai_under_250_morning_tuesday',
+        itemLabel: 'Morning coffee',
+        merchantId: 'merchant_blue_tokai',
+        merchantLabel: 'Blue Tokai Roasters',
+        merchantNormalizedLabel: 'blue tokai roasters',
+        updatedAt: '2026-03-25T09:15:00+05:30',
+        weekday: 'tuesday',
+      },
+    ];
+
+    expect(
+      mergeRuleCategories(rules, 'food_drink', 'groceries', '2026-03-26T09:00:00+05:30'),
+    ).toEqual([
+      expect.objectContaining({
+        categoryId: 'groceries',
+        updatedAt: '2026-03-26T09:00:00+05:30',
+      }),
+    ]);
+
+    expect(
+      mergeRuleMerchants(
+        rules,
+        'merchant_blue_tokai',
+        'merchant_blue_tokai_main',
+        [
+          {
+            id: 'merchant_blue_tokai_main',
+            label: 'Blue Tokai',
+            normalizedLabel: 'blue tokai',
+          },
+        ],
+        '2026-03-26T09:05:00+05:30',
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        merchantId: 'merchant_blue_tokai_main',
+        merchantLabel: 'Blue Tokai',
+        merchantNormalizedLabel: 'blue tokai',
+      }),
+    ]);
   });
 
   it('normalizes repeated merchant variants into one canonical merchant when deterministic rules allow it', () => {
@@ -537,8 +746,12 @@ describe('spend-tracker dashboard summary', () => {
     expect(
       getClassificationSuggestions(
         mergedDirectory.transactions,
-        'Blue Tokai Roaster',
-        undefined,
+        {
+          amountMinor: 18_000,
+          capturedAt: '2026-03-25T09:12:00+05:30',
+          merchant: 'Blue Tokai Roaster',
+        },
+        [],
         mergedDirectory.merchants,
         mergedDirectory.merchantAliases,
       ),
@@ -546,7 +759,7 @@ describe('spend-tracker dashboard summary', () => {
       expect.arrayContaining([
         expect.objectContaining({
           itemLabel: 'Cold brew',
-          reason: 'Used before for this merchant',
+          source: 'history',
         }),
       ]),
     );
@@ -731,6 +944,7 @@ describe('spend-tracker dashboard summary', () => {
       seededTransactions,
       'txn_blue_tokai',
       {
+        autoApplyRule: false,
         categoryId: 'custom_weekend_treats',
         itemLabel: 'Cold brew',
         saveAsRule: false,
@@ -777,6 +991,7 @@ describe('spend-tracker dashboard summary', () => {
       seededTransactions,
       'txn_blue_tokai',
       {
+        autoApplyRule: false,
         categoryId: 'custom_weekend_treats',
         itemLabel: 'Cold brew',
         saveAsRule: false,

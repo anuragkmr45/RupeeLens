@@ -340,7 +340,7 @@ One-tap classification path works end to end.
 - **Story points:** 5
 - **Goal:** Make captured transactions visible in JS UI without depending on JS for the critical path.
 - **Dependencies:** CAP-004
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-28 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Workflow re-audit on 2026-03-28 rechecked blocked tickets first. `CAP-003` remains blocked because `adb devices` shows a connected device but `./gradlew :app:connectedDebugAndroidTest` still fails to install `app-debug.apk` on `M2102J20SI - 13` with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`, and `CAP-004` remains blocked by the same connected-Android closeout class. `UX-005` also still depends on external QA/design acceptance, so `INT-003` is the next actionable canonical ticket. Scope is limited to deterministic local rules, rule-aware suggestions, and classify/manual integration.
 
 **Description**  
 Create TurboModule or native bridge to query capture inbox, subscribe to safe updates, and import captured events into domain tables.
@@ -366,7 +366,7 @@ Native-to-JS bridge documented and reliable.
 - **Story points:** 3
 - **Goal:** Shorten support and QA cycles when capture fails on real devices.
 - **Dependencies:** CAP-002, CAP-004
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-28 | Completed At: 2026-03-28 | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the client now persists explicit local classification rules in SQLite with additive migrations, evaluates saved rules before history and merchant-keyword heuristics using merchant, amount bucket, hour bucket, and weekday factors, returns explanation metadata with deterministic priority, and auto-applies only explicit user-approved rules. Quick classify and manual add both create reusable rules through real toggles, and category/merchant merge handlers keep saved rules aligned. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28.
 
 **Description**  
 Expose safe diagnostics in settings: listener permission state, allowlisted apps, parser versions, last successful capture, recent parse failures, and exportable redacted debug bundle.
