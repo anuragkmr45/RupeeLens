@@ -127,7 +127,7 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `API-003 — Implement sync push/pull APIs with idempotency and cursor-based deltas`
+- `API-004 — Implement transactions, items, merchants, categories, rules, and budgets APIs`
 
 Reason:
 
@@ -142,5 +142,6 @@ Reason:
 - `INT-006` is now done with local budget list/create/edit UX, persisted quiet-mode-aware threshold scheduling and review state, and Home integration through the canonical budget engine.
 - `INT-007` is now done with optimized local rollups, prior-period comparison, and an in-app insights screen validated on a 10k local dataset.
 - `API-002` is now done with typed contracts, modular Fastify session routes, refresh rotation, one-time pairing codes, replay/expiry protection, and durable on-disk session persistence across API restarts.
-- `API-003` is now the earliest active canonical ticket: the repo-side sync module exists with authenticated push/pull routes, idempotency replay handling, optimistic-concurrency conflicts, cursor-based delta pulls, and durable on-disk sync persistence, but the backlog done-when still requires mobile integration tests before it can close as `done`.
-- `API-004` is not yet actionable because `API-003` is still active and its remaining gap is integration evidence, not missing repo-side backend code.
+- `API-003` remains `in_progress`, but its only remaining gap is mobile integration evidence rather than missing repo-side backend implementation.
+- `API-006` is now done with explicit bootstrap cache headers, runtime-version compatibility checks, OpenAPI header documentation, and proof that the mobile client already calls the endpoint.
+- `API-004` is now the earliest actionable canonical `todo` because repo truth already provides the sync/auth/bootstrap foundations it depends on, even though `API-003` remains open for later mobile integration evidence.

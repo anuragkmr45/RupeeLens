@@ -97,6 +97,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 - Typed health contract plus `GET /health`
 - First typed bootstrap contract plus `GET /v1/bootstrap/config` with version compatibility and signed payloads
+- Closed bootstrap API behavior with explicit cache headers, runtime-version compatibility checks, and mobile-client usage through the local bootstrap refresh path
 - Worker heartbeat scheduled through the shared worker module/runtime skeleton
 
 **Remaining**

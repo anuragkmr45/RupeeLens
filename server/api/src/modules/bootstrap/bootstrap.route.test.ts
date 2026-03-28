@@ -20,7 +20,14 @@ describe('GET /v1/bootstrap/config', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({
+    const payload = response.json();
+
+    expect(response.headers['cache-control']).toBe(
+      'public, max-age=300, stale-while-revalidate=300',
+    );
+    expect(response.headers.etag).toBe(`"${payload.signature}"`);
+    expect(response.headers.vary).toBe('Accept');
+    expect(payload).toMatchObject({
       cacheTtlSeconds: 300,
       dedupeConfig: {
         exactMatchWindowSeconds: 90,
@@ -32,6 +39,24 @@ describe('GET /v1/bootstrap/config', () => {
       }),
       rolloutChannel: 'internal',
       signature: expect.any(String),
+    });
+  });
+
+  it('returns runtime-incompatible config when the native runtime is unsupported', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/bootstrap/config?platform=android&appVersion=0.2.0&runtimeVersion=expo-sdk-54-go&channel=beta',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      parserConfig: {
+        parserKillSwitch: true,
+      },
+      runtimeCompatibility: {
+        compatible: false,
+        reason: expect.stringContaining('expo-sdk-54-go'),
+      },
     });
   });
 

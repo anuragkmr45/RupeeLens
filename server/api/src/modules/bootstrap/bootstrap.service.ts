@@ -21,6 +21,10 @@ export interface BootstrapConfigService {
   getBootstrapConfig(query: BootstrapConfigRequestQuery): BootstrapConfigResponse;
 }
 
+function normalizeRuntimeVersion(runtimeVersion: string): string {
+  return runtimeVersion.trim().toLowerCase();
+}
+
 function mergeParserConfig(
   base: BootstrapParserConfig,
   override: BootstrapConfigOverride['parserConfig'],
@@ -67,26 +71,43 @@ function mergeDefinition(
     },
     minSupportedVersion: base.minSupportedVersion,
     parserConfig: mergeParserConfig(base.parserConfig, override.parserConfig),
+    runtimeSupport: {
+      ...base.runtimeSupport,
+      ...(override.runtimeSupport ?? {}),
+    },
     softUpgradeVersion: base.softUpgradeVersion,
   };
 }
 
 function buildRuntimeCompatibility(
-  appVersion: string,
-  minSupportedVersion: string,
-  softUpgradeVersion: string,
+  query: BootstrapConfigRequestQuery,
+  definition: BootstrapConfigDefinition,
 ) {
-  if (compareVersionStrings(appVersion, minSupportedVersion) < 0) {
+  const supportedRuntimePrefixes =
+    definition.runtimeSupport[query.platform]?.supportedRuntimePrefixes ?? [];
+  const normalizedRuntimeVersion = normalizeRuntimeVersion(query.runtimeVersion);
+  const supportsRuntimeVersion = supportedRuntimePrefixes.some((prefix) =>
+    normalizedRuntimeVersion.startsWith(prefix.toLowerCase()),
+  );
+
+  if (!supportsRuntimeVersion) {
     return {
       compatible: false,
-      reason: `Upgrade required to at least ${minSupportedVersion}.`,
+      reason: `Runtime ${query.runtimeVersion} is unsupported for ${query.platform}. Expected one of: ${supportedRuntimePrefixes.join(', ')}.`,
     };
   }
 
-  if (compareVersionStrings(appVersion, softUpgradeVersion) < 0) {
+  if (compareVersionStrings(query.appVersion, definition.minSupportedVersion) < 0) {
+    return {
+      compatible: false,
+      reason: `Upgrade required to at least ${definition.minSupportedVersion}.`,
+    };
+  }
+
+  if (compareVersionStrings(query.appVersion, definition.softUpgradeVersion) < 0) {
     return {
       compatible: true,
-      reason: `Upgrade recommended to ${softUpgradeVersion} for the latest parser config.`,
+      reason: `Upgrade recommended to ${definition.softUpgradeVersion} for the latest parser config.`,
     };
   }
 
@@ -99,14 +120,18 @@ function buildConfigVersion(
   query: BootstrapConfigRequestQuery,
   definition: BootstrapConfigDefinition,
   rolloutChannel: RolloutChannel,
+  runtimeCompatibility: NonNullable<BootstrapConfigResponse['runtimeCompatibility']>,
 ): string {
   const signature = createIntegritySignature({
+    appVersion: query.appVersion,
     channel: rolloutChannel,
     featureFlags: definition.featureFlags,
     minSupportedVersion: definition.minSupportedVersion,
     parserConfig: definition.parserConfig,
     dedupeConfig: definition.dedupeConfig,
     platform: query.platform,
+    runtimeCompatibility,
+    runtimeVersion: normalizeRuntimeVersion(query.runtimeVersion),
     softUpgradeVersion: definition.softUpgradeVersion,
   });
 
@@ -124,11 +149,7 @@ export function createBootstrapConfigService(
         baseDefinition,
         repository.readChannelOverride(rolloutChannel),
       );
-      const runtimeCompatibility = buildRuntimeCompatibility(
-        query.appVersion,
-        definition.minSupportedVersion,
-        definition.softUpgradeVersion,
-      );
+      const runtimeCompatibility = buildRuntimeCompatibility(query, definition);
       const parserConfig =
         runtimeCompatibility.compatible
           ? definition.parserConfig
@@ -138,7 +159,12 @@ export function createBootstrapConfigService(
             };
       const responseWithoutSignature: Omit<BootstrapConfigResponse, 'signature'> = {
         cacheTtlSeconds: definition.cacheTtlSeconds,
-        configVersion: buildConfigVersion(query, definition, rolloutChannel),
+        configVersion: buildConfigVersion(
+          query,
+          definition,
+          rolloutChannel,
+          runtimeCompatibility,
+        ),
         copyOverrides: definition.copyOverrides,
         dedupeConfig: definition.dedupeConfig,
         featureFlags: definition.featureFlags,

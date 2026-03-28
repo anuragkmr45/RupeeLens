@@ -1,9 +1,14 @@
 import type {
   CaptureDedupeConfig,
+  BootstrapPlatform,
   BootstrapParserConfig,
   ParserTemplateConfig,
   RolloutChannel,
 } from '@upi-spend-tracker/contracts';
+
+export interface RuntimeSupportDefinition {
+  supportedRuntimePrefixes: string[];
+}
 
 export interface BootstrapConfigDefinition {
   cacheTtlSeconds: number;
@@ -12,6 +17,7 @@ export interface BootstrapConfigDefinition {
   featureFlags: Record<string, boolean>;
   minSupportedVersion: string;
   parserConfig: BootstrapParserConfig;
+  runtimeSupport: Record<BootstrapPlatform, RuntimeSupportDefinition>;
   softUpgradeVersion: string;
 }
 
@@ -24,6 +30,7 @@ export interface BootstrapConfigOverride {
     parserKillSwitch?: boolean;
     templates?: Record<string, ParserTemplateConfig>;
   };
+  runtimeSupport?: Partial<Record<BootstrapPlatform, RuntimeSupportDefinition>>;
 }
 
 export interface BootstrapConfigRepository {
@@ -74,6 +81,14 @@ const BASE_DEFINITION: BootstrapConfigDefinition = {
   parserConfig: {
     parserKillSwitch: false,
     templates: BASE_PARSER_TEMPLATES,
+  },
+  runtimeSupport: {
+    android: {
+      supportedRuntimePrefixes: ['expo-sdk-55', 'sdk-55'],
+    },
+    ios: {
+      supportedRuntimePrefixes: ['expo-sdk-55', 'sdk-55'],
+    },
   },
   softUpgradeVersion: '0.1.0',
 };

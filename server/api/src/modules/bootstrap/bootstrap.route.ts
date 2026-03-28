@@ -58,6 +58,18 @@ export function registerBootstrapConfigRoutes(
       });
     }
 
-    return service.getBootstrapConfig(parsedQuery);
+    const response = service.getBootstrapConfig(parsedQuery);
+
+    reply.header(
+      'Cache-Control',
+      `public, max-age=${response.cacheTtlSeconds}, stale-while-revalidate=${Math.min(
+        response.cacheTtlSeconds,
+        300,
+      )}`,
+    );
+    reply.header('ETag', `"${response.signature}"`);
+    reply.header('Vary', 'Accept');
+
+    return response;
   });
 }

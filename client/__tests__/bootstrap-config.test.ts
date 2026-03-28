@@ -156,6 +156,46 @@ describe('bootstrap config runtime cache', () => {
     );
   });
 
+  it('requests the bootstrap endpoint with version-aware query params', async () => {
+    const { Storage } = getKvStoreMock();
+    const config = buildConfig({
+      configVersion: 'bootstrap-ios-internal-network',
+      rolloutChannel: 'internal',
+      runtimeCompatibility: {
+        compatible: false,
+        reason: 'Runtime expo-sdk-54-go is unsupported for ios.',
+      },
+    });
+    const fetchMock = jest.fn().mockResolvedValue({
+      json: async () => config,
+      ok: true,
+      status: 200,
+    });
+
+    Storage.setItem.mockResolvedValue(undefined);
+
+    await refreshBootstrapConfig(
+      {
+        appVersion: '1.2.3',
+        channel: 'internal',
+        platform: 'ios',
+        runtimeVersion: 'expo-sdk-54-go',
+      },
+      fetchMock as unknown as typeof fetch,
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '/v1/bootstrap/config?platform=ios&appVersion=1.2.3&runtimeVersion=expo-sdk-54-go&channel=internal',
+      ),
+      expect.objectContaining({
+        headers: {
+          accept: 'application/json',
+        },
+      }),
+    );
+  });
+
   it('keeps the last cache observable when refresh fails', () => {
     const cachedState = {
       ...createInitialBootstrapConfigState(),

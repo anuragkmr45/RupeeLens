@@ -26,6 +26,19 @@ describe('bootstrap config service', () => {
 
   it('marks incompatible versions and forces the parser kill switch', () => {
     const response = service.getBootstrapConfig({
+      appVersion: '0.2.0',
+      channel: 'production',
+      platform: 'android',
+      runtimeVersion: 'expo-sdk-54-go',
+    });
+
+    expect(response.runtimeCompatibility?.compatible).toBe(false);
+    expect(response.runtimeCompatibility?.reason).toContain('expo-sdk-54-go');
+    expect(response.parserConfig.parserKillSwitch).toBe(true);
+  });
+
+  it('keeps compatible runtimes but recommends soft upgrades for older app versions', () => {
+    const response = service.getBootstrapConfig({
       appVersion: '0.0.0-alpha',
       channel: 'production',
       platform: 'android',
@@ -34,6 +47,23 @@ describe('bootstrap config service', () => {
 
     expect(response.runtimeCompatibility?.compatible).toBe(true);
     expect(response.runtimeCompatibility?.reason).toContain('Upgrade recommended');
+  });
+
+  it('varies configVersion by runtime-compatibility inputs', () => {
+    const compatibleResponse = service.getBootstrapConfig({
+      appVersion: '0.2.0',
+      channel: 'beta',
+      platform: 'ios',
+      runtimeVersion: 'expo-sdk-55-dev-client',
+    });
+    const incompatibleResponse = service.getBootstrapConfig({
+      appVersion: '0.2.0',
+      channel: 'beta',
+      platform: 'ios',
+      runtimeVersion: 'expo-sdk-54-go',
+    });
+
+    expect(compatibleResponse.configVersion).not.toBe(incompatibleResponse.configVersion);
   });
 
   it('signs the final config payload deterministically', () => {

@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### API-006 — Implement Remote Config/Bootstrap API And Version Compatibility Checks
+
+- **Status:** completed
+- **Ticket:** API-006
+- **Goal:** Close the partially implemented bootstrap endpoint by making responses explicitly cacheable, tightening runtime-version compatibility behavior, and proving the mobile app is already using the endpoint without widening scope into broader backend APIs.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `docs/04_API_Contract.yaml` only if response headers or contract wording change, `server/api/src/modules/bootstrap/*`, `server/api/src/app.ts` only if bootstrap wiring changes, `packages/contracts/src/bootstrap-config.ts` only if contract changes are required, `client/src/features/bootstrap-config/runtime-config.ts` only if bootstrap-consumption evidence or compatibility handling needs tightening, and the corresponding tests.
+- **Rationale:** The re-audit on 2026-03-28 still leaves `SET-002` blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` also remain blocked because `adb devices` is empty. `UX-005`, `INT-005`, and `API-003` are active but not closeable from this environment because they still depend on external QA or mobile integration evidence. `API-006` is already partially implemented in repo truth through the signed bootstrap route and client bootstrap consumption, so the workflow prefers closing that earlier partial ticket before starting a larger backend ticket like `API-004`.
+- **Risks:** Bootstrap work can sprawl into general remote-config, sync, or client rollout policy changes. This pass must stay inside cacheability, version/runtime compatibility, contract alignment, and proof that the endpoint is already consumed by the mobile app. It must not widen into parser behavior changes or unrelated API modules.
+- **API / schema impact:** The bootstrap response body shape should remain additive and stable. If cache headers are documented in OpenAPI, update `docs/04_API_Contract.yaml` and run `pnpm lint:openapi`.
+- **Rollout / flag plan:** Keep the existing signed bootstrap flow additive. Do not change rollout-channel semantics or parser templates beyond what is needed for version/runtime compatibility.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand bootstrap-config.test.ts app.test.tsx`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `pnpm lint:openapi` only if the OpenAPI contract changes.
+- **Done when:** Bootstrap responses are explicitly cacheable and version-aware, runtime compatibility is enforced from the response in a way the mobile app can surface, repo quality gates stay green, and the canonical backlog ticket can move from `todo` to a truthful final state based on repo evidence.
+- **Outcome:** Tightened the existing bootstrap route into a closeable API-006 implementation by adding explicit `Cache-Control`, `ETag`, and `Vary` headers on `GET /v1/bootstrap/config`, making runtime compatibility depend on both app version and native/runtime version, varying `configVersion` by compatibility inputs, and proving the mobile client already calls the endpoint with version-aware query params. Updated the OpenAPI contract to document the cache headers, and passed `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand bootstrap-config.test.ts`, `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` on 2026-03-28. The backlog ticket can now close as `done` because the endpoint is both live and already consumed by the mobile app.
+
 ### API-003 — Implement Sync Push/Pull APIs With Idempotency And Cursor-Based Deltas
 
 - **Status:** completed

@@ -173,6 +173,19 @@ paths:
       responses:
         '200':
           description: Bootstrap config
+          headers:
+            Cache-Control:
+              description: Cache policy for the bootstrap response.
+              schema:
+                type: string
+            ETag:
+              description: Stable response tag derived from the signed bootstrap payload.
+              schema:
+                type: string
+            Vary:
+              description: Response variance policy for caches.
+              schema:
+                type: string
           content:
             application/json:
               schema:

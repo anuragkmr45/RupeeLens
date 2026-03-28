@@ -768,7 +768,7 @@ Insights screens use precomputed or optimized queries.
 - **Story points:** 3
 - **Goal:** Give users portability and support trust with their own data.
 - **Dependencies:** UX-007, INT-007
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-28 | Completed At: 2026-03-28 | Commit Ref: pending-local-commit | Tracking Notes: Closed the existing bootstrap path by adding explicit `Cache-Control`, `ETag`, and `Vary` headers on `GET /v1/bootstrap/config`, enforcing runtime compatibility from both app version and native/runtime version, varying `configVersion` by compatibility inputs, documenting the cache headers in `docs/04_API_Contract.yaml`, and proving the mobile client already requests the endpoint with version-aware query params. `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand bootstrap-config.test.ts`, `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-28, so the ticket now meets its acceptance and done-when bar.
 
 **Description**  
 Generate CSV exports for transactions, items, categories, and budgets. Provide local backup/restore hooks for future expansions while keeping v1 scope manageable.
