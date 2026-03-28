@@ -690,12 +690,12 @@
       ],
       "tests": "Alert scheduling tests and end-to-end budget creation flow.",
       "done": "Budget UX ready for beta.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-28",
+      "completed_at": "2026-03-28",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: the client now has a local budget-management flow with budget list/create/edit UX, persisted budget rows and threshold-alert rows through additive mobile SQLite migrations, quiet-mode-aware 50/80/100 threshold scheduling with review state, and Home review cards backed by the canonical budget engine. Focused client validation covered alert scheduling, migration behavior, persistence, and an end-to-end create-budget flow. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand domain.test.ts persistence.test.ts mobile-migrations.test.ts app.test.tsx`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28."
     },
     {
       "id": "INT-007",

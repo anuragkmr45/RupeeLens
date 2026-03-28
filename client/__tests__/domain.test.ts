@@ -6,6 +6,7 @@ import {
   canDeleteCategory,
   classifyTransaction,
   createSplitDraftRow,
+  DEFAULT_BUDGET_ALERT_SETTINGS,
   DEFAULT_INBOX_FILTERS,
   DEFAULT_TIMELINE_FILTERS,
   deleteTransaction,
@@ -26,10 +27,12 @@ import {
   mergeRuleMerchants,
   mergeMerchants,
   moveSplitDraftRow,
+  markBudgetAlertsReviewed,
   reconcileMerchantState,
   removeSplitDraftRow,
   restoreSkippedTransaction,
   saveClassificationRule,
+  scheduleBudgetThresholdAlerts,
   seededTransactions,
   skipTransaction,
   splitMerchantAlias,
@@ -407,6 +410,99 @@ describe('spend-tracker dashboard summary', () => {
     expect(afterClassification?.matchedItemCount).toBeGreaterThan(
       beforeClassification?.matchedItemCount ?? 0,
     );
+  });
+
+  it('schedules budget threshold alerts once per cycle and respects quiet mode', () => {
+    const budget: BudgetDefinition[] = [
+      {
+        createdAt: '2026-04-01T00:00:00+05:30',
+        id: 'budget_household_monthly',
+        label: 'Household budget',
+        period: 'monthly',
+        scope: 'overall',
+        targetMinor: 100000,
+        updatedAt: '2026-04-01T00:00:00+05:30',
+      },
+    ];
+    const firstPassTransactions: Transaction[] = [
+      {
+        amountMinor: 85000,
+        capturedAt: '2026-04-29T21:00:00+05:30',
+        id: 'txn_threshold_crossing',
+        items: [
+          {
+            amountMinor: 85000,
+            categoryId: 'groceries',
+            id: 'txn_threshold_crossing_item_1',
+            label: 'Groceries',
+          },
+        ],
+        merchant: 'Blinkit',
+        sourceApp: 'PhonePe',
+        status: 'classified',
+      },
+    ];
+
+    const quietAlerts = scheduleBudgetThresholdAlerts(
+      firstPassTransactions,
+      budget,
+      [],
+      DEFAULT_BUDGET_ALERT_SETTINGS,
+      '2026-04-29T23:15:00+05:30',
+    );
+
+    expect(quietAlerts.map((alert) => alert.thresholdPercent).sort()).toEqual([50, 80]);
+    expect(quietAlerts.every((alert) => alert.status === 'quieted')).toBe(true);
+
+    const repeatedQuietAlerts = scheduleBudgetThresholdAlerts(
+      firstPassTransactions,
+      budget,
+      quietAlerts,
+      DEFAULT_BUDGET_ALERT_SETTINGS,
+      '2026-04-29T23:30:00+05:30',
+    );
+
+    expect(repeatedQuietAlerts).toHaveLength(2);
+
+    const overBudgetTransactions: Transaction[] = [
+      ...firstPassTransactions,
+      {
+        amountMinor: 30000,
+        capturedAt: '2026-04-30T09:00:00+05:30',
+        id: 'txn_over_budget',
+        items: [
+          {
+            amountMinor: 30000,
+            categoryId: 'groceries',
+            id: 'txn_over_budget_item_1',
+            label: 'Household top-up',
+          },
+        ],
+        merchant: 'Bigbasket',
+        sourceApp: 'Google Pay',
+        status: 'classified',
+      },
+    ];
+    const daytimeAlerts = scheduleBudgetThresholdAlerts(
+      overBudgetTransactions,
+      budget,
+      repeatedQuietAlerts,
+      DEFAULT_BUDGET_ALERT_SETTINGS,
+      '2026-04-30T09:05:00+05:30',
+    );
+
+    expect(
+      daytimeAlerts.map((alert) => alert.thresholdPercent).sort((left, right) => left - right),
+    ).toEqual([50, 80, 100]);
+    expect(daytimeAlerts.filter((alert) => alert.status === 'active')).toHaveLength(3);
+
+    const reviewedAlerts = markBudgetAlertsReviewed(
+      daytimeAlerts,
+      '2026-04-30T09:10:00+05:30',
+    );
+
+    expect(reviewedAlerts.every((alert) => alert.status === 'reviewed')).toBe(true);
+    expect(reviewedAlerts.every((alert) => alert.reviewedAt === '2026-04-30T09:10:00+05:30')).toBe(true);
   });
 
   it('filters inbox review items by status, merchant, source app, amount, and age', () => {

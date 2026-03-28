@@ -555,7 +555,7 @@ History flows stable and discoverable.
 - **Story points:** 5
 - **Goal:** Give users control over capture, privacy, and support-friendly actions.
 - **Dependencies:** CAP-007, UX-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-28 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Workflow re-audit on 2026-03-28 rechecked blocked tickets first. `SET-002` remains blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available for remote GitHub verification. `CAP-003` remains blocked because `adb devices` shows the physical device `e342703` but `./gradlew :app:connectedDebugAndroidTest` still fails to install `app-debug.apk` on `M2102J20SI - 13` with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`, and `CAP-004` remains blocked by the same connected-Android closeout class. `UX-005` still depends on external QA/design acceptance, so `INT-006` is the next actionable canonical ticket. Scope is limited to local budget list/create-edit UX, persisted quiet-mode-aware threshold alerts, and Home integration through the existing canonical budget engine.
 
 **Description**  
 Add settings for source apps, privacy mode, budget cycle, sync mode, export, debug diagnostics, and app lock placeholders if included. Link diagnostics screen from CAP-007.
@@ -716,7 +716,7 @@ Budget engine accepted by product and QA.
 - **Story points:** 5
 - **Goal:** Make budget creation and overrun awareness simple for normal users.
 - **Dependencies:** INT-005
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-28 | Completed At: 2026-03-28 | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the client now has a local budget-management flow with budget list/create/edit UX, persisted budget rows and threshold-alert rows through additive mobile SQLite migrations, quiet-mode-aware 50/80/100 threshold scheduling with review state, and Home review cards backed by the canonical budget engine. Focused client validation covered alert scheduling, migration behavior, persistence, and an end-to-end create-budget flow. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand domain.test.ts persistence.test.ts mobile-migrations.test.ts app.test.tsx`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28.
 
 **Description**  
 Build budget list, create/edit screens, and threshold alerts for 50%, 80%, and 100% with quiet-mode handling and local scheduling.

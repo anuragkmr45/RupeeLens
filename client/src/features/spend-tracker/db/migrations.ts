@@ -85,6 +85,42 @@ export const CLASSIFICATION_RULES_MERCHANT_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_classification_rules_merchant_normalized_label
   ON classification_rules(merchant_normalized_label, updated_at DESC);
 `;
+export const BUDGETS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS budgets (
+    id TEXT PRIMARY KEY NOT NULL,
+    label TEXT NOT NULL,
+    scope TEXT NOT NULL CHECK(scope IN ('overall', 'category', 'merchant', 'item')),
+    period TEXT NOT NULL CHECK(period IN ('monthly', 'weekly', 'rolling', 'custom')),
+    target_minor INTEGER NOT NULL CHECK(target_minor > 0),
+    category_id TEXT,
+    merchant_id TEXT,
+    merchant_label TEXT,
+    merchant_normalized_label TEXT,
+    item_label TEXT,
+    starts_on_day INTEGER,
+    week_starts_on INTEGER,
+    rolling_window_days INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+`;
+export const BUDGET_THRESHOLD_ALERTS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS budget_threshold_alerts (
+    id TEXT PRIMARY KEY NOT NULL,
+    budget_id TEXT NOT NULL,
+    budget_label TEXT NOT NULL,
+    threshold_percent INTEGER NOT NULL CHECK(threshold_percent IN (50, 80, 100)),
+    threshold_state TEXT NOT NULL CHECK(threshold_state IN ('on_track', 'warning', 'at_risk', 'over_budget')),
+    spent_minor INTEGER NOT NULL CHECK(spent_minor >= 0),
+    target_minor INTEGER NOT NULL CHECK(target_minor > 0),
+    cycle_start TEXT NOT NULL,
+    cycle_end TEXT NOT NULL,
+    delivered_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    status TEXT NOT NULL CHECK(status IN ('active', 'quieted', 'reviewed')),
+    message TEXT NOT NULL
+  );
+`;
 export const TRANSACTIONS_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS transactions (
     id TEXT PRIMARY KEY NOT NULL,
@@ -349,5 +385,13 @@ export const mobileMigrations: readonly MobileMigration[] = [
   {
     id: '017_create_classification_rules_merchant_index',
     sql: CLASSIFICATION_RULES_MERCHANT_INDEX_SQL,
+  },
+  {
+    id: '018_create_budgets_table',
+    sql: BUDGETS_TABLE_SQL,
+  },
+  {
+    id: '019_create_budget_threshold_alerts_table',
+    sql: BUDGET_THRESHOLD_ALERTS_TABLE_SQL,
   },
 ] as const;

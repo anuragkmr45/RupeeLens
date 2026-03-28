@@ -56,8 +56,8 @@ describe('mobile migration runner', () => {
       now: () => '2026-03-26T00:00:00.000Z',
     });
 
-    expect(database.execAsync).toHaveBeenCalledTimes(18);
-    expect(database.runAsync).toHaveBeenCalledTimes(17);
+    expect(database.execAsync).toHaveBeenCalledTimes(20);
+    expect(database.runAsync).toHaveBeenCalledTimes(19);
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
       '001_create_settings_table',
@@ -65,7 +65,7 @@ describe('mobile migration runner', () => {
     );
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
-      '017_create_classification_rules_merchant_index',
+      '019_create_budget_threshold_alerts_table',
       '2026-03-26T00:00:00.000Z',
     );
   });
@@ -114,6 +114,8 @@ describe('mobile migration runner', () => {
           { id: '015_add_transaction_merchant_raw' },
           { id: '016_create_classification_rules_table' },
           { id: '017_create_classification_rules_merchant_index' },
+          { id: '018_create_budgets_table' },
+          { id: '019_create_budget_threshold_alerts_table' },
         ];
       }
 
@@ -137,8 +139,14 @@ describe('mobile migration runner', () => {
       expect.stringContaining('CREATE TABLE IF NOT EXISTS classification_rules'),
     );
     expect(database.execAsync).toHaveBeenCalledWith(
+      expect.stringContaining('CREATE TABLE IF NOT EXISTS budgets'),
+    );
+    expect(database.execAsync).toHaveBeenCalledWith(
+      expect.stringContaining('CREATE TABLE IF NOT EXISTS budget_threshold_alerts'),
+    );
+    expect(database.execAsync).toHaveBeenCalledWith(
       expect.stringContaining('ADD COLUMN merchant_raw TEXT NOT NULL DEFAULT'),
     );
-    expect(database.runAsync).toHaveBeenCalledTimes(17);
+    expect(database.runAsync).toHaveBeenCalledTimes(19);
   });
 });

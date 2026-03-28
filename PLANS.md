@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### INT-006 — Implement Budget Setup Screens And Threshold Alerts
+
+- **Status:** completed
+- **Ticket:** INT-006
+- **Goal:** Add a real local budget-management flow with budget list and create/edit UX, plus deterministic on-device threshold alerts for 50%, 80%, and 100% that respect quiet mode without breaking local-only operation.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `client/src/features/spend-tracker/domain.ts`, `client/src/features/spend-tracker/persistence.ts`, `client/src/features/spend-tracker/db/migrations.ts`, `client/src/features/spend-tracker/db/migration-runner.ts`, `client/src/app/SpendTrackerApp.tsx`, focused client tests, and repo-truth docs only if ticket status or scope changes.
+- **Rationale:** The required re-audit on 2026-03-28 still leaves `SET-002` blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` also remains blocked because `adb devices` shows the physical device `e342703` but `cd client/android && ./gradlew :app:connectedDebugAndroidTest` still fails on `M2102J20SI - 13` with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`, and `CAP-004` remains blocked by the same connected-Android closeout class. `UX-005` still depends on external QA/design acceptance. `INT-006` is therefore the earliest unblocked canonical `todo` ticket with satisfied dependencies.
+- **Risks:** Budget work can sprawl into reports, server sync, or native OS notification plumbing. This pass must stay inside local budget CRUD, alert-threshold scheduling, quiet-mode handling, persistence, and the client UX needed to create/edit/review budgets. It must not spill into report rollups, server APIs, or Android-native alert delivery.
+- **API / schema impact:** No backend/API changes expected. Local mobile SQLite will likely need additive budget and alert-persistence tables or equivalent additive persistence to keep budgets and threshold-alert review state across restarts.
+- **Rollout / flag plan:** Reuse the existing `budgets_enabled` bootstrap flag. If that flag is disabled, keep Home honest and avoid exposing the full budget-management entrypoint.
+- **Validation commands:** `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus focused client tests for budget CRUD, alert scheduling, quiet-mode behavior, migration coverage, and the end-to-end create-budget flow.
+- **Done when:** Users can create and edit local budgets from the app, Home and the budget flow consume the canonical budget engine, threshold alerts are scheduled once per threshold crossing per cycle with quiet-mode-safe behavior, persistence survives restart/migration, and backlog status can move beyond `todo` truthfully.
+- **Outcome:** Added a real local budget-management flow to the client with a dedicated budget screen, create/edit/delete UX, period and scope controls, quiet-mode controls, Home review cards for pending threshold alerts, and quiet-mode-aware 50/80/100 threshold scheduling that persists review state across restarts. Extended mobile SQLite persistence with additive `budgets` and `budget_threshold_alerts` tables plus migration/adoption coverage, kept Home on the existing canonical budget engine, and added focused domain, persistence, migration, and app-flow tests for alert scheduling and end-to-end budget creation. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand domain.test.ts persistence.test.ts mobile-migrations.test.ts app.test.tsx`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28. The ticket is now closed as `done`.
+
 ### INT-005 — Build Budget Engine With Monthly, Weekly, Rolling, And Custom Cycles
 
 - **Status:** completed

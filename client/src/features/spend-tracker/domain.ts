@@ -272,6 +272,8 @@ export interface ClassificationSuggestion {
 export type BudgetScope = 'overall' | 'category' | 'merchant' | 'item';
 export type BudgetPeriod = 'monthly' | 'weekly' | 'rolling' | 'custom';
 export type BudgetThresholdState = 'on_track' | 'warning' | 'at_risk' | 'over_budget';
+export type BudgetThresholdPercent = 50 | 80 | 100;
+export type BudgetAlertStatus = 'active' | 'quieted' | 'reviewed';
 
 export interface BudgetDefinition {
   categoryId?: CategoryId | null;
@@ -303,6 +305,28 @@ export interface BudgetSummary {
   spentMinor: number;
   thresholdState: BudgetThresholdState;
   usageRatio: number;
+}
+
+export interface BudgetAlertSettings {
+  quietHoursEndHour: number;
+  quietHoursStartHour: number;
+  quietModeEnabled: boolean;
+}
+
+export interface BudgetThresholdAlert {
+  budgetId: string;
+  budgetLabel: string;
+  cycleEnd: string;
+  cycleStart: string;
+  deliveredAt: string;
+  id: string;
+  message: string;
+  reviewedAt?: string | null;
+  spentMinor: number;
+  status: BudgetAlertStatus;
+  targetMinor: number;
+  thresholdPercent: BudgetThresholdPercent;
+  thresholdState: BudgetThresholdState;
 }
 
 interface HistorySuggestionAccumulator {
@@ -366,6 +390,13 @@ export const SPLIT_REMAINDER_OPTIONS: Array<{
   { id: 'fees', label: 'Fees' },
   { id: 'unknown', label: 'Unknown' },
 ];
+
+export const BUDGET_ALERT_THRESHOLDS: readonly BudgetThresholdPercent[] = [50, 80, 100];
+export const DEFAULT_BUDGET_ALERT_SETTINGS: BudgetAlertSettings = {
+  quietHoursEndHour: 8,
+  quietHoursStartHour: 22,
+  quietModeEnabled: true,
+};
 
 export const categoryOptions: CategoryOption[] = [
   {
@@ -2549,6 +2580,175 @@ export function normalizeBudgetDefinitions(
   return normalizedBudgets;
 }
 
+export function normalizeBudgetAlertSettings(
+  settings: BudgetAlertSettings | null | undefined,
+): BudgetAlertSettings {
+  if (!settings || typeof settings !== 'object') {
+    return { ...DEFAULT_BUDGET_ALERT_SETTINGS };
+  }
+
+  return {
+    quietHoursEndHour: clampBudgetAlertHour(settings.quietHoursEndHour),
+    quietHoursStartHour: clampBudgetAlertHour(settings.quietHoursStartHour),
+    quietModeEnabled: settings.quietModeEnabled !== false,
+  };
+}
+
+export function normalizeBudgetThresholdAlerts(
+  alerts: BudgetThresholdAlert[] | null | undefined,
+): BudgetThresholdAlert[] {
+  if (!Array.isArray(alerts)) {
+    return [];
+  }
+
+  const normalizedAlerts: BudgetThresholdAlert[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const alert of alerts) {
+    if (
+      !alert ||
+      typeof alert !== 'object' ||
+      typeof alert.id !== 'string' ||
+      typeof alert.budgetId !== 'string' ||
+      typeof alert.budgetLabel !== 'string' ||
+      typeof alert.cycleStart !== 'string' ||
+      typeof alert.cycleEnd !== 'string' ||
+      typeof alert.deliveredAt !== 'string' ||
+      typeof alert.message !== 'string' ||
+      typeof alert.spentMinor !== 'number' ||
+      typeof alert.targetMinor !== 'number' ||
+      !isBudgetThresholdPercent(alert.thresholdPercent) ||
+      !isBudgetAlertStatus(alert.status) ||
+      !isBudgetThresholdState(alert.thresholdState)
+    ) {
+      continue;
+    }
+
+    const key = getBudgetAlertKey({
+      budgetId: alert.budgetId,
+      cycleStart: alert.cycleStart,
+      thresholdPercent: alert.thresholdPercent,
+    });
+
+    if (seenKeys.has(key)) {
+      continue;
+    }
+
+    seenKeys.add(key);
+    normalizedAlerts.push({
+      budgetId: alert.budgetId.trim(),
+      budgetLabel: alert.budgetLabel.trim(),
+      cycleEnd: alert.cycleEnd,
+      cycleStart: alert.cycleStart,
+      deliveredAt: alert.deliveredAt,
+      id: alert.id.trim(),
+      message: alert.message.trim(),
+      reviewedAt:
+        typeof alert.reviewedAt === 'string' && alert.reviewedAt.trim().length > 0
+          ? alert.reviewedAt
+          : null,
+      spentMinor: Math.max(Math.round(alert.spentMinor), 0),
+      status: alert.status,
+      targetMinor: Math.max(Math.round(alert.targetMinor), 1),
+      thresholdPercent: alert.thresholdPercent,
+      thresholdState: alert.thresholdState,
+    });
+  }
+
+  normalizedAlerts.sort(compareBudgetAlertsByDeliveredAtDesc);
+  return normalizedAlerts;
+}
+
+export function scheduleBudgetThresholdAlerts(
+  transactions: Transaction[],
+  budgets: BudgetDefinition[] | null | undefined,
+  existingAlerts: BudgetThresholdAlert[] | null | undefined,
+  settings: BudgetAlertSettings | null | undefined,
+  now = new Date().toISOString(),
+): BudgetThresholdAlert[] {
+  const normalizedAlerts = normalizeBudgetThresholdAlerts(existingAlerts).map((alert) => {
+    if (
+      alert.reviewedAt === null &&
+      alert.status === 'quieted' &&
+      !isBudgetAlertInQuietHours(new Date(now), settings)
+    ) {
+      return {
+        ...alert,
+        status: 'active' as const,
+      };
+    }
+
+    return alert;
+  });
+  const nextAlerts = [...normalizedAlerts];
+  const existingAlertKeys = new Set(
+    normalizedAlerts.map((alert) =>
+      getBudgetAlertKey({
+        budgetId: alert.budgetId,
+        cycleStart: alert.cycleStart,
+        thresholdPercent: alert.thresholdPercent,
+      }),
+    ),
+  );
+  const nextAlertStatus: BudgetAlertStatus = isBudgetAlertInQuietHours(new Date(now), settings)
+    ? 'quieted'
+    : 'active';
+
+  for (const budgetSummary of summarizeBudgets(transactions, budgets, now)) {
+    for (const thresholdPercent of BUDGET_ALERT_THRESHOLDS) {
+      if (!hasBudgetThresholdCrossed(budgetSummary, thresholdPercent)) {
+        continue;
+      }
+
+      const alertKey = getBudgetAlertKey({
+        budgetId: budgetSummary.budget.id,
+        cycleStart: budgetSummary.cycleStart,
+        thresholdPercent,
+      });
+
+      if (existingAlertKeys.has(alertKey)) {
+        continue;
+      }
+
+      existingAlertKeys.add(alertKey);
+      nextAlerts.push(
+        createBudgetThresholdAlert(
+          budgetSummary,
+          thresholdPercent,
+          now,
+          nextAlertStatus,
+        ),
+      );
+    }
+  }
+
+  nextAlerts.sort(compareBudgetAlertsByDeliveredAtDesc);
+  return nextAlerts;
+}
+
+export function getPendingBudgetAlerts(
+  alerts: BudgetThresholdAlert[] | null | undefined,
+): BudgetThresholdAlert[] {
+  return normalizeBudgetThresholdAlerts(alerts).filter((alert) => alert.reviewedAt === null);
+}
+
+export function markBudgetAlertsReviewed(
+  alerts: BudgetThresholdAlert[] | null | undefined,
+  reviewedAt = new Date().toISOString(),
+): BudgetThresholdAlert[] {
+  return normalizeBudgetThresholdAlerts(alerts).map((alert) => {
+    if (alert.reviewedAt !== null) {
+      return alert;
+    }
+
+    return {
+      ...alert,
+      reviewedAt,
+      status: 'reviewed',
+    };
+  });
+}
+
 function getPrimaryDashboardBudgetSummary(
   transactions: Transaction[],
   options: DashboardSummaryOptions,
@@ -2850,6 +3050,18 @@ function isBudgetPeriod(value: unknown): value is BudgetPeriod {
   return value === 'monthly' || value === 'weekly' || value === 'rolling' || value === 'custom';
 }
 
+function isBudgetThresholdPercent(value: unknown): value is BudgetThresholdPercent {
+  return value === 50 || value === 80 || value === 100;
+}
+
+function isBudgetAlertStatus(value: unknown): value is BudgetAlertStatus {
+  return value === 'active' || value === 'quieted' || value === 'reviewed';
+}
+
+function isBudgetThresholdState(value: unknown): value is BudgetThresholdState {
+  return value === 'on_track' || value === 'warning' || value === 'at_risk' || value === 'over_budget';
+}
+
 function compareBudgetsForPriority(left: BudgetDefinition, right: BudgetDefinition): number {
   if (left.scope !== right.scope) {
     return left.scope === 'overall' ? -1 : right.scope === 'overall' ? 1 : 0;
@@ -2887,6 +3099,14 @@ function clampRollingWindowDays(value: unknown): number {
   }
 
   return Math.min(Math.max(Math.round(value), 1), 365);
+}
+
+function clampBudgetAlertHour(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(Math.max(Math.round(value), 0), 23);
 }
 
 function normalizeBudgetItemLabel(itemLabel: string): string {
@@ -3058,6 +3278,96 @@ function getBudgetThresholdState(
   }
 
   return 'on_track';
+}
+
+function hasBudgetThresholdCrossed(
+  budgetSummary: BudgetSummary,
+  thresholdPercent: BudgetThresholdPercent,
+): boolean {
+  return budgetSummary.spentMinor >= Math.ceil((budgetSummary.budget.targetMinor * thresholdPercent) / 100);
+}
+
+function createBudgetThresholdAlert(
+  budgetSummary: BudgetSummary,
+  thresholdPercent: BudgetThresholdPercent,
+  deliveredAt: string,
+  status: BudgetAlertStatus,
+): BudgetThresholdAlert {
+  const thresholdLabel = `${thresholdPercent}%`;
+
+  return {
+    budgetId: budgetSummary.budget.id,
+    budgetLabel: budgetSummary.budget.label,
+    cycleEnd: budgetSummary.cycleEnd,
+    cycleStart: budgetSummary.cycleStart,
+    deliveredAt,
+    id: `budget_alert_${budgetSummary.budget.id}_${thresholdPercent}_${Date.parse(budgetSummary.cycleStart) || budgetSummary.budget.id.length}`,
+    message:
+      thresholdPercent === 100
+        ? `${budgetSummary.budget.label} has crossed the full-cycle target.`
+        : `${budgetSummary.budget.label} crossed the ${thresholdLabel} threshold for this cycle.`,
+    reviewedAt: null,
+    spentMinor: budgetSummary.spentMinor,
+    status,
+    targetMinor: budgetSummary.budget.targetMinor,
+    thresholdPercent,
+    thresholdState: budgetSummary.thresholdState,
+  };
+}
+
+function getBudgetAlertKey({
+  budgetId,
+  cycleStart,
+  thresholdPercent,
+}: {
+  budgetId: string;
+  cycleStart: string;
+  thresholdPercent: BudgetThresholdPercent;
+}): string {
+  return `${budgetId}:${cycleStart}:${thresholdPercent}`;
+}
+
+function compareBudgetAlertsByDeliveredAtDesc(
+  left: BudgetThresholdAlert,
+  right: BudgetThresholdAlert,
+): number {
+  const deliveredAtDelta =
+    new Date(right.deliveredAt).getTime() - new Date(left.deliveredAt).getTime();
+
+  if (deliveredAtDelta !== 0) {
+    return deliveredAtDelta;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function isBudgetAlertInQuietHours(
+  referenceDate: Date,
+  settings: BudgetAlertSettings | null | undefined,
+): boolean {
+  const normalizedSettings = normalizeBudgetAlertSettings(settings);
+
+  if (!normalizedSettings.quietModeEnabled) {
+    return false;
+  }
+
+  if (normalizedSettings.quietHoursStartHour === normalizedSettings.quietHoursEndHour) {
+    return false;
+  }
+
+  const currentHour = referenceDate.getHours();
+
+  if (normalizedSettings.quietHoursStartHour < normalizedSettings.quietHoursEndHour) {
+    return (
+      currentHour >= normalizedSettings.quietHoursStartHour &&
+      currentHour < normalizedSettings.quietHoursEndHour
+    );
+  }
+
+  return (
+    currentHour >= normalizedSettings.quietHoursStartHour ||
+    currentHour < normalizedSettings.quietHoursEndHour
+  );
 }
 
 function getCycleWindow(

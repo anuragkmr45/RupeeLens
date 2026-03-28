@@ -2,12 +2,19 @@ import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 import { Storage } from 'expo-sqlite/kv-store';
 
 import {
+  DEFAULT_BUDGET_ALERT_SETTINGS,
+  normalizeBudgetAlertSettings,
+  normalizeBudgetDefinitions,
+  normalizeBudgetThresholdAlerts,
   normalizeMerchantAliases,
   normalizeMerchants,
   normalizeCategories,
   normalizeSpendRules,
   reconcileMerchantState,
   sortTransactionsByCapturedAtDesc,
+  type BudgetAlertSettings,
+  type BudgetDefinition,
+  type BudgetThresholdAlert,
   type CategoryId,
   type CategoryOption,
   type MerchantAliasRecord,
@@ -39,6 +46,9 @@ export interface OnboardingPreferences {
 }
 
 export interface PersistedSpendTrackerState {
+  budgetAlertSettings?: BudgetAlertSettings;
+  budgetAlerts?: BudgetThresholdAlert[];
+  budgets?: BudgetDefinition[];
   categories: CategoryOption[];
   merchantAliases?: MerchantAliasRecord[];
   merchants?: MerchantRecord[];
@@ -91,6 +101,40 @@ interface ClassificationRuleRow {
   weekday: string;
 }
 
+interface BudgetRow {
+  categoryId: string | null;
+  createdAt: string;
+  id: string;
+  itemLabel: string | null;
+  label: string;
+  merchantId: string | null;
+  merchantLabel: string | null;
+  merchantNormalizedLabel: string | null;
+  period: string;
+  rollingWindowDays: number | null;
+  scope: string;
+  startsOnDay: number | null;
+  targetMinor: number;
+  updatedAt: string;
+  weekStartsOn: number | null;
+}
+
+interface BudgetAlertRow {
+  budgetId: string;
+  budgetLabel: string;
+  cycleEnd: string;
+  cycleStart: string;
+  deliveredAt: string;
+  id: string;
+  message: string;
+  reviewedAt: string | null;
+  spentMinor: number;
+  status: string;
+  targetMinor: number;
+  thresholdPercent: number;
+  thresholdState: string;
+}
+
 interface TransactionRow {
   amountMinor: number;
   capturedAt: string;
@@ -138,6 +182,8 @@ export async function clearStoredSpendTrackerState(): Promise<void> {
   const database = await getDatabase();
 
   await database.withTransactionAsync(async () => {
+    await database.runAsync('DELETE FROM budget_threshold_alerts');
+    await database.runAsync('DELETE FROM budgets');
     await database.runAsync('DELETE FROM transaction_history');
     await database.runAsync('DELETE FROM transaction_items');
     await database.runAsync('DELETE FROM transactions');
@@ -197,6 +243,12 @@ async function getDatabase(): Promise<SQLiteDatabase> {
 }
 
 async function hasStoredState(database: SQLiteDatabase): Promise<boolean> {
+  const budgetCountRow = await database.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM budgets',
+  );
+  const budgetAlertCountRow = await database.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM budget_threshold_alerts',
+  );
   const transactionCountRow = await database.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM transactions',
   );
@@ -217,6 +269,8 @@ async function hasStoredState(database: SQLiteDatabase): Promise<boolean> {
   );
 
   return (
+    (budgetCountRow?.count ?? 0) > 0 ||
+    (budgetAlertCountRow?.count ?? 0) > 0 ||
     (transactionCountRow?.count ?? 0) > 0 ||
     (merchantCountRow?.count ?? 0) > 0 ||
     (merchantAliasCountRow?.count ?? 0) > 0 ||
@@ -235,9 +289,16 @@ async function writeStateToDatabase(
     state.merchants,
     state.merchantAliases,
   );
+  const normalizedBudgets = normalizeBudgetDefinitions(state.budgets);
+  const normalizedBudgetAlerts = normalizeBudgetThresholdAlerts(state.budgetAlerts);
+  const normalizedBudgetAlertSettings = normalizeBudgetAlertSettings(
+    state.budgetAlertSettings,
+  );
   const normalizedRules = normalizeSpendRules(state.rules);
 
   await database.withTransactionAsync(async () => {
+    await database.runAsync('DELETE FROM budget_threshold_alerts');
+    await database.runAsync('DELETE FROM budgets');
     await database.runAsync('DELETE FROM transaction_history');
     await database.runAsync('DELETE FROM transaction_items');
     await database.runAsync('DELETE FROM transactions');
@@ -289,6 +350,95 @@ async function writeStateToDatabase(
       'onboarding_completed',
       state.onboardingCompleted ? 'true' : 'false',
     );
+    await database.runAsync(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'budget_alert_quiet_mode_enabled',
+      normalizedBudgetAlertSettings.quietModeEnabled ? 'true' : 'false',
+    );
+    await database.runAsync(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'budget_alert_quiet_hours_start_hour',
+      normalizedBudgetAlertSettings.quietHoursStartHour.toString(),
+    );
+    await database.runAsync(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'budget_alert_quiet_hours_end_hour',
+      normalizedBudgetAlertSettings.quietHoursEndHour.toString(),
+    );
+
+    for (const budget of normalizedBudgets) {
+      await database.runAsync(
+        `
+          INSERT INTO budgets (
+            id,
+            label,
+            scope,
+            period,
+            target_minor,
+            category_id,
+            merchant_id,
+            merchant_label,
+            merchant_normalized_label,
+            item_label,
+            starts_on_day,
+            week_starts_on,
+            rolling_window_days,
+            created_at,
+            updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        budget.id,
+        budget.label,
+        budget.scope,
+        budget.period,
+        budget.targetMinor,
+        budget.categoryId ?? null,
+        budget.merchantId ?? null,
+        budget.merchantLabel ?? null,
+        budget.merchantNormalizedLabel ?? null,
+        budget.itemLabel ?? null,
+        budget.startsOnDay ?? null,
+        budget.weekStartsOn ?? null,
+        budget.rollingWindowDays ?? null,
+        budget.createdAt,
+        budget.updatedAt,
+      );
+    }
+
+    for (const budgetAlert of normalizedBudgetAlerts) {
+      await database.runAsync(
+        `
+          INSERT INTO budget_threshold_alerts (
+            id,
+            budget_id,
+            budget_label,
+            threshold_percent,
+            threshold_state,
+            spent_minor,
+            target_minor,
+            cycle_start,
+            cycle_end,
+            delivered_at,
+            reviewed_at,
+            status,
+            message
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        budgetAlert.id,
+        budgetAlert.budgetId,
+        budgetAlert.budgetLabel,
+        budgetAlert.thresholdPercent,
+        budgetAlert.thresholdState,
+        budgetAlert.spentMinor,
+        budgetAlert.targetMinor,
+        budgetAlert.cycleStart,
+        budgetAlert.cycleEnd,
+        budgetAlert.deliveredAt,
+        budgetAlert.reviewedAt ?? null,
+        budgetAlert.status,
+        budgetAlert.message,
+      );
+    }
 
     for (const rule of normalizedRules) {
       await database.runAsync(
@@ -440,6 +590,8 @@ async function readStateFromDatabase(
   const [
     settingRows,
     categoryRows,
+    budgetRows,
+    budgetAlertRows,
     merchantRows,
     merchantAliasRows,
     ruleRows,
@@ -457,6 +609,48 @@ async function readStateFromDatabase(
           is_default as isDefault
         FROM categories
         ORDER BY is_default DESC, label ASC, id ASC
+      `,
+    ),
+    database.getAllAsync<BudgetRow>(
+      `
+        SELECT
+          id,
+          label,
+          scope,
+          period,
+          target_minor as targetMinor,
+          category_id as categoryId,
+          merchant_id as merchantId,
+          merchant_label as merchantLabel,
+          merchant_normalized_label as merchantNormalizedLabel,
+          item_label as itemLabel,
+          starts_on_day as startsOnDay,
+          week_starts_on as weekStartsOn,
+          rolling_window_days as rollingWindowDays,
+          created_at as createdAt,
+          updated_at as updatedAt
+        FROM budgets
+        ORDER BY datetime(updated_at) DESC, id ASC
+      `,
+    ),
+    database.getAllAsync<BudgetAlertRow>(
+      `
+        SELECT
+          id,
+          budget_id as budgetId,
+          budget_label as budgetLabel,
+          threshold_percent as thresholdPercent,
+          threshold_state as thresholdState,
+          spent_minor as spentMinor,
+          target_minor as targetMinor,
+          cycle_start as cycleStart,
+          cycle_end as cycleEnd,
+          delivered_at as deliveredAt,
+          reviewed_at as reviewedAt,
+          status,
+          message
+        FROM budget_threshold_alerts
+        ORDER BY datetime(delivered_at) DESC, id ASC
       `,
     ),
     database.getAllAsync<MerchantRow>(
@@ -551,7 +745,46 @@ async function readStateFromDatabase(
   const storedNotificationAccessState = settings.get('notification_access_state');
   const storedSourceAppIds = parseSourceAppIds(settings.get('selected_source_app_ids'));
   const storedBudgetCycleId = settings.get('budget_cycle_id');
+  const storedBudgetAlertQuietModeEnabled = settings.get('budget_alert_quiet_mode_enabled');
+  const storedBudgetAlertQuietHoursStart = settings.get('budget_alert_quiet_hours_start_hour');
+  const storedBudgetAlertQuietHoursEnd = settings.get('budget_alert_quiet_hours_end_hour');
   const storedSyncMode = settings.get('sync_mode');
+  const budgets = normalizeBudgetDefinitions(
+    budgetRows.map((row) => ({
+      categoryId: row.categoryId,
+      createdAt: row.createdAt,
+      id: row.id,
+      itemLabel: row.itemLabel,
+      label: row.label,
+      merchantId: row.merchantId,
+      merchantLabel: row.merchantLabel,
+      merchantNormalizedLabel: row.merchantNormalizedLabel,
+      period: row.period as BudgetDefinition['period'],
+      rollingWindowDays: row.rollingWindowDays,
+      scope: row.scope as BudgetDefinition['scope'],
+      startsOnDay: row.startsOnDay,
+      targetMinor: row.targetMinor,
+      updatedAt: row.updatedAt,
+      weekStartsOn: row.weekStartsOn,
+    })),
+  );
+  const budgetAlerts = normalizeBudgetThresholdAlerts(
+    budgetAlertRows.map((row) => ({
+      budgetId: row.budgetId,
+      budgetLabel: row.budgetLabel,
+      cycleEnd: row.cycleEnd,
+      cycleStart: row.cycleStart,
+      deliveredAt: row.deliveredAt,
+      id: row.id,
+      message: row.message,
+      reviewedAt: row.reviewedAt,
+      spentMinor: row.spentMinor,
+      status: row.status as BudgetThresholdAlert['status'],
+      targetMinor: row.targetMinor,
+      thresholdPercent: row.thresholdPercent as BudgetThresholdAlert['thresholdPercent'],
+      thresholdState: row.thresholdState as BudgetThresholdAlert['thresholdState'],
+    })),
+  );
   const categories = normalizeCategories(
     categoryRows.map((row) => ({
       description: row.description,
@@ -665,6 +898,19 @@ async function readStateFromDatabase(
   ).filter((rule) => validCategoryIds.has(rule.categoryId));
 
   return {
+    budgetAlertSettings: normalizeBudgetAlertSettings({
+      quietHoursEndHour:
+        storedBudgetAlertQuietHoursEnd !== undefined
+          ? Number.parseInt(storedBudgetAlertQuietHoursEnd, 10)
+          : DEFAULT_BUDGET_ALERT_SETTINGS.quietHoursEndHour,
+      quietHoursStartHour:
+        storedBudgetAlertQuietHoursStart !== undefined
+          ? Number.parseInt(storedBudgetAlertQuietHoursStart, 10)
+          : DEFAULT_BUDGET_ALERT_SETTINGS.quietHoursStartHour,
+      quietModeEnabled: storedBudgetAlertQuietModeEnabled !== 'false',
+    }),
+    budgetAlerts,
+    budgets,
     categories,
     merchantAliases: merchantDirectory.merchantAliases,
     merchants: merchantDirectory.merchants,
@@ -720,6 +966,9 @@ async function readLegacyState(): Promise<PersistedSpendTrackerState | null> {
     );
 
     return {
+      budgetAlertSettings: { ...DEFAULT_BUDGET_ALERT_SETTINGS },
+      budgetAlerts: [],
+      budgets: [],
       categories: normalizedCategories,
       merchantAliases: merchantDirectory.merchantAliases,
       merchants: merchantDirectory.merchants,
@@ -752,6 +1001,10 @@ function isPersistedSpendTrackerState(
   const candidate = value as Partial<PersistedSpendTrackerState>;
 
   return (
+    (candidate.budgetAlertSettings === undefined ||
+      isBudgetAlertSettings(candidate.budgetAlertSettings)) &&
+    (candidate.budgetAlerts === undefined || Array.isArray(candidate.budgetAlerts)) &&
+    (candidate.budgets === undefined || Array.isArray(candidate.budgets)) &&
     (candidate.categories === undefined || isCategoryList(candidate.categories)) &&
     (candidate.merchants === undefined || isMerchantList(candidate.merchants)) &&
     (candidate.merchantAliases === undefined || isMerchantAliasList(candidate.merchantAliases)) &&
@@ -778,6 +1031,20 @@ function isOnboardingPreferences(
     isSyncMode(candidate.syncMode) &&
     Array.isArray(candidate.selectedSourceAppIds) &&
     candidate.selectedSourceAppIds.every((sourceAppId) => isSupportedSourceAppId(sourceAppId))
+  );
+}
+
+function isBudgetAlertSettings(value: unknown): value is BudgetAlertSettings {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<BudgetAlertSettings>;
+
+  return (
+    typeof candidate.quietModeEnabled === 'boolean' &&
+    typeof candidate.quietHoursStartHour === 'number' &&
+    typeof candidate.quietHoursEndHour === 'number'
   );
 }
 

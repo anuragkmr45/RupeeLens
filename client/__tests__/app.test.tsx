@@ -531,6 +531,57 @@ describe('App', () => {
     expect(screen.getAllByRole('button', { name: 'Back to home' }).length).toBeGreaterThan(0);
   });
 
+  it('creates a local budget from the budgets screen when the rollout flag is enabled', async () => {
+    const bootstrapStateWithBudgets = buildMockBootstrapState({
+      config: {
+        ...buildMockBootstrapState().config,
+        featureFlags: {
+          ...buildMockBootstrapState().config.featureFlags,
+          budgets_enabled: true,
+        },
+      },
+    });
+
+    mockedBootstrapConfigModule.hydrateBootstrapConfigCache.mockResolvedValue(
+      bootstrapStateWithBudgets,
+    );
+    mockedBootstrapConfigModule.refreshBootstrapConfig.mockResolvedValue(
+      bootstrapStateWithBudgets,
+    );
+
+    const screen = await renderApp();
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+    expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Create budget' }));
+
+    expect(await screen.findByText('Local budget setup')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByPlaceholderText('2500'), '2500');
+    fireEvent.press(screen.getByRole('button', { name: 'Create budget' }));
+
+    expect(await screen.findByText('Saved budgets')).toBeTruthy();
+    expect(screen.getByText('Overall budget')).toBeTruthy();
+    expect(screen.getByText(/Target:/)).toBeTruthy();
+    expect(screen.getAllByText(/2,500/).length).toBeGreaterThan(0);
+
+    await waitFor(() =>
+      expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          budgets: [
+            expect.objectContaining({
+              label: 'Overall budget',
+              period: 'monthly',
+              scope: 'overall',
+              targetMinor: 250000,
+            }),
+          ],
+        }),
+      ),
+    );
+  });
+
   it('shows stale remote-config fallback details and disables remotely paused actions', async () => {
     mockedBootstrapConfigModule.hydrateBootstrapConfigCache.mockResolvedValue(
       buildMockBootstrapState({

@@ -190,6 +190,13 @@ describe('spend-tracker persistence', () => {
     const { loadStoredSpendTrackerState } = loadPersistenceModule();
 
     await expect(loadStoredSpendTrackerState()).resolves.toEqual({
+      budgetAlertSettings: {
+        quietHoursEndHour: 8,
+        quietHoursStartHour: 22,
+        quietModeEnabled: true,
+      },
+      budgetAlerts: [],
+      budgets: [],
       categories: getDefaultCategories(),
       merchantAliases: [],
       merchants: expect.arrayContaining([
@@ -282,6 +289,13 @@ describe('spend-tracker persistence', () => {
     const { loadStoredSpendTrackerState } = loadPersistenceModule();
 
     await expect(loadStoredSpendTrackerState()).resolves.toEqual({
+      budgetAlertSettings: {
+        quietHoursEndHour: 8,
+        quietHoursStartHour: 22,
+        quietModeEnabled: true,
+      },
+      budgetAlerts: [],
+      budgets: [],
       categories: getDefaultCategories(),
       merchantAliases: [],
       merchants: expect.arrayContaining([
@@ -392,6 +406,8 @@ describe('spend-tracker persistence', () => {
     const state = await loadStoredSpendTrackerState();
 
     expect(state?.categories).toEqual(getDefaultCategories());
+    expect(state?.budgets).toEqual([]);
+    expect(state?.budgetAlerts).toEqual([]);
     expect(state?.transactions).toEqual([
       expect.objectContaining({
         id: 'txn_blue_tokai',
@@ -433,6 +449,39 @@ describe('spend-tracker persistence', () => {
     const { saveStoredSpendTrackerState } = loadPersistenceModule();
 
     await saveStoredSpendTrackerState({
+      budgetAlertSettings: {
+        quietHoursEndHour: 8,
+        quietHoursStartHour: 22,
+        quietModeEnabled: true,
+      },
+      budgetAlerts: [
+        {
+          budgetId: 'budget_overall_monthly',
+          budgetLabel: 'Overall budget',
+          cycleEnd: '2026-04-01T00:00:00.000Z',
+          cycleStart: '2026-03-01T00:00:00.000Z',
+          deliveredAt: '2026-03-25T10:15:00+05:30',
+          id: 'budget_alert_budget_overall_monthly_50',
+          message: 'Overall budget crossed the 50% threshold for this cycle.',
+          reviewedAt: null,
+          spentMinor: 260000,
+          status: 'active',
+          targetMinor: 500000,
+          thresholdPercent: 50,
+          thresholdState: 'warning',
+        },
+      ],
+      budgets: [
+        {
+          createdAt: '2026-03-25T10:00:00+05:30',
+          id: 'budget_overall_monthly',
+          label: 'Overall budget',
+          period: 'monthly',
+          scope: 'overall',
+          targetMinor: 500000,
+          updatedAt: '2026-03-25T10:00:00+05:30',
+        },
+      ],
       categories: getDefaultCategories(),
       onboardingPreferences: {
         budgetCycleId: 'billing_cycle',
@@ -496,6 +545,8 @@ describe('spend-tracker persistence', () => {
     });
 
     expect(database.withTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM budget_threshold_alerts');
+    expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM budgets');
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM transaction_items');
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM transactions');
     expect(database.runAsync).toHaveBeenCalledWith('DELETE FROM classification_rules');
@@ -523,6 +574,47 @@ describe('spend-tracker persistence', () => {
       'sync_mode',
       'local_only',
     );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'budget_alert_quiet_mode_enabled',
+      'true',
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'budget_alert_quiet_hours_start_hour',
+      '22',
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'budget_alert_quiet_hours_end_hour',
+      '8',
+    );
+    expect(
+      database.runAsync.mock.calls.some(
+        (call) =>
+          typeof call[0] === 'string' &&
+          call[0].includes('INSERT INTO budgets') &&
+          call[1] === 'budget_overall_monthly' &&
+          call[2] === 'Overall budget' &&
+          call[3] === 'overall' &&
+          call[4] === 'monthly' &&
+          call[5] === 500000,
+      ),
+    ).toBe(true);
+    expect(
+      database.runAsync.mock.calls.some(
+        (call) =>
+          typeof call[0] === 'string' &&
+          call[0].includes('INSERT INTO budget_threshold_alerts') &&
+          call[1] === 'budget_alert_budget_overall_monthly_50' &&
+          call[2] === 'budget_overall_monthly' &&
+          call[3] === 'Overall budget' &&
+          call[4] === 50 &&
+          call[5] === 'warning' &&
+          call[6] === 260000 &&
+          call[7] === 500000,
+      ),
+    ).toBe(true);
     expect(database.runAsync).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO classification_rules'),
       'rule_corner_store_under_250_morning_tuesday',

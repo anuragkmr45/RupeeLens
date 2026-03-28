@@ -25,6 +25,7 @@ import {
 } from '@upi-spend-tracker/mobile-ui';
 
 import {
+  DEFAULT_BUDGET_ALERT_SETTINGS,
   addCustomCategory,
   applyAutoClassificationRules,
   appendSplitDraftRow,
@@ -43,10 +44,12 @@ import {
   deleteTransaction,
   formatCaptureMoment,
   formatCurrency,
+  getPendingBudgetAlerts,
   getInboxReviewTransactions,
   getInboxSourceAppOptions,
   getMerchantReviewCandidates,
   getPendingTransactions,
+  markBudgetAlertsReviewed,
   getTimelineDayGroups,
   getTimelineSourceAppOptions,
   getTimelineTransactions,
@@ -73,22 +76,32 @@ import {
   sortTransactionsByCapturedAtDesc,
   splitMerchantAlias,
   summarizeCategoryUsage,
+  summarizeBudgets,
   summarizeSplitDraft,
   summarizeDashboard,
   summarizeMerchantUsage,
   mergeMerchants,
+  normalizeBudgetDefinitions,
   type CategoryId,
   type CategoryOption,
   type CategoryUsageSummary,
+  type BudgetAlertSettings,
+  type BudgetDefinition,
+  type BudgetPeriod,
+  type BudgetScope,
+  type BudgetSummary,
+  type BudgetThresholdAlert,
   type ClassificationDraft,
   type ClassificationSuggestion,
   type DashboardSummary,
   type InboxFilters,
   type InboxReviewItem,
   type MerchantAliasRecord,
+  type MerchantId,
   type MerchantReviewCandidate,
   type MerchantUsageSummary,
   type MerchantRecord,
+  scheduleBudgetThresholdAlerts,
   type SplitDraft,
   type SplitRemainderDisposition,
   type SpendRule,
@@ -135,6 +148,7 @@ import { colors } from '../theme/colors';
 import { DesignSystemShowcaseScreen } from './DesignSystemShowcaseScreen';
 
 type Screen =
+  | 'budgets'
   | 'categories'
   | 'classify'
   | 'detail'
@@ -149,6 +163,7 @@ type Screen =
 type PrimaryScreen = 'home' | 'inbox' | 'timeline';
 type ScreenReturnTarget = 'detail' | PrimaryScreen;
 type SplitReturnScreen = 'classify' | 'detail' | 'inbox';
+type BudgetScreenIntent = 'browse' | 'create';
 
 const EMPTY_DRAFT: ClassificationDraft = {
   autoApplyRule: false,
@@ -173,6 +188,19 @@ interface ManualEntryDraft {
   saveAsRule: boolean;
 }
 
+interface BudgetDraft {
+  categoryId: CategoryId | null;
+  itemLabel: string;
+  label: string;
+  merchantId: MerchantId | null;
+  period: BudgetPeriod;
+  rollingWindowDaysInput: string;
+  scope: BudgetScope;
+  startsOnDayInput: string;
+  targetInput: string;
+  weekStartsOn: number;
+}
+
 interface CategoryDraft {
   description: string;
   label: string;
@@ -191,6 +219,19 @@ const EMPTY_MANUAL_ENTRY_DRAFT: ManualEntryDraft = {
 const EMPTY_CATEGORY_DRAFT: CategoryDraft = {
   description: '',
   label: '',
+};
+
+const EMPTY_BUDGET_DRAFT: BudgetDraft = {
+  categoryId: null,
+  itemLabel: '',
+  label: '',
+  merchantId: null,
+  period: 'monthly',
+  rollingWindowDaysInput: '30',
+  scope: 'overall',
+  startsOnDayInput: '1',
+  targetInput: '',
+  weekStartsOn: 1,
 };
 
 interface SourceAppOption {
@@ -243,6 +284,27 @@ const SYNC_MODE_OPTIONS: PreferenceOption<SyncMode>[] = [
 ];
 
 const DASHBOARD_BUDGET_TARGET_MINOR = 500000;
+const BUDGET_SCOPE_OPTIONS: Array<{ id: BudgetScope; label: string }> = [
+  { id: 'overall', label: 'Overall' },
+  { id: 'category', label: 'Category' },
+  { id: 'merchant', label: 'Merchant' },
+  { id: 'item', label: 'Item' },
+];
+const BUDGET_PERIOD_OPTIONS: Array<{ id: BudgetPeriod; label: string }> = [
+  { id: 'monthly', label: 'Monthly' },
+  { id: 'weekly', label: 'Weekly' },
+  { id: 'rolling', label: 'Rolling' },
+  { id: 'custom', label: 'Custom' },
+];
+const WEEKDAY_OPTIONS: Array<{ id: number; label: string }> = [
+  { id: 0, label: 'Sun' },
+  { id: 1, label: 'Mon' },
+  { id: 2, label: 'Tue' },
+  { id: 3, label: 'Wed' },
+  { id: 4, label: 'Thu' },
+  { id: 5, label: 'Fri' },
+  { id: 6, label: 'Sat' },
+];
 
 export function SpendTrackerApp() {
   const [isHydrating, setIsHydrating] = useState(true);
@@ -251,6 +313,12 @@ export function SpendTrackerApp() {
   const [onboardingPreferences, setOnboardingPreferences] = useState<OnboardingPreferences>(
     DEFAULT_ONBOARDING_PREFERENCES,
   );
+  const [budgets, setBudgets] = useState<BudgetDefinition[]>([]);
+  const [budgetAlerts, setBudgetAlerts] = useState<BudgetThresholdAlert[]>([]);
+  const [budgetAlertSettings, setBudgetAlertSettings] = useState<BudgetAlertSettings>(
+    DEFAULT_BUDGET_ALERT_SETTINGS,
+  );
+  const [budgetScreenIntent, setBudgetScreenIntent] = useState<BudgetScreenIntent>('browse');
   const [categories, setCategories] = useState<CategoryOption[]>(getDefaultCategories());
   const [merchants, setMerchants] = useState<MerchantRecord[]>(seededMerchants);
   const [merchantAliases, setMerchantAliases] =
@@ -304,9 +372,12 @@ export function SpendTrackerApp() {
   const timelineSourceAppOptions = getTimelineSourceAppOptions(transactions);
   const merchantUsage = summarizeMerchantUsage(merchants, merchantAliases, transactions);
   const merchantReviewCandidates = getMerchantReviewCandidates(merchants, transactions);
+  const budgetSummaries = summarizeBudgets(transactions, budgets);
+  const pendingBudgetAlerts = getPendingBudgetAlerts(budgetAlerts);
   const summary = summarizeDashboard(
     transactions,
     {
+      budgets,
       budgetTargetMinor: DASHBOARD_BUDGET_TARGET_MINOR,
       cycleStartDay: getBudgetCycleStartDay(onboardingPreferences.budgetCycleId),
     },
@@ -369,6 +440,11 @@ export function SpendTrackerApp() {
         );
 
         setCategories(storedState.categories);
+        setBudgets(storedState.budgets ?? []);
+        setBudgetAlerts(storedState.budgetAlerts ?? []);
+        setBudgetAlertSettings(
+          storedState.budgetAlertSettings ?? DEFAULT_BUDGET_ALERT_SETTINGS,
+        );
         setOnboardingPreferences(storedState.onboardingPreferences);
         setNotificationAccessState(storedState.notificationAccessState);
         setOnboardingCompleted(storedState.onboardingCompleted);
@@ -512,7 +588,29 @@ export function SpendTrackerApp() {
       return;
     }
 
+    setBudgetAlerts((currentAlerts) => {
+      const nextAlerts = scheduleBudgetThresholdAlerts(
+        transactions,
+        budgets,
+        currentAlerts,
+        budgetAlertSettings,
+      );
+
+      return JSON.stringify(currentAlerts) === JSON.stringify(nextAlerts)
+        ? currentAlerts
+        : nextAlerts;
+    });
+  }, [budgets, budgetAlertSettings, isHydrating, transactions]);
+
+  useEffect(() => {
+    if (isHydrating) {
+      return;
+    }
+
     void saveStoredSpendTrackerState({
+      budgetAlertSettings,
+      budgetAlerts,
+      budgets,
       categories,
       merchantAliases,
       merchants,
@@ -523,6 +621,9 @@ export function SpendTrackerApp() {
       transactions,
     });
   }, [
+    budgetAlertSettings,
+    budgetAlerts,
+    budgets,
     categories,
     isHydrating,
     merchantAliases,
@@ -724,11 +825,10 @@ export function SpendTrackerApp() {
     setScreen('manual');
   }
 
-  function handleOpenBudgetPlaceholder() {
-    Alert.alert(
-      'Budgets come next',
-      'The local budget engine now powers Home, but budget creation, editing, and alerts still land in the next ticket.',
-    );
+  function handleOpenBudgets(intent: BudgetScreenIntent = 'browse') {
+    setBudgetScreenIntent(intent);
+    setBudgetAlerts((currentAlerts) => markBudgetAlertsReviewed(currentAlerts));
+    setScreen('budgets');
   }
 
   function handleOpenTimeline() {
@@ -1197,6 +1297,10 @@ export function SpendTrackerApp() {
     setInboxFilters({ ...DEFAULT_INBOX_FILTERS });
     setTimelineFilters({ ...DEFAULT_TIMELINE_FILTERS });
     setManualDraft({ ...EMPTY_MANUAL_ENTRY_DRAFT });
+    setBudgets([]);
+    setBudgetAlerts([]);
+    setBudgetAlertSettings(DEFAULT_BUDGET_ALERT_SETTINGS);
+    setBudgetScreenIntent('browse');
     setOnboardingPreferences(DEFAULT_ONBOARDING_PREFERENCES);
     setNotificationAccessState('not_started');
     setOnboardingCompleted(false);
@@ -1283,6 +1387,37 @@ export function SpendTrackerApp() {
             onDeleteCategory={handleDeleteCategory}
             onMergeCategory={handleMergeCategory}
             onUpdateCategory={handleUpdateCategory}
+          />
+        ) : !isHydrating && screen === 'budgets' ? (
+          <BudgetManagementScreen
+            budgetAlertSettings={budgetAlertSettings}
+            budgetAlerts={budgetAlerts}
+            budgetSummaries={budgetSummaries}
+            budgets={budgets}
+            categories={categories}
+            initialIntent={budgetScreenIntent}
+            merchants={merchants}
+            onBack={() => setScreen('home')}
+            onCreateBudget={(budget) =>
+              setBudgets((currentBudgets) =>
+                normalizeBudgetDefinitions([...currentBudgets, budget]),
+              )
+            }
+            onDeleteBudget={(budgetId) =>
+              setBudgets((currentBudgets) =>
+                currentBudgets.filter((budget) => budget.id !== budgetId),
+              )
+            }
+            onUpdateBudget={(nextBudget) =>
+              setBudgets((currentBudgets) =>
+                normalizeBudgetDefinitions(
+                  currentBudgets.map((budget) =>
+                    budget.id === nextBudget.id ? nextBudget : budget,
+                  ),
+                ),
+              )
+            }
+            onUpdateBudgetAlertSettings={setBudgetAlertSettings}
           />
         ) : !isHydrating && screen === 'merchants' ? (
           <MerchantManagementScreen
@@ -1371,6 +1506,8 @@ export function SpendTrackerApp() {
             {!isHydrating && screen === 'home' ? (
               <HomeScreen
                 bootstrapState={bootstrapState}
+                budgetCount={budgets.length}
+                pendingBudgetAlerts={pendingBudgetAlerts}
                 categories={categories}
                 captureDiagnostics={captureDiagnostics}
                 merchantReviewCandidateCount={merchantReviewCandidates.length}
@@ -1378,7 +1515,8 @@ export function SpendTrackerApp() {
                 nextPendingTransaction={pendingTransactions[0] ?? null}
                 notificationAccessState={notificationAccessState}
                 onboardingPreferences={onboardingPreferences}
-                onOpenBudgetPlaceholder={handleOpenBudgetPlaceholder}
+                onCreateBudget={() => handleOpenBudgets('create')}
+                onOpenBudgets={() => handleOpenBudgets('browse')}
                 onOpenCategories={handleOpenCategories}
                 onOpenInbox={() => setScreen('inbox')}
                 onOpenManualEntry={() => handleOpenManualEntry('home')}
@@ -1681,6 +1819,8 @@ function OnboardingScreen({
 
 function HomeScreen({
   bootstrapState,
+  budgetCount,
+  pendingBudgetAlerts,
   categories,
   captureDiagnostics,
   merchantReviewCandidateCount,
@@ -1688,7 +1828,8 @@ function HomeScreen({
   nextPendingTransaction,
   notificationAccessState,
   onboardingPreferences,
-  onOpenBudgetPlaceholder,
+  onCreateBudget,
+  onOpenBudgets,
   onOpenCategories,
   onOpenInbox,
   onOpenManualEntry,
@@ -1703,6 +1844,8 @@ function HomeScreen({
   summary,
 }: {
   bootstrapState: BootstrapConfigState;
+  budgetCount: number;
+  pendingBudgetAlerts: BudgetThresholdAlert[];
   categories: CategoryOption[];
   captureDiagnostics: NativeCaptureDiagnostics;
   merchantReviewCandidateCount: number;
@@ -1710,7 +1853,8 @@ function HomeScreen({
   nextPendingTransaction: Transaction | null;
   notificationAccessState: NotificationAccessState;
   onboardingPreferences: OnboardingPreferences;
-  onOpenBudgetPlaceholder: () => void;
+  onCreateBudget: () => void;
+  onOpenBudgets: () => void;
   onOpenCategories: () => void;
   onOpenInbox: () => void;
   onOpenManualEntry: () => void;
@@ -1813,6 +1957,9 @@ function HomeScreen({
             Budgets: {budgetsEnabled ? 'enabled for this channel' : 'disabled remotely'}
           </Text>
           <Text style={styles.helperCopy}>
+            Saved budgets: {budgetCount} · Pending alert review: {pendingBudgetAlerts.length}
+          </Text>
+          <Text style={styles.helperCopy}>
             Search: {searchEnabled ? 'enabled for this channel' : 'disabled remotely'}
           </Text>
           <Text style={styles.helperCopy}>
@@ -1831,7 +1978,7 @@ function HomeScreen({
           <ActionButton
             disabled={!budgetsEnabled}
             label="Create budget"
-            onPress={onOpenBudgetPlaceholder}
+            onPress={onCreateBudget}
             tone="secondary"
           />
           <ActionButton
@@ -1842,6 +1989,28 @@ function HomeScreen({
           />
         </View>
       </SectionCard>
+
+      {budgetsEnabled && pendingBudgetAlerts.length > 0 ? (
+        <SectionCard accentColor={colors.heroGlowSecondary}>
+          <Text style={styles.cardTitle}>Budget alerts</Text>
+          <Text style={styles.bodyCopy}>
+            {pendingBudgetAlerts[0]?.status === 'quieted'
+              ? 'Quiet hours held local budget alerts here instead of showing an intrusive banner. Review them when you are ready.'
+              : 'A local budget threshold was crossed in this cycle. Review it in Budgets before the next threshold piles on.'}
+          </Text>
+          <View style={styles.helperStack}>
+            {pendingBudgetAlerts.slice(0, 3).map((alert) => (
+              <Text key={alert.id} style={styles.helperCopy}>
+                {alert.budgetLabel}: {alert.thresholdPercent}% · {formatCurrency(alert.spentMinor)} of{' '}
+                {formatCurrency(alert.targetMinor)}
+              </Text>
+            ))}
+          </View>
+          <View style={styles.actionRow}>
+            <ActionButton label="Review budgets" onPress={onOpenBudgets} tone="primary" />
+          </View>
+        </SectionCard>
+      ) : null}
 
       <SectionCard accentColor={colors.panelWarm}>
         <Text style={styles.cardTitle}>Next to review</Text>
@@ -1988,6 +2157,459 @@ function HomeScreen({
           />
           <ActionButton label="Reset demo data" onPress={onResetDemoData} tone="secondary" />
         </View>
+      </SectionCard>
+    </View>
+  );
+}
+
+function BudgetManagementScreen({
+  budgetAlertSettings,
+  budgetAlerts,
+  budgetSummaries,
+  budgets,
+  categories,
+  initialIntent,
+  merchants,
+  onBack,
+  onCreateBudget,
+  onDeleteBudget,
+  onUpdateBudget,
+  onUpdateBudgetAlertSettings,
+}: {
+  budgetAlertSettings: BudgetAlertSettings;
+  budgetAlerts: BudgetThresholdAlert[];
+  budgetSummaries: BudgetSummary[];
+  budgets: BudgetDefinition[];
+  categories: CategoryOption[];
+  initialIntent: BudgetScreenIntent;
+  merchants: MerchantRecord[];
+  onBack: () => void;
+  onCreateBudget: (budget: BudgetDefinition) => void;
+  onDeleteBudget: (budgetId: string) => void;
+  onUpdateBudget: (budget: BudgetDefinition) => void;
+  onUpdateBudgetAlertSettings: (settings: BudgetAlertSettings) => void;
+}) {
+  const [draft, setDraft] = useState<BudgetDraft>(EMPTY_BUDGET_DRAFT);
+  const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
+  const [isComposerOpen, setIsComposerOpen] = useState(
+    initialIntent === 'create' || budgets.length === 0,
+  );
+  const budgetSummaryById = new Map(
+    budgetSummaries.map((budgetSummary) => [budgetSummary.budget.id, budgetSummary]),
+  );
+  const pendingAlerts = getPendingBudgetAlerts(budgetAlerts);
+
+  useEffect(() => {
+    if (initialIntent === 'create') {
+      setDraft(EMPTY_BUDGET_DRAFT);
+      setEditingBudgetId(null);
+      setIsComposerOpen(true);
+      return;
+    }
+
+    if (budgets.length === 0) {
+      setDraft(EMPTY_BUDGET_DRAFT);
+      setEditingBudgetId(null);
+      setIsComposerOpen(true);
+    }
+  }, [budgets.length, initialIntent]);
+
+  function handleStartCreateBudget() {
+    setDraft(EMPTY_BUDGET_DRAFT);
+    setEditingBudgetId(null);
+    setIsComposerOpen(true);
+  }
+
+  function handleStartEditBudget(budget: BudgetDefinition) {
+    setDraft(createBudgetDraftFromBudget(budget));
+    setEditingBudgetId(budget.id);
+    setIsComposerOpen(true);
+  }
+
+  function handleCancelBudgetComposer() {
+    setDraft(EMPTY_BUDGET_DRAFT);
+    setEditingBudgetId(null);
+    setIsComposerOpen(false);
+  }
+
+  function handleSaveBudget() {
+    const nextBudget = buildBudgetDefinitionFromDraft(
+      draft,
+      budgets,
+      categories,
+      merchants,
+      editingBudgetId,
+    );
+
+    if (!nextBudget) {
+      Alert.alert(
+        'Finish the budget details',
+        'Add a target amount and the required scope details so the budget can be saved locally.',
+      );
+      return;
+    }
+
+    if (editingBudgetId) {
+      onUpdateBudget(nextBudget);
+    } else {
+      onCreateBudget(nextBudget);
+    }
+
+    setDraft(EMPTY_BUDGET_DRAFT);
+    setEditingBudgetId(null);
+    setIsComposerOpen(false);
+  }
+
+  function handleConfirmDeleteBudget(budget: BudgetDefinition) {
+    Alert.alert(
+      'Delete budget locally?',
+      `${budget.label} will be removed from this device, but prior threshold alerts stay in the local history list.`,
+      [
+        {
+          style: 'cancel',
+          text: 'Cancel',
+        },
+        {
+          style: 'destructive',
+          text: 'Delete',
+          onPress: () => {
+            onDeleteBudget(budget.id);
+
+            if (editingBudgetId === budget.id) {
+              handleCancelBudgetComposer();
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  return (
+    <View style={styles.stack}>
+      <View style={styles.tabs}>
+        <TabButton isActive={false} label="Home" onPress={onBack} />
+        <TabButton isActive={true} label="Budgets" onPress={() => undefined} />
+      </View>
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.sectionEyebrow}>Budgets</Text>
+        <Text style={styles.sectionTitle}>Local budget setup</Text>
+        <Text style={styles.bodyCopy}>
+          Create overall, category, merchant, or item budgets on this device. Threshold alerts are
+          scheduled locally from the same canonical budget engine that powers Home.
+        </Text>
+        <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>{budgets.length} saved budget{budgets.length === 1 ? '' : 's'}</Text>
+          <Text style={styles.helperCopy}>
+            {pendingAlerts.length} alert{pendingAlerts.length === 1 ? '' : 's'} waiting for review
+          </Text>
+        </View>
+        <View style={styles.actionRow}>
+          <ActionButton label="Back to Home" onPress={onBack} tone="secondary" />
+          <ActionButton label="New budget" onPress={handleStartCreateBudget} tone="primary" />
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.heroGlowSecondary}>
+        <Text style={styles.cardTitle}>Threshold alert quiet mode</Text>
+        <Text style={styles.bodyCopy}>
+          Quiet mode keeps threshold alerts in this screen instead of surfacing them as an intrusive
+          banner during late hours. The local alert log still records each threshold crossing once
+          per cycle.
+        </Text>
+        <View style={styles.chipWrap}>
+          <Chip
+            label="Quiet hours on"
+            onPress={() =>
+              onUpdateBudgetAlertSettings({
+                ...budgetAlertSettings,
+                quietModeEnabled: true,
+              })
+            }
+            selected={budgetAlertSettings.quietModeEnabled}
+          />
+          <Chip
+            label="Quiet hours off"
+            onPress={() =>
+              onUpdateBudgetAlertSettings({
+                ...budgetAlertSettings,
+                quietModeEnabled: false,
+              })
+            }
+            selected={!budgetAlertSettings.quietModeEnabled}
+          />
+        </View>
+        <Text style={styles.helperCopy}>
+          Quiet hours: {formatHourLabel(budgetAlertSettings.quietHoursStartHour)} to{' '}
+          {formatHourLabel(budgetAlertSettings.quietHoursEndHour)}
+        </Text>
+      </SectionCard>
+
+      {isComposerOpen ? (
+        <SectionCard accentColor={colors.panel}>
+          <Text style={styles.cardTitle}>
+            {editingBudgetId ? 'Edit budget' : 'Create budget'}
+          </Text>
+          <Text style={styles.bodyCopy}>
+            Keep it fast: amount first, then scope and cycle. The label is optional because the app
+            can derive one from the selected scope.
+          </Text>
+          <TextField
+            keyboardType="numeric"
+            label="Target amount"
+            onChangeText={(targetInput) => setDraft((currentDraft) => ({ ...currentDraft, targetInput }))}
+            placeholder="2500"
+            value={draft.targetInput}
+          />
+          <TextField
+            label="Label"
+            onChangeText={(label) => setDraft((currentDraft) => ({ ...currentDraft, label }))}
+            placeholder="Groceries for this month"
+            value={draft.label}
+          />
+          <Text style={styles.fieldLabel}>Scope</Text>
+          <View style={styles.chipWrap}>
+            {BUDGET_SCOPE_OPTIONS.map((option) => (
+              <Chip
+                key={option.id}
+                label={option.label}
+                onPress={() =>
+                  setDraft((currentDraft) => ({
+                    ...currentDraft,
+                    categoryId: option.id === 'category' ? currentDraft.categoryId : null,
+                    itemLabel: option.id === 'item' ? currentDraft.itemLabel : '',
+                    merchantId: option.id === 'merchant' ? currentDraft.merchantId : null,
+                    scope: option.id,
+                  }))
+                }
+                selected={draft.scope === option.id}
+              />
+            ))}
+          </View>
+
+          {draft.scope === 'category' ? (
+            <>
+              <Text style={styles.fieldLabel}>Category</Text>
+              <View style={styles.chipWrap}>
+                {categories.map((category) => (
+                  <Chip
+                    key={category.id}
+                    label={category.label}
+                    onPress={() =>
+                      setDraft((currentDraft) => ({ ...currentDraft, categoryId: category.id }))
+                    }
+                    selected={draft.categoryId === category.id}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
+
+          {draft.scope === 'merchant' ? (
+            merchants.length > 0 ? (
+              <>
+                <Text style={styles.fieldLabel}>Merchant</Text>
+                <View style={styles.chipWrap}>
+                  {merchants.map((merchant) => (
+                    <Chip
+                      key={merchant.id}
+                      label={merchant.label}
+                      onPress={() =>
+                        setDraft((currentDraft) => ({ ...currentDraft, merchantId: merchant.id }))
+                      }
+                      selected={draft.merchantId === merchant.id}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : (
+              <Text style={styles.helperCopy}>
+                Save or classify a few transactions first so merchants appear here.
+              </Text>
+            )
+          ) : null}
+
+          {draft.scope === 'item' ? (
+            <TextField
+              label="Item label"
+              onChangeText={(itemLabel) =>
+                setDraft((currentDraft) => ({ ...currentDraft, itemLabel }))
+              }
+              placeholder="Flat white"
+              value={draft.itemLabel}
+            />
+          ) : null}
+
+          <Text style={styles.fieldLabel}>Cycle</Text>
+          <View style={styles.chipWrap}>
+            {BUDGET_PERIOD_OPTIONS.map((option) => (
+              <Chip
+                key={option.id}
+                label={option.label}
+                onPress={() =>
+                  setDraft((currentDraft) => ({
+                    ...currentDraft,
+                    period: option.id,
+                  }))
+                }
+                selected={draft.period === option.id}
+              />
+            ))}
+          </View>
+
+          {draft.period === 'weekly' ? (
+            <>
+              <Text style={styles.fieldLabel}>Week starts on</Text>
+              <View style={styles.chipWrap}>
+                {WEEKDAY_OPTIONS.map((weekday) => (
+                  <Chip
+                    key={weekday.id}
+                    label={weekday.label}
+                    onPress={() =>
+                      setDraft((currentDraft) => ({
+                        ...currentDraft,
+                        weekStartsOn: weekday.id,
+                      }))
+                    }
+                    selected={draft.weekStartsOn === weekday.id}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
+
+          {draft.period === 'rolling' ? (
+            <TextField
+              keyboardType="numeric"
+              label="Rolling window days"
+              onChangeText={(rollingWindowDaysInput) =>
+                setDraft((currentDraft) => ({
+                  ...currentDraft,
+                  rollingWindowDaysInput,
+                }))
+              }
+              placeholder="30"
+              value={draft.rollingWindowDaysInput}
+            />
+          ) : null}
+
+          {draft.period === 'custom' ? (
+            <TextField
+              keyboardType="numeric"
+              label="Cycle starts on day"
+              onChangeText={(startsOnDayInput) =>
+                setDraft((currentDraft) => ({
+                  ...currentDraft,
+                  startsOnDayInput,
+                }))
+              }
+              placeholder="26"
+              value={draft.startsOnDayInput}
+            />
+          ) : null}
+
+          <View style={styles.actionRow}>
+            <ActionButton
+              label={editingBudgetId ? 'Save budget' : 'Create budget'}
+              onPress={handleSaveBudget}
+              tone="primary"
+            />
+            <ActionButton label="Cancel" onPress={handleCancelBudgetComposer} tone="secondary" />
+          </View>
+        </SectionCard>
+      ) : null}
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.cardTitle}>Threshold alerts</Text>
+        {budgetAlerts.length > 0 ? (
+          <View style={styles.listStack}>
+            {budgetAlerts.slice(0, 8).map((budgetAlert) => (
+              <ListItem
+                key={budgetAlert.id}
+                subtitle={`${formatCurrency(budgetAlert.spentMinor)} of ${formatCurrency(budgetAlert.targetMinor)} · ${formatBudgetAlertStatusLabel(budgetAlert.status)}`}
+                title={`${budgetAlert.budgetLabel} · ${budgetAlert.thresholdPercent}%`}
+                trailing={
+                  <Chip
+                    label={getBudgetThresholdStateLabel(budgetAlert.thresholdState)}
+                    tone={budgetAlert.status === 'reviewed' ? 'default' : 'pending'}
+                  />
+                }
+              >
+                <Text style={styles.helperCopy}>{budgetAlert.message}</Text>
+              </ListItem>
+            ))}
+          </View>
+        ) : (
+          <EmptyState
+            description="Alerts appear here after a saved budget crosses 50%, 80%, or 100% in a cycle."
+            title="No local budget alerts yet"
+          />
+        )}
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Saved budgets</Text>
+        {budgets.length > 0 ? (
+          <View style={styles.listStack}>
+            {budgets.map((budget) => {
+              const budgetSummary = budgetSummaryById.get(budget.id) ?? null;
+
+              return (
+                <ListItem
+                  key={budget.id}
+                  subtitle={`${formatBudgetScopeLabel(budget.scope)} · ${formatBudgetPeriodLabel(budget)}`}
+                  title={budget.label}
+                  trailing={
+                    budgetSummary ? (
+                      <Chip
+                        label={getBudgetThresholdStateLabel(budgetSummary.thresholdState)}
+                        tone={budgetSummary.thresholdState === 'over_budget' ? 'pending' : 'ready'}
+                      />
+                    ) : undefined
+                  }
+                >
+                  <View style={styles.helperStack}>
+                    <Text style={styles.helperCopy}>
+                      Target: {formatCurrency(budget.targetMinor)}
+                    </Text>
+                    {budgetSummary ? (
+                      <>
+                        <Text style={styles.helperCopy}>
+                          Spent: {formatCurrency(budgetSummary.spentMinor)} · Remaining:{' '}
+                          {formatCurrency(budgetSummary.remainingMinor)}
+                        </Text>
+                        <Text style={styles.helperCopy}>
+                          Projected: {formatCurrency(budgetSummary.projectedSpendMinor)} · Matched transactions:{' '}
+                          {budgetSummary.matchedTransactionCount}
+                        </Text>
+                      </>
+                    ) : null}
+                  </View>
+                  <View style={styles.actionRow}>
+                    <ActionButton
+                      label="Edit"
+                      onPress={() => handleStartEditBudget(budget)}
+                      tone="secondary"
+                    />
+                    <ActionButton
+                      label="Delete"
+                      onPress={() => handleConfirmDeleteBudget(budget)}
+                      tone="secondary"
+                    />
+                  </View>
+                </ListItem>
+              );
+            })}
+          </View>
+        ) : (
+          <EmptyState
+            actions={
+              <ActionButton label="Create first budget" onPress={handleStartCreateBudget} tone="primary" />
+            }
+            description="Create an overall, category, merchant, or item budget to start local threshold tracking."
+            title="No budgets saved yet"
+          />
+        )}
       </SectionCard>
     </View>
   );
@@ -4290,6 +4912,214 @@ function TransactionCard({
   );
 }
 
+function createBudgetDraftFromBudget(budget: BudgetDefinition): BudgetDraft {
+  return {
+    categoryId: budget.categoryId ?? null,
+    itemLabel: budget.itemLabel ?? '',
+    label: budget.label,
+    merchantId: budget.merchantId ?? null,
+    period: budget.period,
+    rollingWindowDaysInput: `${budget.rollingWindowDays ?? 30}`,
+    scope: budget.scope,
+    startsOnDayInput: `${budget.startsOnDay ?? 1}`,
+    targetInput: `${budget.targetMinor / 100}`,
+    weekStartsOn: budget.weekStartsOn ?? 1,
+  };
+}
+
+function buildBudgetDefinitionFromDraft(
+  draft: BudgetDraft,
+  budgets: BudgetDefinition[],
+  categories: CategoryOption[],
+  merchants: MerchantRecord[],
+  editingBudgetId: string | null,
+): BudgetDefinition | null {
+  const targetMinor = parseCurrencyInputToMinor(draft.targetInput);
+
+  if (targetMinor === null || targetMinor <= 0) {
+    return null;
+  }
+
+  const currentTimestamp = new Date().toISOString();
+  const existingBudget = editingBudgetId
+    ? budgets.find((budget) => budget.id === editingBudgetId) ?? null
+    : null;
+  const selectedMerchant =
+    draft.scope === 'merchant'
+      ? merchants.find((merchant) => merchant.id === draft.merchantId) ?? null
+      : null;
+  const nextBudget: BudgetDefinition = {
+    createdAt: existingBudget?.createdAt ?? currentTimestamp,
+    id:
+      existingBudget?.id ??
+      buildBudgetId(
+        buildBudgetLabelFromDraft(draft, categories, merchants),
+        budgets,
+      ),
+    label:
+      draft.label.trim().length > 0
+        ? draft.label.trim()
+        : buildBudgetLabelFromDraft(draft, categories, merchants),
+    period: draft.period,
+    scope: draft.scope,
+    targetMinor,
+    updatedAt: currentTimestamp,
+  };
+
+  if (draft.scope === 'category') {
+    if (!draft.categoryId) {
+      return null;
+    }
+
+    nextBudget.categoryId = draft.categoryId;
+  }
+
+  if (draft.scope === 'merchant') {
+    if (!selectedMerchant) {
+      return null;
+    }
+
+    nextBudget.merchantId = selectedMerchant.id;
+    nextBudget.merchantLabel = selectedMerchant.label;
+    nextBudget.merchantNormalizedLabel = selectedMerchant.normalizedLabel;
+  }
+
+  if (draft.scope === 'item') {
+    const normalizedItemLabel = draft.itemLabel.trim();
+
+    if (normalizedItemLabel.length === 0) {
+      return null;
+    }
+
+    nextBudget.itemLabel = normalizedItemLabel;
+  }
+
+  if (draft.period === 'weekly') {
+    nextBudget.weekStartsOn = draft.weekStartsOn;
+  }
+
+  if (draft.period === 'rolling') {
+    const rollingWindowDays = Number.parseInt(draft.rollingWindowDaysInput, 10);
+
+    if (!Number.isFinite(rollingWindowDays)) {
+      return null;
+    }
+
+    nextBudget.rollingWindowDays = rollingWindowDays;
+  }
+
+  if (draft.period === 'custom') {
+    const startsOnDay = Number.parseInt(draft.startsOnDayInput, 10);
+
+    if (!Number.isFinite(startsOnDay)) {
+      return null;
+    }
+
+    nextBudget.startsOnDay = startsOnDay;
+  }
+
+  return normalizeBudgetDefinitions([nextBudget])[0] ?? null;
+}
+
+function buildBudgetLabelFromDraft(
+  draft: BudgetDraft,
+  categories: CategoryOption[],
+  merchants: MerchantRecord[],
+): string {
+  if (draft.label.trim().length > 0) {
+    return draft.label.trim();
+  }
+
+  switch (draft.scope) {
+    case 'category':
+      return `${getCategoryLabel(draft.categoryId ?? 'misc', categories)} budget`;
+    case 'merchant':
+      return `${
+        merchants.find((merchant) => merchant.id === draft.merchantId)?.label ?? 'Merchant'
+      } budget`;
+    case 'item':
+      return `${draft.itemLabel.trim() || 'Item'} budget`;
+    case 'overall':
+    default:
+      return 'Overall budget';
+  }
+}
+
+function buildBudgetId(label: string, budgets: BudgetDefinition[]): string {
+  const baseSlug =
+    label
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'budget';
+  const prefix = `budget_${baseSlug}`;
+  const existingIds = new Set(budgets.map((budget) => budget.id));
+
+  if (!existingIds.has(prefix)) {
+    return prefix;
+  }
+
+  let suffix = 2;
+
+  while (existingIds.has(`${prefix}_${suffix}`)) {
+    suffix += 1;
+  }
+
+  return `${prefix}_${suffix}`;
+}
+
+function formatBudgetScopeLabel(scope: BudgetScope): string {
+  switch (scope) {
+    case 'category':
+      return 'Category';
+    case 'merchant':
+      return 'Merchant';
+    case 'item':
+      return 'Item';
+    case 'overall':
+    default:
+      return 'Overall';
+  }
+}
+
+function formatBudgetPeriodLabel(budget: BudgetDefinition): string {
+  switch (budget.period) {
+    case 'weekly':
+      return `Weekly · ${WEEKDAY_OPTIONS.find((option) => option.id === (budget.weekStartsOn ?? 1))?.label ?? 'Mon'}`;
+    case 'rolling':
+      return `Rolling · ${budget.rollingWindowDays ?? 30} days`;
+    case 'custom':
+      return `Custom · day ${budget.startsOnDay ?? 1}`;
+    case 'monthly':
+    default:
+      return 'Monthly';
+  }
+}
+
+function formatBudgetAlertStatusLabel(status: BudgetThresholdAlert['status']): string {
+  switch (status) {
+    case 'quieted':
+      return 'Queued quietly';
+    case 'reviewed':
+      return 'Reviewed';
+    case 'active':
+    default:
+      return 'Needs review';
+  }
+}
+
+function formatHourLabel(hour: number): string {
+  if (hour === 0) {
+    return '12 AM';
+  }
+
+  if (hour === 12) {
+    return '12 PM';
+  }
+
+  return hour > 12 ? `${hour - 12} PM` : `${hour} AM`;
+}
+
 function getSourceAppLabel(sourceAppId: SupportedSourceAppId): string {
   return (
     SOURCE_APP_OPTIONS.find((sourceApp) => sourceApp.id === sourceAppId)?.label ??
@@ -4565,6 +5395,11 @@ const styles = StyleSheet.create({
     color: colors.accentText,
   },
   categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  chipWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,

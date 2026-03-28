@@ -1,6 +1,6 @@
 # Project Phase Status
 
-Date: 2026-03-27  
+Date: 2026-03-28  
 Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`, and live source under `client/`, `server/`, and `packages/`
 
 ## Summary
@@ -80,10 +80,11 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Local SQLite transaction tables on mobile plus a modular backend skeleton with explicit API and worker module factories, tested runtime config loaders, and repository/service seams around health and heartbeat
 - Weighted local history-based suggestion ranker with explainable merchant, amount-bucket, hour-bucket, weekday, recency, and frequency scoring reused across classify and manual-entry flows
 - Canonical local budget engine with overall, category, merchant, and item scopes across monthly, weekly, rolling, and custom cycles, including projected spend and threshold state now wired into Home
+- Local budget-management flow with list/create/edit UX, quiet-mode-aware 50/80/100 threshold alerts, persisted alert review state, and Home review cards backed by the canonical budget engine
 
 **Remaining**
 
-- Budget setup/edit screens and alerting, rollups, CSV export, backup/restore
+- Rollups, CSV export, backup/restore
 - Guest session, pairing, and sync APIs
 - Backend modular-monolith feature modules beyond health and heartbeat
 
