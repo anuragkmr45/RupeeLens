@@ -30,11 +30,17 @@ export interface SessionServiceDependencies {
 }
 
 export interface SessionService {
+  authenticateSession(accessToken: string): AuthenticatedSession;
   consumePairingCode(request: ConsumePairingCodeRequest): SessionResponse;
   createGuestSession(request: CreateGuestSessionRequest): SessionResponse;
   createPairingCode(accessToken: string): DevicePairingCodeResponse;
   refreshSession(refreshToken: string): SessionResponse;
   registerDevice(accessToken: string, request: RegisterDeviceRequest): Device;
+}
+
+export interface AuthenticatedSession {
+  deviceId: string;
+  userId: string;
 }
 
 export class SessionUnauthorizedError extends Error {
@@ -132,6 +138,14 @@ export function createSessionService({
   }
 
   return {
+    authenticateSession(accessToken) {
+      const tokenRecord = authenticateAccessToken(accessToken);
+
+      return {
+        deviceId: tokenRecord.deviceId,
+        userId: tokenRecord.userId,
+      };
+    },
     consumePairingCode(request) {
       const timestamp = toIsoUtcDateTimeString(now());
       const pairingCode = getActivePairingCode(request.pairingCode);

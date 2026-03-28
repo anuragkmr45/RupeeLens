@@ -8,6 +8,7 @@ describe('getApiRuntimeConfig', () => {
       host: '0.0.0.0',
       port: 3000,
       sessionStoreFile: expect.stringContaining('.local/sessions-store.json'),
+      syncStoreFile: expect.stringContaining('.local/sync-store.json'),
     });
   });
 
@@ -15,6 +16,7 @@ describe('getApiRuntimeConfig', () => {
     expect(
       getApiRuntimeConfig({
         API_SESSION_STORE_FILE: './tmp/api-sessions.json',
+        API_SYNC_STORE_FILE: './tmp/api-sync.json',
         HOST: '127.0.0.1',
         PORT: '3100',
       }),
@@ -22,6 +24,7 @@ describe('getApiRuntimeConfig', () => {
       host: '127.0.0.1',
       port: 3100,
       sessionStoreFile: expect.stringContaining('tmp/api-sessions.json'),
+      syncStoreFile: expect.stringContaining('tmp/api-sync.json'),
     });
 
     expect(
@@ -33,6 +36,7 @@ describe('getApiRuntimeConfig', () => {
       host: '127.0.0.1',
       port: 3000,
       sessionStoreFile: expect.stringContaining('.local/sessions-store.json'),
+      syncStoreFile: expect.stringContaining('.local/sync-store.json'),
     });
   });
 });

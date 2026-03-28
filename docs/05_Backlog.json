@@ -817,12 +817,12 @@
       ],
       "tests": "Concurrency tests, retry tests, and sync replay tests.",
       "done": "Sync APIs pass mobile integration tests.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-28",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Added shared sync DTOs plus a modular Fastify `sync` module with authenticated push/pull routes, idempotency-key replay handling, op-level replay protection, machine-readable conflict records, cursor-based delta pull, and a durable file-backed sync repository. Focused contract, repository, service, and route tests cover idempotent replay, optimistic-concurrency conflicts, restart-safe persistence, and authenticated delta pulls; `pnpm --filter @upi-spend-tracker/contracts typecheck`, `pnpm --filter @upi-spend-tracker/contracts test`, `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-28. Status remains `in_progress` because the backlog done-when still requires mobile integration tests, which were not available in this environment."
     },
     {
       "id": "API-004",

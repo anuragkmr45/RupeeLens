@@ -20,3 +20,17 @@ export type {
   SessionResponse,
   SessionSyncMode,
 } from './sessions.js';
+export type {
+  ConflictRecord,
+  EntityChange,
+  FieldError,
+  OperationAck,
+  OperationRejection,
+  OutboxOperation,
+  SyncAckStatus,
+  SyncEntityType,
+  SyncOperationType,
+  SyncPullResponse,
+  SyncPushRequest,
+  SyncPushResponse,
+} from './sync.js';

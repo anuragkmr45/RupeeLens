@@ -8,6 +8,7 @@ async function start() {
   const config = getApiRuntimeConfig();
   const app = buildApp({
     sessionStoreFile: config.sessionStoreFile,
+    syncStoreFile: config.syncStoreFile,
   });
 
   try {

@@ -142,4 +142,5 @@ Reason:
 - `INT-006` is now done with local budget list/create/edit UX, persisted quiet-mode-aware threshold scheduling and review state, and Home integration through the canonical budget engine.
 - `INT-007` is now done with optimized local rollups, prior-period comparison, and an in-app insights screen validated on a 10k local dataset.
 - `API-002` is now done with typed contracts, modular Fastify session routes, refresh rotation, one-time pairing codes, replay/expiry protection, and durable on-disk session persistence across API restarts.
-- `API-003` is now the earliest unblocked canonical `todo` after `API-002` and `SET-004`, and it unlocks later server-domain and mobile sync work.
+- `API-003` is now the earliest active canonical ticket: the repo-side sync module exists with authenticated push/pull routes, idempotency replay handling, optimistic-concurrency conflicts, cursor-based delta pulls, and durable on-disk sync persistence, but the backlog done-when still requires mobile integration tests before it can close as `done`.
+- `API-004` is not yet actionable because `API-003` is still active and its remaining gap is integration evidence, not missing repo-side backend code.

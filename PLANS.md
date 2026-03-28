@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### API-003 — Implement Sync Push/Pull APIs With Idempotency And Cursor-Based Deltas
+
+- **Status:** completed
+- **Ticket:** API-003
+- **Goal:** Add the first repo-side sync surface with authenticated push/pull routes, idempotency protection, optimistic-concurrency conflicts, cursor-based deltas, and durable local server persistence without widening scope into full domain APIs.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `packages/contracts/src/*`, `server/api/src/app.ts`, `server/api/src/index.ts`, `server/api/src/lib/env*`, `server/api/src/modules/sessions/*`, `server/api/src/modules/sync/*`, and repo-truth docs only if ticket status or scope changes.
+- **Rationale:** The re-audit on 2026-03-28 still leaves `SET-002` blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty again, and `UX-005` still depends on external QA/design acceptance. With `API-002` now closed, `API-003` is the earliest unblocked canonical `todo`, and it unlocks later server-domain and mobile sync work.
+- **Risks:** Sync can sprawl into full domain CRUD, mobile outbox work, or a full server data model. This pass must stay inside generic outbox-operation push, generic entity-change pull, idempotency-key replay, optimistic-concurrency conflicts, and durable repository behavior. It must not spill into `API-004` entity CRUD or `SYNC-001` mobile outbox implementation.
+- **API / schema impact:** No OpenAPI document change expected because the documented sync routes and payloads already exist. This pass adds shared TypeScript sync contracts and server module implementation underneath the existing contract.
+- **Rollout / flag plan:** No rollout flag. Keep the sync routes additive and isolated from current local-only mobile flows until mobile integration arrives.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/contracts typecheck`, `pnpm --filter @upi-spend-tracker/contracts test`, `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+- **Done when:** Push handles duplicate retries idempotently, pull returns cursor-based deltas, conflict responses are machine-readable, repo quality gates stay green, and the ticket can move beyond `todo` truthfully. The canonical backlog ticket still needs mobile integration tests before it can close as `done`.
+- **Outcome:** Added shared sync DTOs, a modular Fastify sync API module, auth reuse through the sessions service, a durable file-backed sync repository, `POST /v1/sync/push` with idempotency-key replay and optimistic-concurrency conflicts, and `GET /v1/sync/pull` with cursor-based deltas and bounded pagination. Focused contract, repository, service, and route tests now cover idempotent replay, conflict responses, restart-safe persistence, and authenticated delta pulls. `pnpm --filter @upi-spend-tracker/contracts typecheck`, `pnpm --filter @upi-spend-tracker/contracts test`, `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28. The canonical backlog ticket remains `in_progress` because its done-when still requires mobile integration tests, which were not available in this environment.
+
 ### API-002 — Implement Guest Session And Multi-Device Pairing APIs
 
 - **Status:** completed

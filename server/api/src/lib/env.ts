@@ -3,11 +3,13 @@ import path from 'node:path';
 const DEFAULT_API_HOST = '0.0.0.0';
 const DEFAULT_API_PORT = 3000;
 const DEFAULT_SESSION_STORE_FILE = path.resolve(process.cwd(), '.local', 'sessions-store.json');
+const DEFAULT_SYNC_STORE_FILE = path.resolve(process.cwd(), '.local', 'sync-store.json');
 
 export interface ApiRuntimeConfig {
   host: string;
   port: number;
   sessionStoreFile: string;
+  syncStoreFile: string;
 }
 
 function parsePort(value: string | undefined): number {
@@ -41,5 +43,6 @@ export function getApiRuntimeConfig(env: NodeJS.ProcessEnv = process.env): ApiRu
     host: env.HOST ?? DEFAULT_API_HOST,
     port: parsePort(env.PORT),
     sessionStoreFile: parseSessionStoreFile(env.API_SESSION_STORE_FILE),
+    syncStoreFile: parseSessionStoreFile(env.API_SYNC_STORE_FILE ?? DEFAULT_SYNC_STORE_FILE),
   };
 }

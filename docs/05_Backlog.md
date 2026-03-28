@@ -851,7 +851,7 @@ Auth flows stable for beta.
 - **Story points:** 8
 - **Goal:** Make offline-first multi-device sync reliable on bad networks.
 - **Dependencies:** API-001, SET-004
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-28 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Added shared sync DTOs plus a modular Fastify `sync` module with authenticated push/pull routes, idempotency-key replay handling, op-level replay protection, machine-readable conflict records, cursor-based delta pull, and a durable file-backed sync repository. Focused contract, repository, service, and route tests cover idempotent replay, optimistic-concurrency conflicts, restart-safe persistence, and authenticated delta pulls; `pnpm --filter @upi-spend-tracker/contracts typecheck`, `pnpm --filter @upi-spend-tracker/contracts test`, `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-28. Status remains `in_progress` because the backlog done-when still requires mobile integration tests, which were not available in this environment.
 
 **Description**  
 Create batched push endpoint for outbox operations and pull endpoint for cursor-based delta sync. Support idempotency keys, conflict detection, entity versions, and partial failure reporting.
