@@ -38,6 +38,7 @@ import {
   splitMerchantAlias,
   splitTransaction,
   summarizeBudgets,
+  summarizeInsights,
   summarizeCategoryUsage,
   summarizeSplitDraft,
   summarizeDashboard,
@@ -1611,5 +1612,218 @@ describe('spend-tracker dashboard summary', () => {
         ],
       }),
     );
+  });
+
+  it('builds local insights with prior-period comparison across all report dimensions', () => {
+    const transactions: Transaction[] = [
+      {
+        amountMinor: 45_000,
+        capturedAt: '2026-03-22T09:10:00+05:30',
+        id: 'txn_current_groceries',
+        items: [
+          {
+            amountMinor: 45_000,
+            categoryId: 'groceries',
+            id: 'txn_current_groceries_item_1',
+            label: 'Weekly groceries',
+          },
+        ],
+        merchant: 'Blinkit',
+        sourceApp: 'PhonePe',
+        status: 'classified',
+      },
+      {
+        amountMinor: 18_000,
+        capturedAt: '2026-03-20T20:15:00+05:30',
+        id: 'txn_current_dinner',
+        items: [
+          {
+            amountMinor: 18_000,
+            categoryId: 'food_drink',
+            id: 'txn_current_dinner_item_1',
+            label: 'Dinner',
+          },
+        ],
+        merchant: 'Pizza Bakery',
+        sourceApp: 'Google Pay',
+        status: 'classified',
+      },
+      {
+        amountMinor: 9_500,
+        capturedAt: '2026-03-19T07:45:00+05:30',
+        id: 'txn_current_unreviewed',
+        items: [],
+        merchant: 'Unknown Merchant',
+        sourceApp: 'Google Pay',
+        status: 'uncategorized',
+      },
+      {
+        amountMinor: 30_000,
+        capturedAt: '2026-02-18T09:00:00+05:30',
+        id: 'txn_prior_groceries',
+        items: [
+          {
+            amountMinor: 30_000,
+            categoryId: 'groceries',
+            id: 'txn_prior_groceries_item_1',
+            label: 'Weekly groceries',
+          },
+        ],
+        merchant: 'Blinkit',
+        sourceApp: 'PhonePe',
+        status: 'classified',
+      },
+      {
+        amountMinor: 11_000,
+        capturedAt: '2026-02-16T20:00:00+05:30',
+        id: 'txn_prior_transport',
+        items: [
+          {
+            amountMinor: 11_000,
+            categoryId: 'transport',
+            id: 'txn_prior_transport_item_1',
+            label: 'Metro recharge',
+          },
+        ],
+        merchant: 'Metro Card',
+        sourceApp: 'Paytm',
+        status: 'classified',
+      },
+    ];
+
+    const report = summarizeInsights(
+      transactions,
+      {
+        cycleStartDay: 1,
+        now: '2026-03-25T10:00:00+05:30',
+      },
+      getDefaultCategories(),
+    );
+
+    expect(report.comparison.currentSpendMinor).toBe(72_500);
+    expect(report.comparison.priorSpendMinor).toBe(41_000);
+    expect(report.comparison.deltaMinor).toBe(31_500);
+    expect(report.sections).toHaveLength(5);
+
+    const categorySection = report.sections.find(
+      (section) => section.dimension === 'category',
+    );
+    const merchantSection = report.sections.find(
+      (section) => section.dimension === 'merchant',
+    );
+    const timeOfDaySection = report.sections.find(
+      (section) => section.dimension === 'time_of_day',
+    );
+    const dayOfWeekSection = report.sections.find(
+      (section) => section.dimension === 'day_of_week',
+    );
+
+    expect(categorySection?.rows[0]).toEqual(
+      expect.objectContaining({
+        currentAmountMinor: 45_000,
+        deltaMinor: 15_000,
+        label: 'Groceries',
+        priorAmountMinor: 30_000,
+        trend: 'up',
+      }),
+    );
+    expect(categorySection?.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          currentAmountMinor: 9_500,
+          label: 'Needs review',
+        }),
+      ]),
+    );
+    expect(merchantSection?.rows[0]).toEqual(
+      expect.objectContaining({
+        currentAmountMinor: 45_000,
+        label: 'Blinkit',
+      }),
+    );
+    expect(timeOfDaySection?.rows.map((row) => row.label)).toEqual([
+      'Morning',
+      'Afternoon',
+      'Evening',
+      'Night',
+    ]);
+    expect(dayOfWeekSection?.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          currentAmountMinor: 18_000,
+        }),
+      ]),
+    );
+  });
+
+  it('renders optimized local insights for 10k transactions within the expected budget', () => {
+    const transactions: Transaction[] = Array.from({ length: 10_000 }, (_, index) => {
+      const isCurrentCycle = index < 5_000;
+      const dayOffset = index % 28;
+      const categoryId = index % 3 === 0 ? 'groceries' : index % 3 === 1 ? 'food_drink' : 'transport';
+      const merchant =
+        index % 4 === 0
+          ? 'Blinkit'
+          : index % 4 === 1
+            ? 'Blue Tokai'
+            : index % 4 === 2
+              ? 'Metro Card'
+              : 'Big Basket';
+
+      return {
+        amountMinor: 5_000 + ((index % 7) * 1_000),
+        capturedAt: isCurrentCycle
+          ? `2026-03-${String((dayOffset % 28) + 1).padStart(2, '0')}T0${index % 9}:15:00+05:30`
+          : `2026-02-${String((dayOffset % 28) + 1).padStart(2, '0')}T1${index % 8}:45:00+05:30`,
+        id: `txn_insight_scale_${index}`,
+        items: [
+          {
+            amountMinor: 5_000 + ((index % 7) * 1_000),
+            categoryId,
+            id: `txn_insight_scale_${index}_item_1`,
+            label:
+              categoryId === 'groceries'
+                ? 'Daily groceries'
+                : categoryId === 'food_drink'
+                  ? 'Coffee break'
+                  : 'Metro recharge',
+          },
+        ],
+        merchant,
+        sourceApp: index % 2 === 0 ? 'PhonePe' : 'Google Pay',
+        status: 'classified',
+      };
+    });
+
+    const startedAt = performance.now();
+    const report = summarizeInsights(
+      transactions,
+      {
+        cycleStartDay: 1,
+        maxRowsPerSection: 5,
+        now: '2026-03-28T10:00:00+05:30',
+      },
+      getDefaultCategories(),
+    );
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(report.comparison.currentTransactionCount).toBe(5_000);
+    expect(report.comparison.priorTransactionCount).toBe(5_000);
+    expect(
+      report.sections.find((section) => section.dimension === 'item')?.rows.length,
+    ).toBeLessThanOrEqual(5);
+    expect(
+      report.sections.find((section) => section.dimension === 'category')?.rows.length,
+    ).toBeLessThanOrEqual(5);
+    expect(
+      report.sections.find((section) => section.dimension === 'merchant')?.rows.length,
+    ).toBeLessThanOrEqual(5);
+    expect(
+      report.sections.find((section) => section.dimension === 'time_of_day')?.rows.length,
+    ).toBe(4);
+    expect(
+      report.sections.find((section) => section.dimension === 'day_of_week')?.rows.length,
+    ).toBe(7);
+    expect(elapsedMs).toBeLessThan(750);
   });
 });

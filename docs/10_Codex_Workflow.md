@@ -127,16 +127,18 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `INT-007 — Implement rollups and insights for item, category, merchant, time-of-day, and day-of-week`
+- `API-002 — Implement guest session and multi-device pairing APIs`
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `CAP-003` and `CAP-004` both remain blocked on connected-Android validation because the connected device still rejects debug APK installation with `INSTALL_FAILED_USER_RESTRICTED`.
+- `CAP-003` and `CAP-004` both remain blocked on connected-Android validation because `adb devices` is empty again in the current environment.
 - `UX-005` remains `in_progress`, but its remaining acceptance is external QA/design signoff rather than repo-side implementation.
 - `UX-007` is not yet actionable because it depends on `CAP-007`.
+- `INT-008` is not yet actionable because it depends on `UX-007`.
 - `INT-003` is now done with deterministic local rules, SQLite-backed rule persistence, explanation metadata, and explicit auto-apply only for user-approved matches in the client.
 - `INT-004` is now done with a weighted local history ranker that aggregates repeated confirmations, uses recency and frequency, and exposes explainable suggestion factors without silently auto-applying heuristics.
 - `INT-005` is now repo-side implemented with canonical local budget math and Home integration, but it remains `in_progress` in backlog tracking because the ticket's done-when still requires product and QA acceptance that was not available in this environment.
 - `INT-006` is now done with local budget list/create/edit UX, persisted quiet-mode-aware threshold scheduling and review state, and Home integration through the canonical budget engine.
-- `INT-007` is now the earliest unblocked `todo` ticket with satisfied dependencies.
+- `INT-007` is now done with optimized local rollups, prior-period comparison, and an in-app insights screen validated on a 10k local dataset.
+- `API-002` is now the earliest unblocked `todo` ticket with satisfied dependencies because `API-001` is done and its remaining scope is repo-side work rather than blocked environment validation.

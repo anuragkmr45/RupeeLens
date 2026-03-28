@@ -582,6 +582,22 @@ describe('App', () => {
     );
   });
 
+  it('opens local insights from Home and shows prior-period rollups', async () => {
+    const screen = await renderApp();
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+    expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Insights' }));
+
+    expect(await screen.findByText('See where the current cycle is moving')).toBeTruthy();
+    expect(screen.getByText('Trend cards')).toBeTruthy();
+    expect(screen.getByText('Category rollup')).toBeTruthy();
+    expect(screen.getByText('Merchant rollup')).toBeTruthy();
+    expect(screen.getByText('Time-of-day trend')).toBeTruthy();
+    expect(screen.getByText('Day-of-week trend')).toBeTruthy();
+  });
+
   it('shows stale remote-config fallback details and disables remotely paused actions', async () => {
     mockedBootstrapConfigModule.hydrateBootstrapConfigCache.mockResolvedValue(
       buildMockBootstrapState({

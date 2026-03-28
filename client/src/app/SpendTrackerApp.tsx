@@ -75,6 +75,7 @@ import {
   SPLIT_REMAINDER_OPTIONS,
   sortTransactionsByCapturedAtDesc,
   splitMerchantAlias,
+  summarizeInsights,
   summarizeCategoryUsage,
   summarizeBudgets,
   summarizeSplitDraft,
@@ -94,6 +95,9 @@ import {
   type ClassificationDraft,
   type ClassificationSuggestion,
   type DashboardSummary,
+  type InsightRow,
+  type InsightSection,
+  type InsightsReport,
   type InboxFilters,
   type InboxReviewItem,
   type MerchantAliasRecord,
@@ -154,6 +158,7 @@ type Screen =
   | 'detail'
   | 'home'
   | 'inbox'
+  | 'insights'
   | 'manual'
   | 'merchants'
   | 'onboarding'
@@ -383,6 +388,16 @@ export function SpendTrackerApp() {
     },
     categories,
   );
+  const insightsReport =
+    screen === 'insights'
+      ? summarizeInsights(
+          transactions,
+          {
+            cycleStartDay: getBudgetCycleStartDay(onboardingPreferences.budgetCycleId),
+          },
+          categories,
+        )
+      : null;
   const categoryUsage = summarizeCategoryUsage(categories, transactions);
   const activeTransaction = activeTransactionId
     ? getTransactionById(transactions, activeTransactionId)
@@ -833,6 +848,10 @@ export function SpendTrackerApp() {
 
   function handleOpenTimeline() {
     setScreen('timeline');
+  }
+
+  function handleOpenInsights() {
+    setScreen('insights');
   }
 
   function handleOpenMerchants() {
@@ -1378,6 +1397,14 @@ export function SpendTrackerApp() {
             timelineDayGroups={timelineDayGroups}
             timelineSourceAppOptions={timelineSourceAppOptions}
           />
+        ) : !isHydrating && screen === 'insights' && insightsReport ? (
+          <InsightsScreen
+            budgetCycleLabel={getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}
+            onBack={() => setScreen('home')}
+            onOpenTimeline={handleOpenTimeline}
+            onSelectTab={(nextScreen) => setScreen(nextScreen)}
+            report={insightsReport}
+          />
         ) : !isHydrating && screen === 'categories' ? (
           <CategoryManagementScreen
             categories={categories}
@@ -1519,6 +1546,7 @@ export function SpendTrackerApp() {
                 onOpenBudgets={() => handleOpenBudgets('browse')}
                 onOpenCategories={handleOpenCategories}
                 onOpenInbox={() => setScreen('inbox')}
+                onOpenInsights={handleOpenInsights}
                 onOpenManualEntry={() => handleOpenManualEntry('home')}
                 onOpenMerchants={handleOpenMerchants}
                 onOpenNotificationAccess={handleOpenNotificationAccess}
@@ -1832,6 +1860,7 @@ function HomeScreen({
   onOpenBudgets,
   onOpenCategories,
   onOpenInbox,
+  onOpenInsights,
   onOpenManualEntry,
   onOpenMerchants,
   onOpenNotificationAccess,
@@ -1857,6 +1886,7 @@ function HomeScreen({
   onOpenBudgets: () => void;
   onOpenCategories: () => void;
   onOpenInbox: () => void;
+  onOpenInsights: () => void;
   onOpenManualEntry: () => void;
   onOpenMerchants: () => void;
   onOpenNotificationAccess: () => Promise<void>;
@@ -1915,8 +1945,8 @@ function HomeScreen({
         <Text style={styles.cardTitle}>Budget progress</Text>
         <Text style={styles.bodyCopy}>
           Current period: {getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}. Home now uses
-          the canonical local budget engine for cycle math, projections, and threshold state while
-          budget setup screens still land in a later ticket.
+          the canonical local budget engine for cycle math, projections, and threshold state, and
+          the Budgets screen now owns local setup, edits, and threshold review.
         </Text>
         <Text style={styles.amountLabel}>
           {formatCurrency(summary.totalSpendMinor)} of {formatCurrency(summary.budgetTargetMinor)}
@@ -1948,9 +1978,9 @@ function HomeScreen({
         <Text style={styles.cardTitle}>Quick actions</Text>
         <Text style={styles.bodyCopy}>
           Manual add and Inbox are live now. Budget creation, search, and showcase access follow
-          the active remote flags so staged rollout does not require a native release. Categories
-          and merchants are now managed locally and reused across classify, split, manual add,
-          timeline, and detail.
+          the active remote flags so staged rollout does not require a native release. Categories,
+          merchants, and local insights are all derived on device and reused across classify,
+          split, manual add, timeline, and detail.
         </Text>
         <View style={styles.helperStack}>
           <Text style={styles.helperCopy}>
@@ -1961,6 +1991,9 @@ function HomeScreen({
           </Text>
           <Text style={styles.helperCopy}>
             Search: {searchEnabled ? 'enabled for this channel' : 'disabled remotely'}
+          </Text>
+          <Text style={styles.helperCopy}>
+            Insights: local rollups compare the current cycle with the prior one
           </Text>
           <Text style={styles.helperCopy}>
             Categories: {categories.length} available in this local profile
@@ -1987,6 +2020,7 @@ function HomeScreen({
             onPress={onOpenTimeline}
             tone="secondary"
           />
+          <ActionButton label="Insights" onPress={onOpenInsights} tone="secondary" />
         </View>
       </SectionCard>
 
@@ -2979,6 +3013,166 @@ function InboxScreen({
       updateCellsBatchingPeriod={50}
       windowSize={7}
     />
+  );
+}
+
+function InsightsScreen({
+  budgetCycleLabel,
+  onBack,
+  onOpenTimeline,
+  onSelectTab,
+  report,
+}: {
+  budgetCycleLabel: string;
+  onBack: () => void;
+  onOpenTimeline: () => void;
+  onSelectTab: (screen: PrimaryScreen) => void;
+  report: InsightsReport;
+}) {
+  const topCategory = getInsightSectionTopRow(report.sections, 'category');
+  const topMerchant = getInsightSectionTopRow(report.sections, 'merchant');
+  const topTimeOfDay = getInsightSectionTopRow(report.sections, 'time_of_day');
+  const topWeekday = getInsightSectionTopRow(report.sections, 'day_of_week');
+
+  return (
+    <ScrollView contentContainerStyle={styles.scrollContent}>
+      <View style={styles.stack}>
+        <View style={styles.tabs}>
+          <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
+          <TabButton isActive={false} label="Inbox" onPress={() => onSelectTab('inbox')} />
+          <TabButton isActive={false} label="Timeline" onPress={() => onSelectTab('timeline')} />
+        </View>
+
+        <SectionCard accentColor={colors.accentSoft}>
+          <Text style={styles.sectionEyebrow}>Insights</Text>
+          <Text style={styles.sectionTitle}>See where the current cycle is moving</Text>
+          <Text style={styles.bodyCopy}>
+            These rollups stay on device. The current {budgetCycleLabel.toLowerCase()} is compared
+            against the immediately prior cycle using the same local transaction set.
+          </Text>
+          <View style={styles.helperStack}>
+            <Text style={styles.helperCopy}>
+              Current: {formatInsightDateRange(report.comparison.currentCycleStart, report.comparison.currentCycleEnd)}
+            </Text>
+            <Text style={styles.helperCopy}>
+              Prior: {formatInsightDateRange(report.comparison.priorCycleStart, report.comparison.priorCycleEnd)}
+            </Text>
+          </View>
+          <View style={styles.actionRow}>
+            <ActionButton label="Back to home" onPress={onBack} tone="secondary" />
+            <ActionButton label="Search timeline" onPress={onOpenTimeline} tone="secondary" />
+          </View>
+        </SectionCard>
+
+        <View style={styles.metricGrid}>
+          <MetricCard
+            label="Current spend"
+            value={formatCurrency(report.comparison.currentSpendMinor)}
+          />
+          <MetricCard
+            label="Prior spend"
+            value={formatCurrency(report.comparison.priorSpendMinor)}
+          />
+          <MetricCard
+            label="Delta"
+            value={formatInsightDeltaCompact(report.comparison.deltaMinor)}
+          />
+          <MetricCard
+            label="Current txns"
+            value={`${report.comparison.currentTransactionCount}`}
+          />
+        </View>
+
+        <SectionCard accentColor={colors.panelWarm}>
+          <Text style={styles.cardTitle}>Trend cards</Text>
+          <Text style={styles.bodyCopy}>
+            Quick local signals for the strongest spending shifts in this cycle versus the one
+            before it.
+          </Text>
+          <View style={styles.metricGrid}>
+            <MetricCard
+              label="Top category"
+              value={topCategory ? topCategory.label : 'No data yet'}
+            />
+            <MetricCard
+              label="Top merchant"
+              value={topMerchant ? topMerchant.label : 'No data yet'}
+            />
+            <MetricCard
+              label="Peak time"
+              value={topTimeOfDay ? topTimeOfDay.label : 'No data yet'}
+            />
+            <MetricCard
+              label="Peak day"
+              value={topWeekday ? topWeekday.label : 'No data yet'}
+            />
+          </View>
+          <View style={styles.helperStack}>
+            <Text style={styles.helperCopy}>
+              Overall change: {formatInsightDelta(report.comparison.deltaMinor)}
+            </Text>
+            <Text style={styles.helperCopy}>
+              Prior-cycle comparison:{' '}
+              {report.comparison.deltaRatio === null
+                ? 'No prior-cycle baseline yet'
+                : `${Math.round(report.comparison.deltaRatio * 100)}% vs prior`}
+            </Text>
+          </View>
+        </SectionCard>
+
+        {report.sections.map((section) => (
+          <InsightSectionCard key={section.dimension} section={section} />
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+function InsightSectionCard({ section }: { section: InsightSection }) {
+  return (
+    <SectionCard accentColor={colors.panel}>
+      <Text style={styles.cardTitle}>{section.title}</Text>
+      <Text style={styles.bodyCopy}>{section.description}</Text>
+      <View style={styles.helperStack}>
+        <Text style={styles.helperCopy}>
+          Current: {formatCurrency(section.currentTotalMinor)} · Prior:{' '}
+          {formatCurrency(section.priorTotalMinor)}
+        </Text>
+        <Text style={styles.helperCopy}>
+          {section.totalRowCount > section.rows.length
+            ? `Showing top ${section.rows.length} of ${section.totalRowCount} local buckets.`
+            : `${section.totalRowCount} local bucket${section.totalRowCount === 1 ? '' : 's'} in this view.`}
+        </Text>
+      </View>
+
+      {section.rows.length > 0 ? (
+        <View style={styles.listStack}>
+          {section.rows.map((row) => (
+            <ListItem
+              key={row.id}
+              subtitle={`${formatInsightShare(row.shareRatio)} of current spend · ${row.currentMatchCount} match${row.currentMatchCount === 1 ? '' : 'es'}`}
+              title={row.label}
+              trailing={<Text style={styles.transactionAmount}>{formatCurrency(row.currentAmountMinor)}</Text>}
+            >
+              <View style={styles.helperStack}>
+                <Text style={styles.helperCopy}>
+                  Prior: {formatCurrency(row.priorAmountMinor)} · {formatInsightDelta(row.deltaMinor)}
+                </Text>
+                <Chip
+                  label={getInsightTrendLabel(row)}
+                  tone={getInsightTrendTone(row)}
+                />
+              </View>
+            </ListItem>
+          ))}
+        </View>
+      ) : (
+        <EmptyState
+          description="Classify or add more local spends to unlock this rollup."
+          title="No local data yet"
+        />
+      )}
+    </SectionCard>
   );
 }
 
@@ -5155,6 +5349,72 @@ function getBudgetThresholdStateLabel(
     case 'on_track':
     default:
       return 'On track';
+  }
+}
+
+function getInsightSectionTopRow(
+  sections: InsightSection[],
+  dimension: InsightSection['dimension'],
+): InsightRow | null {
+  return sections.find((section) => section.dimension === dimension)?.rows[0] ?? null;
+}
+
+function formatInsightDateRange(start: string, end: string): string {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const inclusiveEndDate = new Date(endDate.getTime() - 1);
+
+  return `${formatInsightDate(startDate)} to ${formatInsightDate(inclusiveEndDate)}`;
+}
+
+function formatInsightDate(date: Date): string {
+  const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthLabel = monthLabels[date.getMonth()] ?? 'Date';
+
+  return `${monthLabel} ${date.getDate()}`;
+}
+
+function formatInsightDelta(deltaMinor: number): string {
+  if (deltaMinor === 0) {
+    return 'Flat vs prior';
+  }
+
+  return `${deltaMinor > 0 ? '+' : '-'}${formatCurrency(Math.abs(deltaMinor))} vs prior`;
+}
+
+function formatInsightDeltaCompact(deltaMinor: number): string {
+  if (deltaMinor === 0) {
+    return 'Flat';
+  }
+
+  return `${deltaMinor > 0 ? '+' : '-'}${formatCurrency(Math.abs(deltaMinor))}`;
+}
+
+function formatInsightShare(shareRatio: number): string {
+  return `${Math.round(shareRatio * 100)}%`;
+}
+
+function getInsightTrendLabel(row: InsightRow): string {
+  switch (row.trend) {
+    case 'up':
+      return row.priorAmountMinor === 0 ? 'New this cycle' : 'Up vs prior';
+    case 'down':
+      return 'Down vs prior';
+    case 'flat':
+    default:
+      return 'Flat vs prior';
+  }
+}
+
+function getInsightTrendTone(row: InsightRow): 'default' | 'pending' | 'ready' {
+  switch (row.trend) {
+    case 'up':
+      return 'ready';
+    case 'down':
+      return 'pending';
+    case 'flat':
+    default:
+      return 'default';
   }
 }
 

@@ -329,6 +329,61 @@ export interface BudgetThresholdAlert {
   thresholdState: BudgetThresholdState;
 }
 
+export type InsightDimension =
+  | 'item'
+  | 'category'
+  | 'merchant'
+  | 'time_of_day'
+  | 'day_of_week';
+export type InsightTrendDirection = 'up' | 'down' | 'flat';
+
+export interface InsightRow {
+  currentAmountMinor: number;
+  currentMatchCount: number;
+  deltaMinor: number;
+  id: string;
+  label: string;
+  priorAmountMinor: number;
+  priorMatchCount: number;
+  shareRatio: number;
+  trend: InsightTrendDirection;
+}
+
+export interface InsightSection {
+  currentTotalMinor: number;
+  description: string;
+  dimension: InsightDimension;
+  priorTotalMinor: number;
+  rows: InsightRow[];
+  title: string;
+  totalRowCount: number;
+}
+
+export interface InsightsComparison {
+  currentCycleEnd: string;
+  currentCycleStart: string;
+  currentSpendMinor: number;
+  currentTransactionCount: number;
+  deltaMinor: number;
+  deltaRatio: number | null;
+  priorCycleEnd: string;
+  priorCycleStart: string;
+  priorSpendMinor: number;
+  priorTransactionCount: number;
+}
+
+export interface InsightsReport {
+  comparison: InsightsComparison;
+  generatedAt: string;
+  sections: InsightSection[];
+}
+
+export interface InsightsOptions {
+  cycleStartDay: number;
+  maxRowsPerSection?: number;
+  now?: string;
+}
+
 interface HistorySuggestionAccumulator {
   amountBucketMatches: number;
   categoryId: CategoryId;
@@ -345,6 +400,15 @@ interface HistoryObservationMatch {
   hourBucketMatched: boolean;
   merchantMatched: boolean;
   weekdayMatched: boolean;
+}
+
+interface InsightAccumulator {
+  currentAmountMinor: number;
+  currentMatchCount: number;
+  id: string;
+  label: string;
+  priorAmountMinor: number;
+  priorMatchCount: number;
 }
 
 export interface DashboardSummaryOptions {
@@ -2749,6 +2813,153 @@ export function markBudgetAlertsReviewed(
   });
 }
 
+export function summarizeInsights(
+  transactions: Transaction[],
+  options: InsightsOptions,
+  categories: CategoryOption[] = categoryOptions,
+): InsightsReport {
+  const normalizedCategories = normalizeCategories(categories);
+  const anchorDate = getBudgetAnchorDate(transactions, options.now);
+  const { currentCycleEnd, currentCycleStart, priorCycleEnd, priorCycleStart } =
+    getInsightsComparisonWindow(anchorDate, options.cycleStartDay);
+  const maxRowsPerSection = Math.max(Math.round(options.maxRowsPerSection ?? 5), 1);
+  const accumulators: Record<InsightDimension, Map<string, InsightAccumulator>> = {
+    category: new Map<string, InsightAccumulator>(),
+    day_of_week: new Map<string, InsightAccumulator>(),
+    item: new Map<string, InsightAccumulator>(),
+    merchant: new Map<string, InsightAccumulator>(),
+    time_of_day: new Map<string, InsightAccumulator>(),
+  };
+
+  let currentSpendMinor = 0;
+  let currentTransactionCount = 0;
+  let priorSpendMinor = 0;
+  let priorTransactionCount = 0;
+
+  for (const transaction of transactions) {
+    if (transaction.status === 'skipped') {
+      continue;
+    }
+
+    const capturedAt = new Date(transaction.capturedAt);
+    const period =
+      capturedAt >= currentCycleStart && capturedAt < currentCycleEnd
+        ? 'current'
+        : capturedAt >= priorCycleStart && capturedAt < priorCycleEnd
+          ? 'prior'
+          : null;
+
+    if (!period) {
+      continue;
+    }
+
+    if (period === 'current') {
+      currentSpendMinor += transaction.amountMinor;
+      currentTransactionCount += 1;
+    } else {
+      priorSpendMinor += transaction.amountMinor;
+      priorTransactionCount += 1;
+    }
+
+    addInsightAccumulatorAmount(
+      accumulators.merchant,
+      getMerchantInsightKey(transaction),
+      transaction.merchant,
+      transaction.amountMinor,
+      period,
+    );
+
+    const timeOfDay = getTimeOfDayInsightDescriptor(capturedAt);
+    addInsightAccumulatorAmount(
+      accumulators.time_of_day,
+      timeOfDay.id,
+      timeOfDay.label,
+      transaction.amountMinor,
+      period,
+    );
+
+    const weekday = getWeekdayInsightDescriptor(capturedAt);
+    addInsightAccumulatorAmount(
+      accumulators.day_of_week,
+      weekday.id,
+      weekday.label,
+      transaction.amountMinor,
+      period,
+    );
+
+    let classifiedMinor = 0;
+
+    for (const item of transaction.items) {
+      classifiedMinor += item.amountMinor;
+
+      addInsightAccumulatorAmount(
+        accumulators.item,
+        getItemInsightKey(item.label),
+        item.label.trim() || 'Needs review',
+        item.amountMinor,
+        period,
+      );
+      addInsightAccumulatorAmount(
+        accumulators.category,
+        `category:${item.categoryId}`,
+        getCategoryLabel(item.categoryId, normalizedCategories, 'Needs review'),
+        item.amountMinor,
+        period,
+      );
+    }
+
+    const unresolvedMinor =
+      transaction.items.length === 0
+        ? transaction.amountMinor
+        : Math.max(transaction.amountMinor - classifiedMinor, 0);
+
+    if (unresolvedMinor > 0) {
+      addInsightAccumulatorAmount(
+        accumulators.item,
+        'item:needs_review',
+        'Needs review',
+        unresolvedMinor,
+        period,
+      );
+      addInsightAccumulatorAmount(
+        accumulators.category,
+        'category:needs_review',
+        'Needs review',
+        unresolvedMinor,
+        period,
+      );
+    }
+  }
+
+  const currentDenominator = Math.max(currentSpendMinor, 1);
+  const sections: InsightSection[] = INSIGHT_DIMENSIONS.map((dimension) =>
+    buildInsightSection(
+      dimension,
+      accumulators[dimension],
+      currentDenominator,
+      maxRowsPerSection,
+    ),
+  );
+
+  return {
+    comparison: {
+      currentCycleEnd: currentCycleEnd.toISOString(),
+      currentCycleStart: currentCycleStart.toISOString(),
+      currentSpendMinor,
+      currentTransactionCount,
+      deltaMinor: currentSpendMinor - priorSpendMinor,
+      deltaRatio:
+        priorSpendMinor > 0 ? (currentSpendMinor - priorSpendMinor) / priorSpendMinor : null,
+      priorCycleEnd: priorCycleEnd.toISOString(),
+      priorCycleStart: priorCycleStart.toISOString(),
+      priorSpendMinor,
+      priorTransactionCount,
+    },
+    generatedAt: options.now ?? anchorDate.toISOString(),
+    sections,
+  };
+}
+
 function getPrimaryDashboardBudgetSummary(
   transactions: Transaction[],
   options: DashboardSummaryOptions,
@@ -3024,6 +3235,43 @@ function matchesTimelineDateFilter(
   return transactionDate < thirtyDaysAgoStart;
 }
 
+const INSIGHT_DIMENSIONS: InsightDimension[] = [
+  'category',
+  'merchant',
+  'item',
+  'time_of_day',
+  'day_of_week',
+];
+
+const INSIGHT_METADATA: Record<
+  InsightDimension,
+  { description: string; title: string }
+> = {
+  category: {
+    description: 'How current-cycle spend distributes across saved categories.',
+    title: 'Category rollup',
+  },
+  day_of_week: {
+    description: 'Which weekdays drive the most spend in the current cycle.',
+    title: 'Day-of-week trend',
+  },
+  item: {
+    description: 'Which saved items take the biggest share of current-cycle spend.',
+    title: 'Item rollup',
+  },
+  merchant: {
+    description: 'Where the current cycle is concentrating spend across merchants.',
+    title: 'Merchant rollup',
+  },
+  time_of_day: {
+    description: 'When the current cycle tends to concentrate spend during the day.',
+    title: 'Time-of-day trend',
+  },
+};
+
+const INSIGHT_TIME_OF_DAY_ORDER = ['morning', 'afternoon', 'evening', 'night'];
+const INSIGHT_DAY_OF_WEEK_ORDER = ['0', '1', '2', '3', '4', '5', '6'];
+
 function getBudgetAnchorDate(transactions: Transaction[], now?: string): Date {
   const sortedTransactions = sortTransactionsByCapturedAtDesc(transactions);
 
@@ -3040,6 +3288,239 @@ function getTransactionsInRange(
 
     return capturedAt >= cycleStart && capturedAt < cycleEnd;
   });
+}
+
+function getInsightsComparisonWindow(
+  anchorDate: Date,
+  cycleStartDay: number,
+): {
+  currentCycleEnd: Date;
+  currentCycleStart: Date;
+  priorCycleEnd: Date;
+  priorCycleStart: Date;
+} {
+  const { cycleEnd: currentCycleEnd, cycleStart: currentCycleStart } = getCycleWindow(
+    anchorDate,
+    clampBudgetStartDay(cycleStartDay),
+  );
+  const previousAnchor = new Date(currentCycleStart.getTime() - 1);
+  const { cycleEnd: priorCycleEnd, cycleStart: priorCycleStart } = getCycleWindow(
+    previousAnchor,
+    clampBudgetStartDay(cycleStartDay),
+  );
+
+  return {
+    currentCycleEnd,
+    currentCycleStart,
+    priorCycleEnd,
+    priorCycleStart,
+  };
+}
+
+function addInsightAccumulatorAmount(
+  accumulator: Map<string, InsightAccumulator>,
+  id: string,
+  label: string,
+  amountMinor: number,
+  period: 'current' | 'prior',
+): void {
+  if (amountMinor <= 0) {
+    return;
+  }
+
+  const existingAccumulator = accumulator.get(id);
+
+  if (existingAccumulator) {
+    if (period === 'current') {
+      existingAccumulator.currentAmountMinor += amountMinor;
+      existingAccumulator.currentMatchCount += 1;
+    } else {
+      existingAccumulator.priorAmountMinor += amountMinor;
+      existingAccumulator.priorMatchCount += 1;
+    }
+
+    return;
+  }
+
+  accumulator.set(id, {
+    currentAmountMinor: period === 'current' ? amountMinor : 0,
+    currentMatchCount: period === 'current' ? 1 : 0,
+    id,
+    label,
+    priorAmountMinor: period === 'prior' ? amountMinor : 0,
+    priorMatchCount: period === 'prior' ? 1 : 0,
+  });
+}
+
+function buildInsightSection(
+  dimension: InsightDimension,
+  accumulator: Map<string, InsightAccumulator>,
+  currentDenominator: number,
+  maxRowsPerSection: number,
+): InsightSection {
+  const entries = [...accumulator.values()];
+
+  if (dimension === 'time_of_day') {
+    for (const bucket of INSIGHT_TIME_OF_DAY_ORDER) {
+      const id = `time_of_day:${bucket}`;
+
+      if (!accumulator.has(id)) {
+        entries.push({
+          currentAmountMinor: 0,
+          currentMatchCount: 0,
+          id,
+          label: getTimeOfDayInsightLabel(bucket),
+          priorAmountMinor: 0,
+          priorMatchCount: 0,
+        });
+      }
+    }
+  }
+
+  if (dimension === 'day_of_week') {
+    for (const weekday of INSIGHT_DAY_OF_WEEK_ORDER) {
+      const id = `day_of_week:${weekday}`;
+
+      if (!accumulator.has(id)) {
+        entries.push({
+          currentAmountMinor: 0,
+          currentMatchCount: 0,
+          id,
+          label: getWeekdayInsightLabel(Number(weekday)),
+          priorAmountMinor: 0,
+          priorMatchCount: 0,
+        });
+      }
+    }
+  }
+
+  const rows = entries.map((entry) => ({
+    currentAmountMinor: entry.currentAmountMinor,
+    currentMatchCount: entry.currentMatchCount,
+    deltaMinor: entry.currentAmountMinor - entry.priorAmountMinor,
+    id: entry.id,
+    label: entry.label,
+    priorAmountMinor: entry.priorAmountMinor,
+    priorMatchCount: entry.priorMatchCount,
+    shareRatio: entry.currentAmountMinor / currentDenominator,
+    trend: getInsightTrendDirection(entry.currentAmountMinor, entry.priorAmountMinor),
+  }));
+  rows.sort((left, right) => compareInsightRows(dimension, left, right));
+
+  const metadata = INSIGHT_METADATA[dimension];
+  const visibleRows =
+    dimension === 'time_of_day' || dimension === 'day_of_week'
+      ? rows
+      : rows.slice(0, maxRowsPerSection);
+
+  return {
+    currentTotalMinor: rows.reduce((sum, row) => sum + row.currentAmountMinor, 0),
+    description: metadata.description,
+    dimension,
+    priorTotalMinor: rows.reduce((sum, row) => sum + row.priorAmountMinor, 0),
+    rows: visibleRows,
+    title: metadata.title,
+    totalRowCount: rows.length,
+  };
+}
+
+function compareInsightRows(
+  dimension: InsightDimension,
+  left: InsightRow,
+  right: InsightRow,
+): number {
+  if (dimension === 'time_of_day') {
+    return (
+      INSIGHT_TIME_OF_DAY_ORDER.indexOf(left.id.replace('time_of_day:', '')) -
+      INSIGHT_TIME_OF_DAY_ORDER.indexOf(right.id.replace('time_of_day:', ''))
+    );
+  }
+
+  if (dimension === 'day_of_week') {
+    return (
+      INSIGHT_DAY_OF_WEEK_ORDER.indexOf(left.id.replace('day_of_week:', '')) -
+      INSIGHT_DAY_OF_WEEK_ORDER.indexOf(right.id.replace('day_of_week:', ''))
+    );
+  }
+
+  return (
+    right.currentAmountMinor - left.currentAmountMinor ||
+    right.priorAmountMinor - left.priorAmountMinor ||
+    left.label.localeCompare(right.label)
+  );
+}
+
+function getInsightTrendDirection(
+  currentAmountMinor: number,
+  priorAmountMinor: number,
+): InsightTrendDirection {
+  if (currentAmountMinor === priorAmountMinor) {
+    return 'flat';
+  }
+
+  return currentAmountMinor > priorAmountMinor ? 'up' : 'down';
+}
+
+function getMerchantInsightKey(transaction: Transaction): string {
+  return transaction.merchantId
+    ? `merchant:${transaction.merchantId}`
+    : `merchant:${normalizeMerchantLabel(transaction.merchantRaw ?? transaction.merchant)}`;
+}
+
+function getItemInsightKey(itemLabel: string): string {
+  const normalizedLabel =
+    itemLabel.trim().toLowerCase().replace(/\s+/g, ' ') || 'needs_review';
+
+  return `item:${normalizedLabel}`;
+}
+
+function getTimeOfDayInsightDescriptor(date: Date): { id: string; label: string } {
+  const hour = date.getHours();
+
+  if (hour >= 5 && hour < 12) {
+    return { id: 'time_of_day:morning', label: getTimeOfDayInsightLabel('morning') };
+  }
+
+  if (hour >= 12 && hour < 17) {
+    return { id: 'time_of_day:afternoon', label: getTimeOfDayInsightLabel('afternoon') };
+  }
+
+  if (hour >= 17 && hour < 22) {
+    return { id: 'time_of_day:evening', label: getTimeOfDayInsightLabel('evening') };
+  }
+
+  return { id: 'time_of_day:night', label: getTimeOfDayInsightLabel('night') };
+}
+
+function getWeekdayInsightDescriptor(date: Date): { id: string; label: string } {
+  const weekday = date.getDay();
+
+  return {
+    id: `day_of_week:${weekday}`,
+    label: getWeekdayInsightLabel(weekday),
+  };
+}
+
+function getTimeOfDayInsightLabel(
+  bucket: string,
+): string {
+  switch (bucket) {
+    case 'morning':
+      return 'Morning';
+    case 'afternoon':
+      return 'Afternoon';
+    case 'evening':
+      return 'Evening';
+    case 'night':
+    default:
+      return 'Night';
+  }
+}
+
+function getWeekdayInsightLabel(weekday: number): string {
+  const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  return weekdayLabels[weekday] ?? 'Unknown day';
 }
 
 function isBudgetScope(value: unknown): value is BudgetScope {

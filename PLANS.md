@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### INT-007 — Implement Rollups And Insights For Item, Category, Merchant, Time-Of-Day, And Day-Of-Week
+
+- **Status:** completed
+- **Ticket:** INT-007
+- **Goal:** Add a local-first insights flow that computes fast item/category/merchant/time-of-day/day-of-week rollups with prior-period comparison and presents them in an in-app screen without introducing server dependency.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `client/src/features/spend-tracker/domain.ts`, `client/src/app/SpendTrackerApp.tsx`, focused client tests, and repo-truth docs only if ticket status or scope changes.
+- **Rationale:** The required re-audit on 2026-03-28 still leaves `SET-002` blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` also remain blocked because `adb devices` is empty again, so connected-Android closeout cannot run. `UX-005` still depends on external QA/design acceptance, and `UX-007` is still not actionable because it depends on `CAP-007`. `INT-007` is therefore the earliest unblocked canonical `todo` ticket with satisfied dependencies.
+- **Risks:** Reporting work can sprawl into export, sync, server rollups, or broader search/timeline refactors. This pass must stay inside optimized local rollups, prior-period comparison, and an insights screen fed by device-local data. It must not spill into CSV export, backend APIs, or remote reporting.
+- **API / schema impact:** No backend/API changes expected. Prefer optimized local rollup queries/computation over schema expansion unless persistence becomes truly necessary for performance.
+- **Rollout / flag plan:** No new remote flag. Keep insights local-first and always available once implemented.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus focused client tests for rollup correctness, prior-period comparison, and a large local dataset path. Run `pnpm db:validate` only if persistence or migrations change.
+- **Done when:** The app exposes local insights by item, category, merchant, time-of-day, and day-of-week with accurate prior-period comparison, uses optimized local rollups or cached queries that stay correct after transaction edits, and backlog status can move beyond `todo` truthfully.
+- **Outcome:** Added an optimized local insights engine to the client that computes current-cycle and prior-cycle rollups in a single pass across transactions, keeps item/category/merchant/time-of-day/day-of-week sections local-first, and exposes those rollups through a new in-app Insights screen reachable from Home. The current/prior comparison reuses the same cycle-start logic as Home, the fixed-bucket time/day sections remain stable even with zero-spend buckets, and focused tests now cover correctness, Home navigation, and a generated 10k-transaction performance path. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand domain.test.ts app.test.tsx`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28. The ticket is now closed as `done`.
+
 ### INT-006 — Implement Budget Setup Screens And Threshold Alerts
 
 - **Status:** completed

@@ -81,10 +81,11 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Weighted local history-based suggestion ranker with explainable merchant, amount-bucket, hour-bucket, weekday, recency, and frequency scoring reused across classify and manual-entry flows
 - Canonical local budget engine with overall, category, merchant, and item scopes across monthly, weekly, rolling, and custom cycles, including projected spend and threshold state now wired into Home
 - Local budget-management flow with list/create/edit UX, quiet-mode-aware 50/80/100 threshold alerts, persisted alert review state, and Home review cards backed by the canonical budget engine
+- Optimized local insights screen with current-cycle vs prior-cycle comparison and rollups for item, category, merchant, time-of-day, and day-of-week, validated on a generated 10k-transaction dataset
 
 **Remaining**
 
-- Rollups, CSV export, backup/restore
+- CSV export, backup/restore
 - Guest session, pairing, and sync APIs
 - Backend modular-monolith feature modules beyond health and heartbeat
 

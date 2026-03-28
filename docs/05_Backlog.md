@@ -742,7 +742,7 @@ Budget UX ready for beta.
 - **Story points:** 8
 - **Goal:** Provide fast reports without heavy server dependence.
 - **Dependencies:** UX-002, INT-001, INT-002
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-28 | Completed At: 2026-03-28 | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the client now computes optimized local rollups in a single pass across transactions, compares the current cycle against the immediately prior one using the same cycle-start logic as Home, and exposes an in-app insights screen for item, category, merchant, time-of-day, and day-of-week. Focused client validation covered correctness, prior-period comparison, UI access from Home, and a generated 10k-transaction performance path. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand domain.test.ts app.test.tsx`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28.
 
 **Description**  
 Create local aggregation tables or cached queries for common reporting dimensions. Support comparison with prior period and trend cards.

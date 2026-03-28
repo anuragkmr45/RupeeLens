@@ -715,12 +715,12 @@
       ],
       "tests": "Performance and correctness tests on large local dataset.",
       "done": "Insights screens use precomputed or optimized queries.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
-      "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "status": "done",
+      "owner": "codex",
+      "started_at": "2026-03-28",
+      "completed_at": "2026-03-28",
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: the client now computes optimized local rollups in a single pass across transactions, compares the current cycle against the immediately prior one using the same cycle-start logic as Home, and exposes an in-app insights screen for item, category, merchant, time-of-day, and day-of-week. Focused client validation covered correctness, prior-period comparison, UI access from Home, and a generated 10k-transaction performance path. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand domain.test.ts app.test.tsx`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28."
     },
     {
       "id": "INT-008",
