@@ -5,6 +5,7 @@ import { getApiRuntimeConfig } from './env.js';
 describe('getApiRuntimeConfig', () => {
   it('returns default host and port when env is empty', () => {
     expect(getApiRuntimeConfig({})).toEqual({
+      domainStoreFile: expect.stringContaining('.local/domain-store.json'),
       host: '0.0.0.0',
       port: 3000,
       sessionStoreFile: expect.stringContaining('.local/sessions-store.json'),
@@ -15,12 +16,14 @@ describe('getApiRuntimeConfig', () => {
   it('uses valid env overrides and ignores invalid ports', () => {
     expect(
       getApiRuntimeConfig({
+        API_DOMAIN_STORE_FILE: './tmp/api-domain.json',
         API_SESSION_STORE_FILE: './tmp/api-sessions.json',
         API_SYNC_STORE_FILE: './tmp/api-sync.json',
         HOST: '127.0.0.1',
         PORT: '3100',
       }),
     ).toEqual({
+      domainStoreFile: expect.stringContaining('tmp/api-domain.json'),
       host: '127.0.0.1',
       port: 3100,
       sessionStoreFile: expect.stringContaining('tmp/api-sessions.json'),
@@ -33,6 +36,7 @@ describe('getApiRuntimeConfig', () => {
         PORT: 'not-a-port',
       }),
     ).toEqual({
+      domainStoreFile: expect.stringContaining('.local/domain-store.json'),
       host: '127.0.0.1',
       port: 3000,
       sessionStoreFile: expect.stringContaining('.local/sessions-store.json'),

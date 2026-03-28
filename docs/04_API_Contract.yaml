@@ -1426,6 +1426,7 @@ components:
       - id
       - name
       - isSystem
+      - version
       - createdAt
       - updatedAt
       properties:
@@ -1440,6 +1441,8 @@ components:
           type: string
         isSystem:
           type: boolean
+        version:
+          type: integer
         createdAt:
           type: string
           format: date-time

@@ -878,7 +878,7 @@ Sync APIs pass mobile integration tests.
 - **Story points:** 8
 - **Goal:** Provide a complete server model for user data and future web/admin tooling.
 - **Dependencies:** API-003, INT-001, INT-002, INT-003, INT-005
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-28 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Corrected the stale `API-004` JSON row that had been overwritten by `API-006`, then added the first authenticated server-side domain API slice with a durable file-backed domain repository, route/service/module wiring, and route tests for transactions, classify flow, categories, rules, budgets, optimistic-concurrency conflicts, soft deletes, field-level validation, budget summaries, and restart-safe persistence. `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-28. Status remains `in_progress` because the done-when still requires the broader domain suite to be available in staging, and this pass is a first server slice rather than a full closeout.
 
 **Description**  
 Add CRUD and list endpoints for domain entities. Enforce optimistic concurrency, soft deletes, server-side validation, and pagination/filtering where needed.

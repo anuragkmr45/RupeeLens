@@ -2,9 +2,12 @@ import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 
 import { getApiRuntimeConfig } from './lib/env.js';
+import { createBootstrapConfigModule } from './modules/bootstrap/bootstrap.module.js';
+import { createDomainModule } from './modules/domain/domain.module.js';
+import { createDomainRepository } from './modules/domain/domain.repository.js';
+import { createDomainService } from './modules/domain/domain.service.js';
 import { createSessionRepository } from './modules/sessions/sessions.repository.js';
 import { createSessionService } from './modules/sessions/sessions.service.js';
-import { createBootstrapConfigModule } from './modules/bootstrap/bootstrap.module.js';
 import { createHealthModule } from './modules/health/health.module.js';
 import { registerApiModules } from './modules/module.js';
 import { createSessionsModule } from './modules/sessions/sessions.module.js';
@@ -13,6 +16,7 @@ import { createSyncRepository } from './modules/sync/sync.repository.js';
 import { createSyncService } from './modules/sync/sync.service.js';
 
 export interface BuildAppOptions {
+  domainStoreFile?: string;
   sessionStoreFile?: string;
   syncStoreFile?: string;
 }
@@ -28,6 +32,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const sessionService = createSessionService({
     repository: sessionRepository,
   });
+  const domainRepository = createDomainRepository({
+    domainStoreFile: options.domainStoreFile ?? runtimeConfig.domainStoreFile,
+  });
+  const domainService = createDomainService({
+    repository: domainRepository,
+    sessionService,
+  });
   const syncRepository = createSyncRepository({
     syncStoreFile: options.syncStoreFile ?? runtimeConfig.syncStoreFile,
   });
@@ -37,6 +48,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   });
 
   app.addHook('onClose', async () => {
+    domainRepository.close();
     sessionRepository.close();
     syncRepository.close();
   });
@@ -45,6 +57,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     createHealthModule(),
     createBootstrapConfigModule(),
     createSessionsModule(sessionService),
+    createDomainModule(domainService),
     createSyncModule(syncService),
   ]);
 

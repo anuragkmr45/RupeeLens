@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### API-004 — Implement Transactions, Items, Merchants, Categories, Rules, And Budgets APIs
+
+- **Status:** completed
+- **Ticket:** API-004
+- **Goal:** Start the server-side domain API suite for transactions, items, merchants, categories, rules, and budgets with optimistic concurrency, field-level validation, and additive CRUD/list behavior that matches the documented contract.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `README.md` only if repo-truth scope changes, `docs/04_API_Contract.yaml` if endpoint details or schema alignment need correction, `packages/contracts/src/*` only if shared DTO support is missing, and `server/api/src/modules/*` for the new domain API implementation plus tests.
+- **Rationale:** The re-audit on 2026-03-28 still leaves `SET-002` blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available, and `CAP-003`/`CAP-004` remain blocked because `adb devices` is empty. `UX-005`, `INT-005`, and `API-003` also remain active but not closeable from this environment. `API-004` is the earliest actionable canonical `todo`, and the audit also found its JSON row had been incorrectly overwritten with `API-006` completion notes, so this pass corrects tracking and starts the actual domain API work.
+- **Risks:** API-004 is broad and can sprawl into reports, sync, or full persistence infrastructure. This pass must stay inside the documented domain CRUD/list surface, optimistic concurrency, soft-delete behavior, and field-specific validation. It must not widen into reports (`API-005`), worker jobs (`API-007`), or mobile sync client work.
+- **API / schema impact:** Expect server implementation under the existing OpenAPI contract. If the contract and repo truth disagree, update `docs/04_API_Contract.yaml` and run `pnpm lint:openapi`.
+- **Rollout / flag plan:** No rollout flag. Keep domain APIs additive and isolated from current local-only mobile flows.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `pnpm lint:openapi` if the contract changes.
+- **Done when:** Domain entity endpoints exist with contract-aligned validation, optimistic concurrency, and soft-delete/list semantics; repo checks stay green; and the backlog ticket can move beyond `todo` truthfully even if staging availability still keeps it short of `done`.
+- **Outcome:** Corrected the stale `API-004` JSON tracking row, then added the first authenticated server-side domain API slice with a durable file-backed domain repository, route/service/module wiring, and route coverage for transactions, classify flow, categories, rules, budgets, optimistic-concurrency conflicts, soft deletes, field-level validation, budget summaries, and restart-safe persistence. Added runtime wiring through `buildApp`/`env`, updated the OpenAPI contract to include `Category.version`, and passed `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` on 2026-03-28. The backlog ticket remains `in_progress` because its done-when still requires the broader domain suite to be available in staging, and this pass is a first server slice rather than a full closeout.
+
 ### API-006 — Implement Remote Config/Bootstrap API And Version Compatibility Checks
 
 - **Status:** completed

@@ -2,10 +2,12 @@ import path from 'node:path';
 
 const DEFAULT_API_HOST = '0.0.0.0';
 const DEFAULT_API_PORT = 3000;
+const DEFAULT_DOMAIN_STORE_FILE = path.resolve(process.cwd(), '.local', 'domain-store.json');
 const DEFAULT_SESSION_STORE_FILE = path.resolve(process.cwd(), '.local', 'sessions-store.json');
 const DEFAULT_SYNC_STORE_FILE = path.resolve(process.cwd(), '.local', 'sync-store.json');
 
 export interface ApiRuntimeConfig {
+  domainStoreFile: string;
   host: string;
   port: number;
   sessionStoreFile: string;
@@ -40,6 +42,7 @@ function parseSessionStoreFile(value: string | undefined): string {
 
 export function getApiRuntimeConfig(env: NodeJS.ProcessEnv = process.env): ApiRuntimeConfig {
   return {
+    domainStoreFile: parseSessionStoreFile(env.API_DOMAIN_STORE_FILE ?? DEFAULT_DOMAIN_STORE_FILE),
     host: env.HOST ?? DEFAULT_API_HOST,
     port: parsePort(env.PORT),
     sessionStoreFile: parseSessionStoreFile(env.API_SESSION_STORE_FILE),

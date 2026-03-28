@@ -7,6 +7,7 @@ const logger = createLogger('api');
 async function start() {
   const config = getApiRuntimeConfig();
   const app = buildApp({
+    domainStoreFile: config.domainStoreFile,
     sessionStoreFile: config.sessionStoreFile,
     syncStoreFile: config.syncStoreFile,
   });

@@ -843,12 +843,12 @@
       ],
       "tests": "Contract tests against OpenAPI schemas; CRUD integration tests.",
       "done": "Domain API suite available in staging.",
-      "status": "done",
+      "status": "in_progress",
       "owner": "codex",
       "started_at": "2026-03-28",
-      "completed_at": "2026-03-28",
+      "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Closed the existing bootstrap path by adding explicit `Cache-Control`, `ETag`, and `Vary` headers on `GET /v1/bootstrap/config`, enforcing runtime compatibility from both app version and native/runtime version, varying `configVersion` by compatibility inputs, documenting the cache headers in `docs/04_API_Contract.yaml`, and proving the mobile client already requests the endpoint with version-aware query params. `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand bootstrap-config.test.ts`, `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-28, so the ticket now meets its acceptance and done-when bar."
+      "tracking_notes": "Corrected the stale `API-004` JSON row that had been overwritten by `API-006`, then added the first authenticated server-side domain API slice with a durable file-backed domain repository, route/service/module wiring, and route tests for transactions, classify flow, categories, rules, budgets, optimistic-concurrency conflicts, soft deletes, field-level validation, budget summaries, and restart-safe persistence. `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-28. Status remains `in_progress` because the done-when still requires the broader domain suite to be available in staging, and this pass is a first server slice rather than a full closeout."
     },
     {
       "id": "API-005",
