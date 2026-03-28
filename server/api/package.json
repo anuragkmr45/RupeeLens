@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@upi-spend-tracker/contracts": "workspace:*",
+    "@upi-spend-tracker/shared-types": "workspace:*",
     "@upi-spend-tracker/shared-utils": "workspace:*",
     "fastify": "^5.8.2"
   },

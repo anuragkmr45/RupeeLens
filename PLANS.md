@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### API-002 — Implement Guest Session And Multi-Device Pairing APIs
+
+- **Status:** completed
+- **Ticket:** API-002
+- **Goal:** Add a first repo-side guest-account, token refresh, device registration, and one-time pairing flow through the modular API runtime without paid auth dependencies.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `docs/04_API_Contract.yaml`, `packages/contracts/src/*`, `server/api/src/app.ts`, `server/api/src/modules/sessions/*`, and repo-truth docs only if ticket status or scope changes.
+- **Rationale:** The required re-audit on 2026-03-28 still leaves `SET-002` blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` also remain blocked because `adb devices` is empty again, and `UX-005` still depends on external QA/design acceptance. `INT-008` remains blocked on `UX-007`, so `API-002` is now the earliest unblocked canonical `todo` with satisfied dependencies after `API-001`.
+- **Risks:** Session work can sprawl into sync, full auth, or database persistence. This pass must stay inside guest-session creation, token refresh, device registration, pairing-code creation/consumption, and the service/repository/module seams needed to support them. It must not spill into sync APIs or broader user/account management.
+- **API / schema impact:** Add new typed contracts and OpenAPI paths for guest session, refresh, device registration, and pairing. Prefer an additive repository implementation that keeps the module self-contained and testable.
+- **Rollout / flag plan:** No rollout flag. Keep the API surface additive and separate from mobile enablement; clients can adopt it later.
+- **Validation commands:** `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus focused API route/service tests for session creation, refresh, device registration, pairing success, expiry, and replay/invalid-token behavior.
+- **Done when:** New guest sessions, refresh, device registration, pairing-code creation, and pairing-code consumption all work through typed API routes with integration coverage, contract docs stay synchronized, and backlog status can move beyond `todo` truthfully.
+- **Outcome:** Added typed session and device-pairing contracts, a new modular `sessions` API module with guest-session creation, refresh rotation, device registration, one-time pairing-code creation/consumption, and replay/expiry protection, plus focused contract and API route/service integration tests. `pnpm --filter @upi-spend-tracker/contracts typecheck`, `pnpm --filter @upi-spend-tracker/contracts test`, `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28. The canonical backlog ticket remains `in_progress` because the current repository implementation is intentionally in-memory, so guest auth and pairing do not survive API restarts yet and cannot be called beta-stable.
+
 ### INT-007 — Implement Rollups And Insights For Item, Category, Merchant, Time-Of-Day, And Day-Of-Week
 
 - **Status:** completed

@@ -169,6 +169,9 @@ importers:
       '@upi-spend-tracker/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@upi-spend-tracker/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       '@upi-spend-tracker/shared-utils':
         specifier: workspace:*
         version: link:../../packages/shared-utils

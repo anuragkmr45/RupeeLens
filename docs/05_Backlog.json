@@ -791,12 +791,12 @@
       ],
       "tests": "API integration tests for session creation, refresh, pairing success, expiry, and replay attacks.",
       "done": "Auth flows stable for beta.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-28",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Added typed session/pairing contracts plus a modular Fastify `sessions` module with guest-session creation, refresh-token rotation, device registration, one-time pairing-code creation/consumption, replay/expiry protection, and focused route/service integration coverage. `pnpm --filter @upi-spend-tracker/contracts typecheck`, `pnpm --filter @upi-spend-tracker/contracts test`, `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28. The ticket remains `in_progress` because the current session and pairing repository is intentionally in-memory, so auth state does not survive API restart yet and the flow is not beta-stable."
     },
     {
       "id": "API-003",

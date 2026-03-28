@@ -141,4 +141,6 @@ Reason:
 - `INT-005` is now repo-side implemented with canonical local budget math and Home integration, but it remains `in_progress` in backlog tracking because the ticket's done-when still requires product and QA acceptance that was not available in this environment.
 - `INT-006` is now done with local budget list/create/edit UX, persisted quiet-mode-aware threshold scheduling and review state, and Home integration through the canonical budget engine.
 - `INT-007` is now done with optimized local rollups, prior-period comparison, and an in-app insights screen validated on a 10k local dataset.
-- `API-002` is now the earliest unblocked `todo` ticket with satisfied dependencies because `API-001` is done and its remaining scope is repo-side work rather than blocked environment validation.
+- `API-002` now has typed contracts, modular Fastify session routes, refresh rotation, one-time pairing codes, replay/expiry protection, and focused route/service integration coverage.
+- `API-002` still remains the best next ticket because its current repository is intentionally in-memory, so guest sessions and pairing do not survive API restarts yet and cannot be called beta-stable.
+- `API-003` stays later because the workflow prefers closing an active earlier ticket before starting a dependent sync surface.
