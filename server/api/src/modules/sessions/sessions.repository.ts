@@ -1,4 +1,13 @@
-import type { Device, RegisterDeviceRequest, SessionPlatform } from '@upi-spend-tracker/contracts';
+import {
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import path from 'node:path';
+
+import type { Device, RegisterDeviceRequest } from '@upi-spend-tracker/contracts';
 import type { IsoUtcDateTimeString } from '@upi-spend-tracker/shared-types';
 
 export interface StoredUser {
@@ -48,6 +57,12 @@ export interface CreateDeviceInput extends RegisterDeviceRequest {
 }
 
 export interface SessionRepository {
+  close(): void;
+  consumePairingCode(
+    codeDigest: string,
+    consumedAt: IsoUtcDateTimeString,
+    consumedByDeviceId: string,
+  ): void;
   createAccessToken(record: StoredAccessTokenRecord): void;
   createDevice(input: CreateDeviceInput): StoredDeviceRecord;
   createPairingCode(record: StoredPairingCodeRecord): void;
@@ -66,17 +81,27 @@ export interface SessionRepository {
     deviceId: string,
     revokedAt: IsoUtcDateTimeString,
   ): void;
-  consumePairingCode(
-    codeDigest: string,
-    consumedAt: IsoUtcDateTimeString,
-    consumedByDeviceId: string,
-  ): void;
   updateDevice(
     deviceId: string,
     input: RegisterDeviceRequest,
     updatedAt: IsoUtcDateTimeString,
   ): StoredDeviceRecord | null;
 }
+
+export interface CreateSessionRepositoryOptions {
+  sessionStoreFile: string;
+}
+
+interface SerializedSessionRepositoryState {
+  accessTokens: StoredAccessTokenRecord[];
+  devices: StoredDeviceRecord[];
+  pairingCodes: StoredPairingCodeRecord[];
+  refreshTokens: StoredRefreshTokenRecord[];
+  users: StoredUser[];
+  version: 1;
+}
+
+const SESSION_STORE_VERSION = 1;
 
 function createStoredDevice(input: CreateDeviceInput): StoredDeviceRecord {
   return {
@@ -98,47 +123,167 @@ function createStoredDevice(input: CreateDeviceInput): StoredDeviceRecord {
   };
 }
 
-export function createSessionRepository(): SessionRepository {
-  const users = new Map<string, StoredUser>();
-  const devices = new Map<string, StoredDeviceRecord>();
-  const accessTokens = new Map<string, StoredAccessTokenRecord>();
-  const refreshTokens = new Map<string, StoredRefreshTokenRecord>();
-  const pairingCodes = new Map<string, StoredPairingCodeRecord>();
+function cloneStoredDevice(device: StoredDeviceRecord): StoredDeviceRecord {
+  return {
+    ...device,
+    supportedPackages: [...device.supportedPackages],
+  };
+}
+
+function cloneStoredAccessToken(record: StoredAccessTokenRecord): StoredAccessTokenRecord {
+  return { ...record };
+}
+
+function cloneStoredRefreshToken(record: StoredRefreshTokenRecord): StoredRefreshTokenRecord {
+  return { ...record };
+}
+
+function cloneStoredPairingCode(record: StoredPairingCodeRecord): StoredPairingCodeRecord {
+  return { ...record };
+}
+
+function loadState(sessionStoreFile: string): SerializedSessionRepositoryState {
+  try {
+    const parsed = JSON.parse(readFileSync(sessionStoreFile, 'utf8')) as Partial<SerializedSessionRepositoryState>;
+
+    if (parsed.version !== SESSION_STORE_VERSION) {
+      throw new Error(
+        `Unsupported session store version in ${sessionStoreFile}: ${String(parsed.version)}`,
+      );
+    }
+
+    return {
+      accessTokens: Array.isArray(parsed.accessTokens) ? parsed.accessTokens : [],
+      devices: Array.isArray(parsed.devices) ? parsed.devices : [],
+      pairingCodes: Array.isArray(parsed.pairingCodes) ? parsed.pairingCodes : [],
+      refreshTokens: Array.isArray(parsed.refreshTokens) ? parsed.refreshTokens : [],
+      users: Array.isArray(parsed.users) ? parsed.users : [],
+      version: SESSION_STORE_VERSION,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return {
+        accessTokens: [],
+        devices: [],
+        pairingCodes: [],
+        refreshTokens: [],
+        users: [],
+        version: SESSION_STORE_VERSION,
+      };
+    }
+
+    throw error;
+  }
+}
+
+function writeState(
+  sessionStoreFile: string,
+  state: SerializedSessionRepositoryState,
+): void {
+  mkdirSync(path.dirname(sessionStoreFile), {
+    recursive: true,
+  });
+
+  const tempFile = `${sessionStoreFile}.${process.pid}.tmp`;
+
+  try {
+    writeFileSync(tempFile, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+    renameSync(tempFile, sessionStoreFile);
+  } catch (error) {
+    try {
+      unlinkSync(tempFile);
+    } catch (cleanupError) {
+      if ((cleanupError as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw cleanupError;
+      }
+    }
+
+    throw error;
+  }
+}
+
+export function createSessionRepository({
+  sessionStoreFile,
+}: CreateSessionRepositoryOptions): SessionRepository {
+  const initialState = loadState(sessionStoreFile);
+  const users = new Map(initialState.users.map((user) => [user.id, { ...user }]));
+  const devices = new Map(
+    initialState.devices.map((device) => [device.id, cloneStoredDevice(device)]),
+  );
+  const accessTokens = new Map(
+    initialState.accessTokens.map((record) => [record.tokenDigest, cloneStoredAccessToken(record)]),
+  );
+  const refreshTokens = new Map(
+    initialState.refreshTokens.map((record) => [record.tokenDigest, cloneStoredRefreshToken(record)]),
+  );
+  const pairingCodes = new Map(
+    initialState.pairingCodes.map((record) => [record.codeDigest, cloneStoredPairingCode(record)]),
+  );
+
+  function persist(): void {
+    writeState(sessionStoreFile, {
+      accessTokens: [...accessTokens.values()].map(cloneStoredAccessToken),
+      devices: [...devices.values()].map(cloneStoredDevice),
+      pairingCodes: [...pairingCodes.values()].map(cloneStoredPairingCode),
+      refreshTokens: [...refreshTokens.values()].map(cloneStoredRefreshToken),
+      users: [...users.values()].map((user) => ({ ...user })),
+      version: SESSION_STORE_VERSION,
+    });
+  }
 
   return {
+    close() {},
+    consumePairingCode(codeDigest, consumedAt, consumedByDeviceId) {
+      const record = pairingCodes.get(codeDigest);
+
+      if (!record) {
+        return;
+      }
+
+      pairingCodes.set(codeDigest, {
+        ...record,
+        consumedAt,
+        consumedByDeviceId,
+      });
+      persist();
+    },
     createAccessToken(record) {
-      accessTokens.set(record.tokenDigest, { ...record });
+      accessTokens.set(record.tokenDigest, cloneStoredAccessToken(record));
+      persist();
     },
     createDevice(input) {
       const device = createStoredDevice(input);
-      devices.set(device.id, device);
-      return { ...device, supportedPackages: [...device.supportedPackages] };
+      devices.set(device.id, cloneStoredDevice(device));
+      persist();
+      return cloneStoredDevice(device);
     },
     createPairingCode(record) {
-      pairingCodes.set(record.codeDigest, { ...record });
+      pairingCodes.set(record.codeDigest, cloneStoredPairingCode(record));
+      persist();
     },
     createRefreshToken(record) {
-      refreshTokens.set(record.tokenDigest, { ...record });
+      refreshTokens.set(record.tokenDigest, cloneStoredRefreshToken(record));
+      persist();
     },
     createUser(user) {
       users.set(user.id, { ...user });
+      persist();
     },
     findAccessTokenByDigest(tokenDigest) {
       const record = accessTokens.get(tokenDigest);
-      return record ? { ...record } : null;
+      return record ? cloneStoredAccessToken(record) : null;
     },
     findDeviceById(deviceId) {
       const device = devices.get(deviceId);
-
-      return device ? { ...device, supportedPackages: [...device.supportedPackages] } : null;
+      return device ? cloneStoredDevice(device) : null;
     },
     findPairingCodeByDigest(codeDigest) {
       const record = pairingCodes.get(codeDigest);
-      return record ? { ...record } : null;
+      return record ? cloneStoredPairingCode(record) : null;
     },
     findRefreshTokenByDigest(tokenDigest) {
       const record = refreshTokens.get(tokenDigest);
-      return record ? { ...record } : null;
+      return record ? cloneStoredRefreshToken(record) : null;
     },
     revokeRefreshToken(tokenDigest, revokedAt, replacedByDigest) {
       const record = refreshTokens.get(tokenDigest);
@@ -152,8 +297,11 @@ export function createSessionRepository(): SessionRepository {
         replacedByDigest: replacedByDigest ?? record.replacedByDigest ?? null,
         revokedAt,
       });
+      persist();
     },
     revokeUnconsumedPairingCodesForDevice(deviceId, revokedAt) {
+      let didChange = false;
+
       for (const [codeDigest, record] of pairingCodes) {
         if (record.createdByDeviceId !== deviceId || record.consumedAt) {
           continue;
@@ -164,20 +312,12 @@ export function createSessionRepository(): SessionRepository {
           consumedAt: revokedAt,
           consumedByDeviceId: null,
         });
-      }
-    },
-    consumePairingCode(codeDigest, consumedAt, consumedByDeviceId) {
-      const record = pairingCodes.get(codeDigest);
-
-      if (!record) {
-        return;
+        didChange = true;
       }
 
-      pairingCodes.set(codeDigest, {
-        ...record,
-        consumedAt,
-        consumedByDeviceId,
-      });
+      if (didChange) {
+        persist();
+      }
     },
     updateDevice(deviceId, input, updatedAt) {
       const currentDevice = devices.get(deviceId);
@@ -191,7 +331,7 @@ export function createSessionRepository(): SessionRepository {
         deviceName: input.deviceName,
         id: currentDevice.id,
         lastSeenAt: updatedAt,
-        platform: input.platform as SessionPlatform,
+        platform: input.platform,
         supportedPackages: [...(input.supportedPackages ?? [])],
         updatedAt,
         userId: currentDevice.userId,
@@ -204,9 +344,10 @@ export function createSessionRepository(): SessionRepository {
         ...(input.timezone ? { timezone: input.timezone } : {}),
       };
 
-      devices.set(deviceId, nextDevice);
+      devices.set(deviceId, cloneStoredDevice(nextDevice));
+      persist();
 
-      return { ...nextDevice, supportedPackages: [...nextDevice.supportedPackages] };
+      return cloneStoredDevice(nextDevice);
     },
   };
 }

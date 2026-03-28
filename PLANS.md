@@ -14,6 +14,20 @@ Protocol notes:
 
 - **Status:** completed
 - **Ticket:** API-002
+- **Goal:** Continue API-002 by replacing the in-memory session/pairing store with durable server-side persistence so guest auth and pairing survive API restart.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `server/api/package.json`, `server/api/src/app.ts`, `server/api/src/modules/sessions/*`, server-side persistence or DB support files only if needed for API-002 durability, and repo-truth docs only if ticket status or scope changes.
+- **Rationale:** The re-audit on 2026-03-28 still leaves `SET-002` blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` also remain blocked because `adb devices` is empty again, and `UX-005` still depends on external QA/design acceptance. `API-002` is already active and its remaining gap is repo-side durability, so the workflow prefers continuing it before starting `API-003`.
+- **Risks:** Session work can sprawl into full auth, sync, or a complete backend data model. This pass must stay inside durable session, refresh-token, device, and pairing-code persistence plus the minimal tests/wiring needed to prove restart-safe behavior. It must not spill into sync APIs or broader user/account management.
+- **API / schema impact:** No OpenAPI shape change expected. Server-side persistence may need additive storage and repository wiring, but the route contracts should stay the same.
+- **Rollout / flag plan:** No rollout flag. Keep the API surface additive and wire durability underneath the existing routes.
+- **Validation commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus focused API route/service tests for session creation, refresh rotation, pairing replay/expiry, and new restart/durable-repository coverage. Run `pnpm db:validate` only if this pass changes the canonical migration framework or DB schema manifests.
+- **Done when:** Session, refresh-token, device, and pairing-code state survive API restart through a durable repository, route/service tests stay green, and backlog status can move truthfully beyond `in_progress`.
+- **Outcome:** Replaced the in-memory session repository with an atomic file-backed store that persists users, devices, hashed access/refresh tokens, and one-time pairing codes under the API runtime’s local data path. The API now accepts `API_SESSION_STORE_FILE` via runtime config, the sessions module wires that path through `buildApp()`, and route/service/repository tests now cover restart-style persistence for refresh tokens and pairing codes. `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28. The ticket can now close as `done` because guest session creation, refresh, device registration, pairing, replay/expiry protection, and restart-safe persistence are all implemented and validated.
+
+### API-002 — Implement Guest Session And Multi-Device Pairing APIs
+
+- **Status:** completed
+- **Ticket:** API-002
 - **Goal:** Add a first repo-side guest-account, token refresh, device registration, and one-time pairing flow through the modular API runtime without paid auth dependencies.
 - **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `docs/04_API_Contract.yaml`, `packages/contracts/src/*`, `server/api/src/app.ts`, `server/api/src/modules/sessions/*`, and repo-truth docs only if ticket status or scope changes.
 - **Rationale:** The required re-audit on 2026-03-28 still leaves `SET-002` blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` also remain blocked because `adb devices` is empty again, and `UX-005` still depends on external QA/design acceptance. `INT-008` remains blocked on `UX-007`, so `API-002` is now the earliest unblocked canonical `todo` with satisfied dependencies after `API-001`.

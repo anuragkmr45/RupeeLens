@@ -1,16 +1,31 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { buildApp } from '../../app.js';
 
 describe('sessions routes', () => {
-  const app = buildApp();
+  let sessionStoreFile = '';
+  let app = buildApp();
 
   beforeAll(async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'rupeelens-api-sessions-'));
+    sessionStoreFile = path.join(tempDir, 'sessions-store.json');
+    app = buildApp({
+      sessionStoreFile,
+    });
     await app.ready();
   });
 
   afterAll(async () => {
     await app.close();
+    if (sessionStoreFile) {
+      await rm(path.dirname(sessionStoreFile), {
+        force: true,
+        recursive: true,
+      });
+    }
   });
 
   it('creates guest sessions and refreshes tokens', async () => {
@@ -159,5 +174,80 @@ describe('sessions routes', () => {
     expect(invalidRefreshResponse.statusCode).toBe(401);
     expect(invalidRegisterResponse.statusCode).toBe(401);
     expect(invalidCreateResponse.statusCode).toBe(400);
+  });
+
+  it('persists refresh tokens and pairing codes across app restart', async () => {
+    const restartTempDir = await mkdtemp(path.join(os.tmpdir(), 'rupeelens-api-restart-'));
+    const restartSessionStoreFile = path.join(restartTempDir, 'sessions-store.json');
+    const firstApp = buildApp({
+      sessionStoreFile: restartSessionStoreFile,
+    });
+
+    await firstApp.ready();
+
+    try {
+      const createResponse = await firstApp.inject({
+        method: 'POST',
+        payload: {
+          deviceName: 'Primary Android',
+          platform: 'android',
+        },
+        url: '/v1/sessions/guest',
+      });
+      const session = createResponse.json();
+
+      const pairingResponse = await firstApp.inject({
+        headers: {
+          authorization: `Bearer ${session.accessToken}`,
+        },
+        method: 'POST',
+        url: '/v1/device-pairings',
+      });
+      const pairingCode = pairingResponse.json();
+
+      await firstApp.close();
+
+      const secondApp = buildApp({
+        sessionStoreFile: restartSessionStoreFile,
+      });
+
+      await secondApp.ready();
+
+      try {
+        const refreshResponse = await secondApp.inject({
+          method: 'POST',
+          payload: {
+            refreshToken: session.refreshToken,
+          },
+          url: '/v1/sessions/refresh',
+        });
+        const consumeResponse = await secondApp.inject({
+          method: 'POST',
+          payload: {
+            deviceName: 'Secondary iPhone',
+            pairingCode: pairingCode.pairingCode,
+            platform: 'ios',
+          },
+          url: '/v1/device-pairings/consume',
+        });
+
+        expect(refreshResponse.statusCode).toBe(200);
+        expect(refreshResponse.json()).toMatchObject({
+          deviceId: session.deviceId,
+          userId: session.userId,
+        });
+        expect(consumeResponse.statusCode).toBe(200);
+        expect(consumeResponse.json()).toMatchObject({
+          userId: session.userId,
+        });
+      } finally {
+        await secondApp.close();
+      }
+    } finally {
+      await rm(restartTempDir, {
+        force: true,
+        recursive: true,
+      });
+    }
   });
 });

@@ -5,8 +5,10 @@ import { createLogger } from './lib/logger.js';
 const logger = createLogger('api');
 
 async function start() {
-  const app = buildApp();
   const config = getApiRuntimeConfig();
+  const app = buildApp({
+    sessionStoreFile: config.sessionStoreFile,
+  });
 
   try {
     await app.listen({

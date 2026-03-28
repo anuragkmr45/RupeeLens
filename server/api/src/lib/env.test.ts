@@ -7,18 +7,21 @@ describe('getApiRuntimeConfig', () => {
     expect(getApiRuntimeConfig({})).toEqual({
       host: '0.0.0.0',
       port: 3000,
+      sessionStoreFile: expect.stringContaining('.local/sessions-store.json'),
     });
   });
 
   it('uses valid env overrides and ignores invalid ports', () => {
     expect(
       getApiRuntimeConfig({
+        API_SESSION_STORE_FILE: './tmp/api-sessions.json',
         HOST: '127.0.0.1',
         PORT: '3100',
       }),
     ).toEqual({
       host: '127.0.0.1',
       port: 3100,
+      sessionStoreFile: expect.stringContaining('tmp/api-sessions.json'),
     });
 
     expect(
@@ -29,6 +32,7 @@ describe('getApiRuntimeConfig', () => {
     ).toEqual({
       host: '127.0.0.1',
       port: 3000,
+      sessionStoreFile: expect.stringContaining('.local/sessions-store.json'),
     });
   });
 });

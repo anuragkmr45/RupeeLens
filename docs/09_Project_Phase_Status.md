@@ -78,7 +78,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 **Done in repo**
 
 - Local SQLite transaction tables on mobile plus a modular backend skeleton with explicit API and worker module factories, tested runtime config loaders, and repository/service seams around health and heartbeat
-- First guest-session and device-pairing APIs with token refresh rotation, device registration, one-time pairing-code creation/consumption, and replay/expiry protection, all covered by typed contracts and route/service integration tests
+- First guest-session and device-pairing APIs with token refresh rotation, device registration, one-time pairing-code creation/consumption, replay/expiry protection, and durable on-disk persistence across API restarts, all covered by typed contracts and route/service integration tests
 - Weighted local history-based suggestion ranker with explainable merchant, amount-bucket, hour-bucket, weekday, recency, and frequency scoring reused across classify and manual-entry flows
 - Canonical local budget engine with overall, category, merchant, and item scopes across monthly, weekly, rolling, and custom cycles, including projected spend and threshold state now wired into Home
 - Local budget-management flow with list/create/edit UX, quiet-mode-aware 50/80/100 threshold alerts, persisted alert review state, and Home review cards backed by the canonical budget engine
@@ -87,7 +87,6 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 **Remaining**
 
 - CSV export, backup/restore
-- Guest session and pairing storage still use an in-memory repository, so auth is not yet beta-stable across API restarts
 - Sync APIs
 - Backend modular-monolith feature modules beyond health and heartbeat
 
