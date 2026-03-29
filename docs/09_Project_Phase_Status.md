@@ -37,12 +37,13 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Android-native `NotificationListenerService` foundation with allowlist filtering, raw snapshot persistence, a React Native diagnostics bridge, UI permission-state reflection sourced from the native listener permission, and a connected-Android instrumentation harness for allowlist filtering plus snapshot persistence that now passes on a real Android 13 device
 - Native parser registry with package-specific launch-app parsers, generic fallback parsing, structured field provenance, reason-coded failures, parser-result persistence, a 30-plus-case fixture suite, and connected Android validation that exercises success and failure persistence
 - Repo-side native capture dedupe with exact/fuzzy suppression, bootstrap-delivered thresholds, duplicate counters, and diagnostics exposure
+- Repo-side actionable review-notification foundation with direct reply, open-app classify / split, skip persistence, and privacy-aware lockscreen redaction for successful unique captures
 - Dedicated in-app diagnostics screen reachable from Home with supported parser inventory, recent parse failures, recent capture logs, and redacted debug-bundle sharing without developer mode
 
 **Remaining**
 
 - Connected-device closeout for dedupe and the new Room-backed native capture repository is still blocked because this environment does not currently have a stable connected-Android validation path
-- Native capture domain-import work still remains
+- Native capture domain-import work and the true notification-to-classify handoff still remain
 
 ## Sprint 2 — First Usable App
 
@@ -55,7 +56,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 **Remaining**
 
-- Notification-driven quick-classify flow
+- End-to-end notification-driven quick-classify flow still needs native-to-JS import/routing plus connected-Android manual action validation
 - Budget creation flow and partial/conflict Inbox views beyond the new split path
 
 ## Sprint 3 — Core UX And Intelligence

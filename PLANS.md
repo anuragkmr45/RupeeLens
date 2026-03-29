@@ -10,9 +10,23 @@ Protocol notes:
 
 ## Active Plan
 
-### INT-008 — Implement CSV Export And Local Backup/Restore Entrypoint
+### CAP-005 — Build Quick-Classify Notification With Direct Reply, Split, And Skip Actions
 
 - **Status:** in_progress
+- **Ticket:** CAP-005
+- **Goal:** Add the native Android quick-classify notification foundation on top of the existing capture repository so successful captured payments can prompt direct reply, open-app classify, split, and skip actions without depending on JS for the critical path.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, Android capture Kotlin files under `client/android/app/src/main/java/com/upispendtracker/client/capture`, Android manifest/resources/build config only if needed, `client/src/features/android-capture/native-capture.ts`, `client/src/app/SpendTrackerApp.tsx` only if the native privacy setting or support copy must sync, focused Android tests, and repo-truth docs (`README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `client/src/lib/app-info.ts`) only if behavior changes.
+- **Rationale:** The re-audit on 2026-03-30 still leaves `SET-002` blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty again, so no blocked closeout can finish. `CAP-005` is the earliest active canonical ticket with a real repo-side implementation gap, and its current tracking note is stale because it still points to an unrelated UX pass instead of the native notification work.
+- **Risks:** This work can sprawl into CAP-006 native-to-JS import, sync/client outbox, or full end-to-end app routing that depends on unavailable Android validation. Keep the scope inside native actionable notifications, direct-reply/skip/split/classify action persistence, privacy-aware notification visibility, and testable native helpers. Do not claim full end-to-end closeout without connected Android validation.
+- **API / schema impact:** No OpenAPI changes expected. Additive native capture persistence changes are acceptable only if needed for reply/action bookkeeping.
+- **Rollout / flag plan:** Reuse the existing native capture pipeline and current privacy-mode setting. The notification prompt should only trigger for successfully parsed unique captures and should respect current native allowlist and privacy-mode state.
+- **Validation commands:** `./gradlew :app:testDebugUnitTest`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check`. Run `./gradlew :app:connectedDebugAndroidTest` only if a device becomes available again.
+- **Done when:** Successful native captures post one actionable notification, direct reply/skip/classify/split actions persist safely in native storage, lockscreen content respects privacy mode, tests cover the native notification/action logic, and backlog tracking reflects any remaining environment-only validation gap truthfully.
+- **Outcome:** Implemented the repo-side CAP-005 foundation on 2026-03-30 by posting app-owned actionable capture-review notifications for successful unique native captures, persisting direct-reply / classify / split / skip actions through the native capture repository, and syncing app privacy mode into native lockscreen notification visibility. `./gradlew :app:testDebugUnitTest`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` passed. The canonical backlog ticket remains `in_progress` because `adb devices` is empty again so connected-Android manual/receiver validation could not run, and the true end-to-end one-tap classification handoff still needs the native-to-JS import/routing work in `CAP-006`.
+
+### INT-008 — Implement CSV Export And Local Backup/Restore Entrypoint
+
+- **Status:** completed
 - **Ticket:** INT-008
 - **Goal:** Replace the current Settings export placeholders with real local CSV export actions for transactions, items, categories, and budgets, plus a practical local backup export hook and a visible restore entrypoint that stays within local-first scope.
 - **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `client/src/app/SpendTrackerApp.tsx`, a client export helper module, focused client tests, and `client/src/lib/app-info.ts` only if current-scope copy changes.

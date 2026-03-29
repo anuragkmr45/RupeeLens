@@ -303,6 +303,24 @@ jest.mock('../src/features/android-capture/native-capture', () => ({
     storedSnapshotCount: 0,
     supportedParsers: [],
   }),
+  setNativeCapturePrivacyModeEnabled: jest.fn().mockResolvedValue({
+    allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
+    dedupeConfig: {
+      exactMatchWindowSeconds: 120,
+      fuzzyMatchWindowSeconds: 300,
+      merchantSimilarityThreshold: 0.88,
+    },
+    exactDuplicateCount: 0,
+    fuzzyDuplicateCount: 0,
+    lastCapture: null,
+    lastDedupeDecision: null,
+    listenerPermissionGranted: false,
+    recentCaptureLog: [],
+    recentParseFailures: [],
+    serviceAvailable: true,
+    storedSnapshotCount: 0,
+    supportedParsers: [],
+  }),
 }));
 
 const mockedLoadStoredSpendTrackerState =
@@ -324,6 +342,7 @@ const mockedNativeCaptureModule = jest.requireMock(
     [NativeCaptureDedupeConfig]
   >;
   setAllowedSourceApps: jest.Mock<Promise<NativeCaptureDiagnostics>, [string[]]>;
+  setNativeCapturePrivacyModeEnabled: jest.Mock<Promise<NativeCaptureDiagnostics>, [boolean]>;
 };
 const mockedFileSystem = jest.requireMock('expo-file-system/legacy') as {
   writeAsStringAsync: jest.Mock<Promise<void>, [string, string, { encoding: string }]>;
@@ -455,15 +474,26 @@ describe('App', () => {
     mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(
       buildMockCaptureDiagnostics(),
     );
-    mockedNativeCaptureModule.setNativeCaptureDedupeConfig.mockImplementation(async (dedupeConfig) =>
-      buildMockCaptureDiagnostics({
-        dedupeConfig,
-      }),
+    mockedNativeCaptureModule.setNativeCaptureDedupeConfig.mockImplementation(
+      async (dedupeConfig) => {
+        const diagnostics = await mockedNativeCaptureModule.getNativeCaptureDiagnostics();
+
+        return {
+          ...diagnostics,
+          dedupeConfig,
+        };
+      },
     );
-    mockedNativeCaptureModule.setAllowedSourceApps.mockImplementation(async (sourceAppIds) =>
-      buildMockCaptureDiagnostics({
+    mockedNativeCaptureModule.setAllowedSourceApps.mockImplementation(async (sourceAppIds) => {
+      const diagnostics = await mockedNativeCaptureModule.getNativeCaptureDiagnostics();
+
+      return {
+        ...diagnostics,
         allowedSourceAppIds: sourceAppIds as NativeCaptureDiagnostics['allowedSourceAppIds'],
-      }),
+      };
+    });
+    mockedNativeCaptureModule.setNativeCapturePrivacyModeEnabled.mockImplementation(async () =>
+      mockedNativeCaptureModule.getNativeCaptureDiagnostics(),
     );
     mockedBootstrapConfigModule.hydrateBootstrapConfigCache.mockResolvedValue(
       buildMockBootstrapState(),

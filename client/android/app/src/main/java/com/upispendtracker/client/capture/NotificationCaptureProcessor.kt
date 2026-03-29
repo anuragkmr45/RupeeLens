@@ -8,6 +8,7 @@ class NotificationCaptureProcessor(
   private val snapshotStore: CaptureSnapshotStore,
   private val deduper: NotificationCaptureDeduper = NotificationCaptureDeduper(),
   private val parserRegistry: NotificationParserRegistry = NotificationParserRegistry.default(),
+  private val actionNotifier: CaptureActionNotifier? = null,
   private val nowProvider: () -> Long = { System.currentTimeMillis() },
 ) {
   fun capture(statusBarNotification: StatusBarNotification): Boolean {
@@ -39,7 +40,8 @@ class NotificationCaptureProcessor(
 
       when (dedupeDecision) {
         is CaptureDedupeDecision.Unique -> {
-          snapshotStore.insertSnapshot(
+          val captureEventId =
+            snapshotStore.insertSnapshot(
             snapshot = snapshot,
             parseResult = parseResult,
             dedupeMetadata =
@@ -48,6 +50,16 @@ class NotificationCaptureProcessor(
                 fuzzyDedupeKey = dedupeDecision.fuzzyDedupeKey,
               ),
           )
+          if (captureEventId > 0L) {
+            actionNotifier?.postCapturePrompt(
+              ActionableCapturePrompt(
+                amountMinor = parseResult.event.amountMinor,
+                captureEventId = captureEventId,
+                merchantLabel = parseResult.event.merchantRaw,
+                sourceAppId = parseResult.event.sourceAppId,
+              ),
+            )
+          }
           return true
         }
 

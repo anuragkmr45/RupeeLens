@@ -92,6 +92,7 @@ interface NotificationCaptureModuleShape {
   getCaptureDiagnostics(): Promise<unknown>;
   setDedupeConfig(config: NativeCaptureDedupeConfig): Promise<unknown>;
   setAllowedSourceApps(sourceAppIds: SupportedSourceAppId[]): Promise<unknown>;
+  setPrivacyModeEnabled(enabled: boolean): Promise<unknown>;
 }
 
 const notificationCaptureModule =
@@ -492,6 +493,16 @@ export async function setNativeCaptureDedupeConfig(
   }
 
   return parseDiagnostics(await notificationCaptureModule.setDedupeConfig(dedupeConfig));
+}
+
+export async function setNativeCapturePrivacyModeEnabled(
+  enabled: boolean,
+): Promise<NativeCaptureDiagnostics> {
+  if (!notificationCaptureModule) {
+    return { ...DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS };
+  }
+
+  return parseDiagnostics(await notificationCaptureModule.setPrivacyModeEnabled(enabled));
 }
 
 export async function clearStoredCaptureSnapshots(): Promise<NativeCaptureDiagnostics> {

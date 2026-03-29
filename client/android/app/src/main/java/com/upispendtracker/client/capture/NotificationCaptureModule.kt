@@ -70,6 +70,12 @@ class NotificationCaptureModule(
   }
 
   @ReactMethod
+  fun setPrivacyModeEnabled(enabled: Boolean, promise: Promise) {
+    settingsStore.setPrivacyModeEnabled(enabled)
+    promise.resolve(buildDiagnosticsMap())
+  }
+
+  @ReactMethod
   fun clearStoredSnapshots(promise: Promise) {
     snapshotStore.clearSnapshots()
     promise.resolve(buildDiagnosticsMap())

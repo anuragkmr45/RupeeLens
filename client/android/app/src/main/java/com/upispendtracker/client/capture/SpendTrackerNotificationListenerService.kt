@@ -9,8 +9,15 @@ import java.util.concurrent.Executors
 class SpendTrackerNotificationListenerService : NotificationListenerService() {
   private val settingsStore by lazy { CaptureSettingsStore(applicationContext) }
   private val snapshotStore by lazy { CaptureSnapshotStore(applicationContext) }
+  private val actionNotifier by lazy {
+    CaptureActionNotificationManager(
+      context = applicationContext,
+      settingsStore = settingsStore,
+    )
+  }
   private val captureProcessor by lazy {
     NotificationCaptureProcessor(
+      actionNotifier = actionNotifier,
       settingsStore = settingsStore,
       snapshotStore = snapshotStore,
     )

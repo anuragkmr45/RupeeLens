@@ -313,7 +313,7 @@ Capture DB stable and integrated into native services.
 - **Story points:** 8
 - **Goal:** Let users classify a spend in one interaction without opening the app.
 - **Dependencies:** CAP-004
-- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-27 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: `CAP-004` remains blocked on 2026-03-27 because `adb devices` is empty, so this run moved to UX-005 as the next actionable canonical ticket. Scope is limited to a full-screen split-items flow, remainder handling, and local persistence/UI updates needed to keep partially classified transactions visible in Inbox.
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-27 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: CAP-005 now has repo-side native actionable review notifications for successful unique captures, direct-reply / classify / split / skip action persistence through the Room-backed native capture repository, privacy-mode-driven lockscreen redaction, a focused formatter test, and the required repo validation passes (`./gradlew :app:testDebugUnitTest`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check`) on 2026-03-30. The ticket remains in progress because `adb devices` is empty again so connected-Android manual/receiver validation could not run, and the real one-tap classify handoff still needs CAP-006 native-to-JS import/routing instead of a notification-only native foundation.
 
 **Description**  
 Post app-owned actionable notifications for new payments with inline text reply, open-app classify action, split action, and skip action. Respect lockscreen privacy settings.

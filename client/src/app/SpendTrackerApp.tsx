@@ -139,6 +139,7 @@ import {
   getNativeCaptureDiagnostics,
   setNativeCaptureDedupeConfig,
   setAllowedSourceApps,
+  setNativeCapturePrivacyModeEnabled,
   type CaptureTemplateVersionSummary,
   type NativeCaptureDiagnostics,
 } from '../features/android-capture/native-capture';
@@ -555,6 +556,30 @@ export function SpendTrackerApp() {
       isMounted = false;
     };
   }, [isHydrating, onboardingPreferences.selectedSourceAppIds]);
+
+  useEffect(() => {
+    if (isHydrating) {
+      return;
+    }
+
+    let isMounted = true;
+
+    async function syncNativePrivacyMode() {
+      const diagnostics = await setNativeCapturePrivacyModeEnabled(privacyModeEnabled);
+
+      if (!isMounted) {
+        return;
+      }
+
+      setCaptureDiagnostics(diagnostics);
+    }
+
+    void syncNativePrivacyMode();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isHydrating, privacyModeEnabled]);
 
   useEffect(() => {
     let isMounted = true;

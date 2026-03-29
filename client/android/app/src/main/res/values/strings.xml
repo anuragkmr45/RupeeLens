@@ -1,5 +1,12 @@
 <resources>
   <string name="app_name">UPI Spend Tracker</string>
+  <string name="capture_action_channel_description">Review, split, skip, or label captured payments.</string>
+  <string name="capture_action_channel_name">Captured payment review</string>
+  <string name="capture_action_classify">Classify</string>
+  <string name="capture_action_direct_reply">Label item</string>
+  <string name="capture_action_reply_hint">Add item name</string>
+  <string name="capture_action_skip">Skip</string>
+  <string name="capture_action_split">Split</string>
   <string name="expo_system_ui_user_interface_style" translatable="false">light</string>
   <string name="notification_capture_service_label">UPI Spend Tracker capture</string>
 </resources>

@@ -62,12 +62,23 @@ class CaptureSettingsStore(context: Context) {
       .apply()
   }
 
+  fun getPrivacyModeEnabled(): Boolean {
+    return sharedPreferences.getBoolean(KEY_PRIVACY_MODE_ENABLED, false)
+  }
+
+  fun setPrivacyModeEnabled(enabled: Boolean) {
+    sharedPreferences.edit()
+      .putBoolean(KEY_PRIVACY_MODE_ENABLED, enabled)
+      .apply()
+  }
+
   companion object {
     private const val KEY_ALLOWED_SOURCE_APP_IDS = "allowed_source_app_ids"
     private const val KEY_DEDUPE_EXACT_MATCH_WINDOW_SECONDS = "dedupe_exact_match_window_seconds"
     private const val KEY_DEDUPE_FUZZY_MATCH_WINDOW_SECONDS = "dedupe_fuzzy_match_window_seconds"
     private const val KEY_DEDUPE_MERCHANT_SIMILARITY_THRESHOLD =
       "dedupe_merchant_similarity_threshold"
+    private const val KEY_PRIVACY_MODE_ENABLED = "privacy_mode_enabled"
     private const val PREFERENCES_NAME = "notification_capture_settings"
   }
 }
