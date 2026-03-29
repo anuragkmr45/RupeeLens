@@ -10,6 +10,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Backlog tracking now reflects tickets that are genuinely `done`, `blocked`, or `in_progress` based on the current repository, while unfinished acceptance criteria stay explicitly open.
 - `PLANS.md` now uses local `TRACK-*`, `APP-*`, and `ENV-*` identifiers for local execution history so it no longer collides with canonical backlog ticket IDs.
 - Codex workflow orchestration is now documented in `docs/10_Codex_Workflow.md`; migration commands and rollback guidance now live in `docs/11_Database_Migrations.md`.
+- OTA channel, runtime-version, and rollback guidance now lives in `docs/12_OTA_Runtime_Rollback.md`.
 - Shared mobile design-system tokens and UI primitives now live in `packages/mobile-ui`, with a showcase screen reachable from the client Home shell.
 
 ## Sprint 0 — Foundations
@@ -112,12 +113,14 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 **Done in repo**
 
 - Baseline lint, typecheck, test, build, and CI documentation
+- Repo-side OTA configuration for `internal`, `beta`, and `production` EAS channels, Expo fingerprint runtime-version policy, bootstrap query alignment with OTA channel/runtime metadata, and a written rollback/change-type playbook
 
 **Remaining**
 
+- Real Expo project/update URL wiring plus dry-run OTA/rollback evidence
+- Engineering approval of the OTA process
 - Privacy/security baseline
 - Low-network and performance optimization
-- OTA/runtime-version and rollback playbook
 - Analytics, crash reporting, and operational dashboards
 
 ## Sprint 7 — Beta And Release

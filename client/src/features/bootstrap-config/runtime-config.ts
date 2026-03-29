@@ -8,6 +8,7 @@ import type {
 } from '@upi-spend-tracker/contracts';
 import { createIntegritySignature } from '@upi-spend-tracker/shared-utils';
 import { Storage } from 'expo-sqlite/kv-store';
+import * as Updates from 'expo-updates';
 import { NativeModules, Platform } from 'react-native';
 
 const BOOTSTRAP_CACHE_KEY = 'bootstrap_config_cache_v1';
@@ -161,7 +162,25 @@ function isCachedBootstrapConfigEnvelope(
 }
 
 function resolveRolloutChannel(): RolloutChannel {
+  const updatesChannel = Updates.channel;
+
+  if (isRolloutChannel(updatesChannel)) {
+    return updatesChannel;
+  }
+
+  const publicReleaseChannel = process.env.EXPO_PUBLIC_RELEASE_CHANNEL;
+
+  if (isRolloutChannel(publicReleaseChannel)) {
+    return publicReleaseChannel;
+  }
+
   return __DEV__ ? 'beta' : 'production';
+}
+
+function resolveRuntimeVersion(): string {
+  return typeof Updates.runtimeVersion === 'string' && Updates.runtimeVersion.trim().length > 0
+    ? Updates.runtimeVersion.trim()
+    : DEFAULT_RUNTIME_VERSION;
 }
 
 function getFeatureFlagsForChannel(channel: RolloutChannel): Record<string, boolean> {
@@ -290,7 +309,7 @@ export function getDefaultBootstrapConfigQuery(): BootstrapConfigRequestQuery {
     appVersion: DEFAULT_APP_VERSION,
     channel: resolveRolloutChannel(),
     platform: getFallbackPlatform(),
-    runtimeVersion: DEFAULT_RUNTIME_VERSION,
+    runtimeVersion: resolveRuntimeVersion(),
   };
 }
 

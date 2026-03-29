@@ -18,6 +18,12 @@ jest.mock('expo-sqlite/kv-store', () => ({
   },
 }));
 
+jest.mock('expo-updates', () => ({
+  __esModule: true,
+  channel: null,
+  runtimeVersion: null,
+}));
+
 function getKvStoreMock() {
   return jest.requireMock('expo-sqlite/kv-store') as {
     Storage: {
@@ -25,6 +31,13 @@ function getKvStoreMock() {
       removeItem: jest.Mock<Promise<void>, [string]>;
       setItem: jest.Mock<Promise<void>, [string, string]>;
     };
+  };
+}
+
+function getUpdatesMock() {
+  return jest.requireMock('expo-updates') as {
+    channel: string | null;
+    runtimeVersion: string | null;
   };
 }
 
@@ -86,6 +99,37 @@ function buildConfig(overrides: Partial<BootstrapConfigResponse> = {}): Bootstra
 describe('bootstrap config runtime cache', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    const updates = getUpdatesMock();
+    updates.channel = null;
+    updates.runtimeVersion = null;
+    delete process.env.EXPO_PUBLIC_RELEASE_CHANNEL;
+  });
+
+  it('prefers OTA runtime metadata when building the default query', () => {
+    const updates = getUpdatesMock();
+    updates.channel = 'internal';
+    updates.runtimeVersion = 'fingerprint:ota-build-1';
+
+    expect(getDefaultBootstrapConfigQuery()).toEqual({
+      appVersion: '1.0.0',
+      channel: 'internal',
+      platform: expect.any(String),
+      runtimeVersion: 'fingerprint:ota-build-1',
+    });
+  });
+
+  it('falls back to the public release channel env when OTA metadata is unavailable', () => {
+    const updates = getUpdatesMock();
+    updates.channel = null;
+    updates.runtimeVersion = null;
+    process.env.EXPO_PUBLIC_RELEASE_CHANNEL = 'production';
+
+    expect(getDefaultBootstrapConfigQuery()).toEqual({
+      appVersion: '1.0.0',
+      channel: 'production',
+      platform: expect.any(String),
+      runtimeVersion: 'expo-sdk-55-dev-client',
+    });
   });
 
   it('hydrates a fresh cached config instantly', async () => {

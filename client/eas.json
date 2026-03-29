@@ -1,0 +1,28 @@
+{
+  "cli": {
+    "version": ">= 16.18.0"
+  },
+  "build": {
+    "internal": {
+      "channel": "internal",
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_RELEASE_CHANNEL": "internal"
+      }
+    },
+    "beta": {
+      "channel": "beta",
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_RELEASE_CHANNEL": "beta"
+      }
+    },
+    "production": {
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_RELEASE_CHANNEL": "production"
+      }
+    }
+  }
+}

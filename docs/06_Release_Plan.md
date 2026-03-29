@@ -102,6 +102,9 @@ Goals:
 - OTA channel setup
 - analytics/crash dashboards
 
+Reference:
+- use `docs/12_OTA_Runtime_Rollback.md` as the source-of-truth playbook for OTA channels, runtime policy, staged rollout, rollback, and the OTA-vs-store-release matrix
+
 Exit:
 - beta quality bar achieved
 

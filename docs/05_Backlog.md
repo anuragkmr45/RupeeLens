@@ -1094,7 +1094,7 @@ Performance budget met and documented.
 - **Story points:** 5
 - **Goal:** Update JS/config safely without breaking native compatibility.
 - **Dependencies:** SET-006, API-006
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-29 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the Expo client now uses `client/app.config.ts` with fingerprint runtime-version policy, isolated `internal`/`beta`/`production` EAS channel profiles in `client/eas.json`, `expo-updates`-backed runtime/channel bootstrap query alignment, and `docs/12_OTA_Runtime_Rollback.md` as the OTA rollout/rollback and change-type playbook. `pnpm --filter @upi-spend-tracker/client exec expo config --type public`, `pnpm --filter @upi-spend-tracker/client lint`, `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/bootstrap-config.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-29. Status remains `in_progress` because real Expo project/update URL wiring, non-production OTA/rollback dry-run evidence, and engineering approval are still external closeout requirements.
 
 **Description**  
 Configure internal, beta, and production channels; runtime version policy; staged rollout steps; rollback checklist; and change-type matrix explaining when store release is required.

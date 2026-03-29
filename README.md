@@ -108,6 +108,7 @@ Branch-protection expectations and the exact required check names are documented
 - `docs/09_Project_Phase_Status.md`: repo-truth audit of what is done and what remains by sprint
 - `docs/10_Codex_Workflow.md`: single-ticket delivery loop for audit, selection, implementation, validation, and truthful tracking updates
 - `docs/11_Database_Migrations.md`: migration commands, seed strategy, validation behavior, and rollback/forward-fix guidance
+- `docs/12_OTA_Runtime_Rollback.md`: OTA channel configuration, runtime-version policy, rollout steps, and rollback/change-type matrix
 
 Within a continuing Codex thread for this repo, a user message of `next` means rerun the single-ticket workflow documented in `docs/10_Codex_Workflow.md`.
 
@@ -120,6 +121,7 @@ Within a continuing Codex thread for this repo, a user message of `next` means r
 - Onboarding, classified spends, and manual entries persist on device through local SQLite tables with ordered migrations and root-level DB validation; native capture import and the mobile sync client/outbox are still pending
 - Backend skeleton now boots API and worker runtimes through explicit module factories, tested env loaders, and service/repository seams; `GET /health`, a cacheable signed `GET /v1/bootstrap/config` endpoint with runtime-version compatibility checks, guest-session/device-pairing APIs, first authenticated sync push/pull APIs, an expanded authenticated domain API slice for transactions, transaction items, merchants, categories, rules, and budgets, first authenticated reports summary/breakdown APIs, and the first worker-side rollup / cleanup / export-job foundation are live. Durable on-disk session, pairing, sync, domain, export-job, and worker-rollup persistence now back the current local server runtime. Staging availability, reports latency certification, and mobile-integrated sync flows are still pending
 - Worker runtime now schedules heartbeat, reports-rollup refresh, stale-session/export cleanup, and queued CSV export processing with delayed retries plus queue-depth/failure logging; a user-facing export request/status API and staging worker operations are still pending
+- The client now has repo-side OTA build-channel config for `internal`, `beta`, and `production`, Expo fingerprint runtime-version policy, and a documented rollback/change-type playbook. Real EAS project wiring and engineering approval are still pending, so OTA remains intentionally disabled unless `EXPO_EAS_PROJECT_ID` or `EXPO_UPDATES_URL` is provided in the build environment
 - No deployment CI, analytics providers, or full native capture domain-import pipeline yet
 
 ## Backlog Tracking Convention

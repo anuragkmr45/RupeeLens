@@ -1046,12 +1046,12 @@
       ],
       "tests": "Dry-run rollout and rollback in non-production channels.",
       "done": "OTA process approved by engineering leads.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-29",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: the Expo client now uses `client/app.config.ts` with fingerprint runtime-version policy, isolated `internal`/`beta`/`production` EAS channel profiles in `client/eas.json`, `expo-updates`-backed runtime/channel bootstrap query alignment, and `docs/12_OTA_Runtime_Rollback.md` as the OTA rollout/rollback and change-type playbook. `pnpm --filter @upi-spend-tracker/client exec expo config --type public`, `pnpm --filter @upi-spend-tracker/client lint`, `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/bootstrap-config.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-29. Status remains `in_progress` because real Expo project/update URL wiring, non-production OTA/rollback dry-run evidence, and engineering approval are still external closeout requirements."
     },
     {
       "id": "QA-005",
