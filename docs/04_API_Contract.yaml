@@ -18,6 +18,7 @@ tags:
 - name: Sync
 - name: Transactions
 - name: Categories
+- name: Merchants
 - name: Rules
 - name: Budgets
 - name: Reports
@@ -285,6 +286,10 @@ paths:
           type: string
           format: uuid
       - in: query
+        name: includeDeleted
+        schema:
+          type: boolean
+      - in: query
         name: search
         schema:
           type: string
@@ -405,11 +410,150 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '409':
           $ref: '#/components/responses/Conflict'
+  /v1/transactions/{transactionId}/items:
+    post:
+      tags:
+      - Transactions
+      summary: Create transaction item
+      parameters:
+      - $ref: '#/components/parameters/TransactionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionItemUpsertRequest'
+      responses:
+        '201':
+          description: Transaction item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/items:
+    get:
+      tags:
+      - Transactions
+      summary: List transaction items
+      parameters:
+      - in: query
+        name: transactionId
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: categoryId
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: includeDeleted
+        schema:
+          type: boolean
+      - in: query
+        name: search
+        schema:
+          type: string
+      - in: query
+        name: page
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - in: query
+        name: pageSize
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      responses:
+        '200':
+          description: Transaction items list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionItemListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/items/{itemId}:
+    get:
+      tags:
+      - Transactions
+      summary: Get transaction item
+      parameters:
+      - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: Transaction item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Transactions
+      summary: Update transaction item
+      parameters:
+      - $ref: '#/components/parameters/ItemId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionItemPatchRequest'
+      responses:
+        '200':
+          description: Transaction item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags:
+      - Transactions
+      summary: Soft delete transaction item
+      parameters:
+      - $ref: '#/components/parameters/ItemId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionedDeleteRequest'
+      responses:
+        '204':
+          description: Transaction item deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/categories:
     get:
       tags:
       - Categories
       summary: List categories
+      parameters:
+      - in: query
+        name: includeDeleted
+        schema:
+          type: boolean
       responses:
         '200':
           description: Categories
@@ -436,6 +580,113 @@ paths:
                 $ref: '#/components/schemas/Category'
         '400':
           $ref: '#/components/responses/BadRequest'
+  /v1/merchants:
+    get:
+      tags:
+      - Merchants
+      summary: List merchants
+      parameters:
+      - in: query
+        name: includeDeleted
+        schema:
+          type: boolean
+      - in: query
+        name: search
+        schema:
+          type: string
+      - in: query
+        name: page
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - in: query
+        name: pageSize
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      responses:
+        '200':
+          description: Merchants
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantListResponse'
+    post:
+      tags:
+      - Merchants
+      summary: Create merchant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantUpsertRequest'
+      responses:
+        '201':
+          description: Merchant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Merchant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/merchants/{merchantId}:
+    get:
+      tags:
+      - Merchants
+      summary: Get merchant
+      parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      responses:
+        '200':
+          description: Merchant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Merchant'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Merchants
+      summary: Update merchant
+      parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantPatchRequest'
+      responses:
+        '200':
+          description: Merchant updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Merchant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags:
+      - Merchants
+      summary: Soft delete merchant
+      parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      responses:
+        '204':
+          description: Merchant deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/categories/{categoryId}:
     patch:
       tags:
@@ -470,6 +721,11 @@ paths:
       tags:
       - Rules
       summary: List rules
+      parameters:
+      - in: query
+        name: includeDeleted
+        schema:
+          type: boolean
       responses:
         '200':
           description: Rules
@@ -528,6 +784,11 @@ paths:
       tags:
       - Budgets
       summary: List budgets
+      parameters:
+      - in: query
+        name: includeDeleted
+        schema:
+          type: boolean
       responses:
         '200':
           description: Budgets
@@ -711,6 +972,20 @@ components:
     BudgetId:
       in: path
       name: budgetId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MerchantId:
+      in: path
+      name: merchantId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ItemId:
+      in: path
+      name: itemId
       required: true
       schema:
         type: string
@@ -1274,12 +1549,33 @@ components:
           type: boolean
         version:
           type: integer
+        deletedAt:
+          type: string
+          format: date-time
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
+    TransactionItemListResponse:
+      type: object
+      required:
+      - items
+      - page
+      - pageSize
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionItem'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
     TransactionDetailResponse:
       type: object
       required:
@@ -1420,6 +1716,117 @@ components:
         categoryId:
           type: string
           format: uuid
+    TransactionItemUpsertRequest:
+      type: object
+      required:
+      - itemName
+      - totalAmountMinor
+      - transactionVersion
+      properties:
+        transactionVersion:
+          type: integer
+        itemName:
+          type: string
+        qty:
+          type: number
+        unitAmountMinor:
+          type: integer
+        totalAmountMinor:
+          type: integer
+        categoryId:
+          type: string
+          format: uuid
+    TransactionItemPatchRequest:
+      type: object
+      required:
+      - version
+      properties:
+        version:
+          type: integer
+        itemName:
+          type: string
+        qty:
+          type: number
+        unitAmountMinor:
+          type: integer
+        totalAmountMinor:
+          type: integer
+        categoryId:
+          type: string
+          format: uuid
+        confirmed:
+          type: boolean
+    VersionedDeleteRequest:
+      type: object
+      required:
+      - version
+      properties:
+        version:
+          type: integer
+    Merchant:
+      type: object
+      required:
+      - id
+      - label
+      - normalizedLabel
+      - version
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        normalizedLabel:
+          type: string
+        version:
+          type: integer
+        deletedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    MerchantListResponse:
+      type: object
+      required:
+      - items
+      - page
+      - pageSize
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Merchant'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+    MerchantUpsertRequest:
+      type: object
+      required:
+      - label
+      properties:
+        label:
+          type: string
+          maxLength: 120
+    MerchantPatchRequest:
+      type: object
+      required:
+      - version
+      properties:
+        version:
+          type: integer
+        label:
+          type: string
+          maxLength: 120
     Category:
       type: object
       required:
@@ -1443,6 +1850,9 @@ components:
           type: boolean
         version:
           type: integer
+        deletedAt:
+          type: string
+          format: date-time
         createdAt:
           type: string
           format: date-time
@@ -1531,6 +1941,9 @@ components:
           type: boolean
         version:
           type: integer
+        deletedAt:
+          type: string
+          format: date-time
         createdAt:
           type: string
           format: date-time
@@ -1707,6 +2120,9 @@ components:
           type: boolean
         version:
           type: integer
+        deletedAt:
+          type: string
+          format: date-time
         createdAt:
           type: string
           format: date-time

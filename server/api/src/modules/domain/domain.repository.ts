@@ -12,6 +12,7 @@ import type {
   Budget,
   BudgetScope,
   Category,
+  Merchant,
   Rule,
   Transaction,
   TransactionItem,
@@ -22,6 +23,10 @@ export interface StoredTransaction extends Transaction {
 }
 
 export interface StoredTransactionItem extends TransactionItem {
+  userId: string;
+}
+
+export interface StoredMerchant extends Merchant {
   userId: string;
 }
 
@@ -55,6 +60,7 @@ interface SerializedDomainRepositoryState {
   budgetScopes: StoredBudgetScope[];
   budgets: StoredBudget[];
   categories: StoredCategory[];
+  merchants: StoredMerchant[];
   rules: StoredRule[];
   transactions: StoredTransaction[];
   transactionItems: StoredTransactionItem[];
@@ -77,17 +83,30 @@ export interface DomainRepository {
   getCategory(userId: string, categoryId: string, includeDeleted?: boolean): StoredCategory | null;
   listCategories(userId: string, includeDeleted?: boolean): StoredCategory[];
   saveCategory(record: StoredCategory): void;
+  getMerchant(userId: string, merchantId: string, includeDeleted?: boolean): StoredMerchant | null;
+  listMerchants(userId: string, includeDeleted?: boolean): StoredMerchant[];
+  saveMerchant(record: StoredMerchant): void;
   getRule(userId: string, ruleId: string, includeDeleted?: boolean): StoredRule | null;
   listRules(userId: string, includeDeleted?: boolean): StoredRule[];
   saveRule(record: StoredRule): void;
   getTransaction(userId: string, transactionId: string): StoredTransaction | null;
   listTransactions(userId: string): StoredTransaction[];
-  listTransactionItems(userId: string, transactionId?: string): StoredTransactionItem[];
+  getTransactionItem(
+    userId: string,
+    itemId: string,
+    includeDeleted?: boolean,
+  ): StoredTransactionItem | null;
+  listTransactionItems(
+    userId: string,
+    transactionId?: string,
+    includeDeleted?: boolean,
+  ): StoredTransactionItem[];
   replaceTransactionItems(
     userId: string,
     transactionId: string,
     items: StoredTransactionItem[],
   ): void;
+  saveTransactionItem(record: StoredTransactionItem): void;
   saveTransaction(record: StoredTransaction): void;
 }
 
@@ -98,6 +117,10 @@ function cloneTransaction(record: StoredTransaction): StoredTransaction {
 }
 
 function cloneTransactionItem(record: StoredTransactionItem): StoredTransactionItem {
+  return { ...record };
+}
+
+function cloneMerchant(record: StoredMerchant): StoredMerchant {
   return { ...record };
 }
 
@@ -138,6 +161,7 @@ function loadState(domainStoreFile: string): SerializedDomainRepositoryState {
       budgetScopes: Array.isArray(parsed.budgetScopes) ? parsed.budgetScopes : [],
       budgets: Array.isArray(parsed.budgets) ? parsed.budgets : [],
       categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+      merchants: Array.isArray(parsed.merchants) ? parsed.merchants : [],
       rules: Array.isArray(parsed.rules) ? parsed.rules : [],
       transactionItems: Array.isArray(parsed.transactionItems) ? parsed.transactionItems : [],
       transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
@@ -150,6 +174,7 @@ function loadState(domainStoreFile: string): SerializedDomainRepositoryState {
         budgetScopes: [],
         budgets: [],
         categories: [],
+        merchants: [],
         rules: [],
         transactionItems: [],
         transactions: [],
@@ -204,6 +229,9 @@ export function createDomainRepository({
   const categories = new Map(
     initialState.categories.map((record) => [`${record.userId}:${record.id}`, cloneCategory(record)]),
   );
+  const merchants = new Map(
+    initialState.merchants.map((record) => [`${record.userId}:${record.id}`, cloneMerchant(record)]),
+  );
   const rules = new Map(
     initialState.rules.map((record) => [`${record.userId}:${record.id}`, cloneRule(record)]),
   );
@@ -223,6 +251,7 @@ export function createDomainRepository({
       budgetScopes: [...budgetScopes.values()].map(cloneBudgetScope),
       budgets: [...budgets.values()].map(cloneBudget),
       categories: [...categories.values()].map(cloneCategory),
+      merchants: [...merchants.values()].map(cloneMerchant),
       rules: [...rules.values()].map(cloneRule),
       transactionItems: [...transactionItems.values()].map(cloneTransactionItem),
       transactions: [...transactions.values()].map(cloneTransaction),
@@ -254,6 +283,15 @@ export function createDomainRepository({
 
       return cloneCategory(record);
     },
+    getMerchant(userId, merchantId, includeDeleted = false) {
+      const record = merchants.get(`${userId}:${merchantId}`);
+
+      if (!record || (!includeDeleted && record.deletedAt)) {
+        return null;
+      }
+
+      return cloneMerchant(record);
+    },
     getRule(userId, ruleId, includeDeleted = false) {
       const record = rules.get(`${userId}:${ruleId}`);
 
@@ -266,6 +304,19 @@ export function createDomainRepository({
     getTransaction(userId, transactionId) {
       const record = transactions.get(`${userId}:${transactionId}`);
       return record ? cloneTransaction(record) : null;
+    },
+    getTransactionItem(userId, itemId, includeDeleted = false) {
+      for (const record of transactionItems.values()) {
+        if (record.userId === userId && record.id === itemId) {
+          if (!includeDeleted && record.deletedAt) {
+            return null;
+          }
+
+          return cloneTransactionItem(record);
+        }
+      }
+
+      return null;
     },
     listAuditEvents(userId, transactionId) {
       return auditEvents
@@ -290,17 +341,24 @@ export function createDomainRepository({
         .map(cloneCategory)
         .sort((left, right) => left.name.localeCompare(right.name));
     },
+    listMerchants(userId, includeDeleted = false) {
+      return [...merchants.values()]
+        .filter((record) => record.userId === userId && (includeDeleted || !record.deletedAt))
+        .map(cloneMerchant)
+        .sort((left, right) => left.label.localeCompare(right.label));
+    },
     listRules(userId, includeDeleted = false) {
       return [...rules.values()]
         .filter((record) => record.userId === userId && (includeDeleted || !record.deletedAt))
         .map(cloneRule)
         .sort((left, right) => left.priority - right.priority || left.createdAt.localeCompare(right.createdAt));
     },
-    listTransactionItems(userId, transactionId) {
+    listTransactionItems(userId, transactionId, includeDeleted = false) {
       return [...transactionItems.values()]
         .filter(
           (record) =>
             record.userId === userId &&
+            (includeDeleted || !record.deletedAt) &&
             (transactionId === undefined || record.transactionId === transactionId),
         )
         .map(cloneTransactionItem)
@@ -350,8 +408,19 @@ export function createDomainRepository({
       categories.set(`${record.userId}:${record.id}`, cloneCategory(record));
       persist();
     },
+    saveMerchant(record) {
+      merchants.set(`${record.userId}:${record.id}`, cloneMerchant(record));
+      persist();
+    },
     saveRule(record) {
       rules.set(`${record.userId}:${record.id}`, cloneRule(record));
+      persist();
+    },
+    saveTransactionItem(record) {
+      transactionItems.set(
+        `${record.userId}:${record.transactionId}:${record.id}`,
+        cloneTransactionItem(record),
+      );
       persist();
     },
     saveTransaction(record) {

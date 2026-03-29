@@ -45,6 +45,7 @@ export interface TransactionItem {
   categoryId?: string | undefined;
   confirmed: boolean;
   createdAt: string;
+  deletedAt?: string | undefined;
   id: string;
   itemName: string;
   itemNorm?: string | undefined;
@@ -71,6 +72,13 @@ export interface TransactionDetailResponse {
   auditEvents?: AuditEvent[];
   items: TransactionItem[];
   transaction: Transaction;
+}
+
+export interface TransactionItemListResponse {
+  items: TransactionItem[];
+  page: number;
+  pageSize: number;
+  total: number;
 }
 
 export interface TransactionListResponse {
@@ -131,9 +139,59 @@ export interface ClassifyTransactionRequest {
   version: number;
 }
 
+export interface TransactionItemUpsertRequest {
+  categoryId?: string | undefined;
+  itemName: string;
+  qty?: number | undefined;
+  totalAmountMinor: number;
+  transactionVersion: number;
+  unitAmountMinor?: number | undefined;
+}
+
+export interface TransactionItemPatchRequest {
+  categoryId?: string | undefined;
+  confirmed?: boolean | undefined;
+  itemName?: string | undefined;
+  qty?: number | undefined;
+  totalAmountMinor?: number | undefined;
+  unitAmountMinor?: number | undefined;
+  version: number;
+}
+
+export interface VersionedDeleteRequest {
+  version: number;
+}
+
+export interface Merchant {
+  createdAt: string;
+  deletedAt?: string | undefined;
+  id: string;
+  label: string;
+  normalizedLabel: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface MerchantListResponse {
+  items: Merchant[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface MerchantUpsertRequest {
+  label: string;
+}
+
+export interface MerchantPatchRequest {
+  label?: string | undefined;
+  version: number;
+}
+
 export interface Category {
   colorToken?: string | undefined;
   createdAt: string;
+  deletedAt?: string | undefined;
   iconKey?: string | undefined;
   id: string;
   isSystem: boolean;
@@ -165,6 +223,7 @@ export interface Rule {
   amountMinMinor?: number | undefined;
   autoApply: boolean;
   createdAt: string;
+  deletedAt?: string | undefined;
   hourBucket?: number | undefined;
   id: string;
   merchantMatchType: RuleMerchantMatchType;
@@ -222,6 +281,7 @@ export interface Budget {
   alert80?: boolean | undefined;
   createdAt: string;
   cycleAnchorDay?: number | undefined;
+  deletedAt?: string | undefined;
   endDate?: string | undefined;
   id: string;
   limitMinor: number;
@@ -281,10 +341,27 @@ export interface BudgetPatchRequest {
 export interface DomainListTransactionsQuery {
   categoryId?: string | undefined;
   from?: string | undefined;
+  includeDeleted?: boolean | undefined;
   merchantId?: string | undefined;
   page?: number | undefined;
   pageSize?: number | undefined;
   search?: string | undefined;
   status?: TransactionStatus | undefined;
   to?: string | undefined;
+}
+
+export interface DomainListItemsQuery {
+  categoryId?: string | undefined;
+  includeDeleted?: boolean | undefined;
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
+  transactionId?: string | undefined;
+}
+
+export interface DomainListMerchantsQuery {
+  includeDeleted?: boolean | undefined;
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
 }

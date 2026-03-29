@@ -8,13 +8,20 @@ import type {
   CategoryUpsertRequest,
   ClassifyItemInput,
   ClassifyTransactionRequest,
+  DomainListItemsQuery,
+  DomainListMerchantsQuery,
   DomainListTransactionsQuery,
+  MerchantPatchRequest,
+  MerchantUpsertRequest,
   RuleDraft,
   RulePatchRequest,
   RuleUpsertRequest,
+  TransactionItemPatchRequest,
+  TransactionItemUpsertRequest,
   TransactionPatchRequest,
   TransactionStatus,
   TransactionUpsertRequest,
+  VersionedDeleteRequest,
 } from './domain.types.js';
 import {
   DomainBadRequestError,
@@ -60,6 +67,22 @@ function parseString(value: unknown): string | undefined {
 
 function parseBoolean(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
+}
+
+function parseQueryBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (value === 'true') {
+    return true;
+  }
+
+  if (value === 'false') {
+    return false;
+  }
+
+  return undefined;
 }
 
 function parseTransactionStatus(value: unknown): TransactionStatus | undefined {
@@ -131,6 +154,71 @@ function parseTransactionPatchRequest(body: unknown): TransactionPatchRequest | 
       ? { status: parseActiveTransactionStatus(body.status) }
       : {}),
   };
+}
+
+function parseTransactionItemUpsertRequest(body: unknown): TransactionItemUpsertRequest | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  const itemName = parseString(body.itemName);
+  const totalAmountMinor = parseInteger(body.totalAmountMinor);
+  const transactionVersion = parseInteger(body.transactionVersion);
+
+  if (itemName === undefined || totalAmountMinor === undefined || transactionVersion === undefined) {
+    return null;
+  }
+
+  return {
+    itemName,
+    totalAmountMinor,
+    transactionVersion,
+    ...(parseString(body.categoryId) ? { categoryId: parseString(body.categoryId) } : {}),
+    ...(typeof body.qty === 'number' ? { qty: body.qty } : {}),
+    ...(parseInteger(body.unitAmountMinor) !== undefined
+      ? { unitAmountMinor: parseInteger(body.unitAmountMinor) }
+      : {}),
+  };
+}
+
+function parseTransactionItemPatchRequest(body: unknown): TransactionItemPatchRequest | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  const version = parseInteger(body.version);
+
+  if (version === undefined) {
+    return null;
+  }
+
+  return {
+    version,
+    ...(parseString(body.categoryId) ? { categoryId: parseString(body.categoryId) } : {}),
+    ...(parseBoolean(body.confirmed) !== undefined ? { confirmed: parseBoolean(body.confirmed) } : {}),
+    ...(parseString(body.itemName) !== undefined ? { itemName: parseString(body.itemName) } : {}),
+    ...(typeof body.qty === 'number' ? { qty: body.qty } : {}),
+    ...(parseInteger(body.totalAmountMinor) !== undefined
+      ? { totalAmountMinor: parseInteger(body.totalAmountMinor) }
+      : {}),
+    ...(parseInteger(body.unitAmountMinor) !== undefined
+      ? { unitAmountMinor: parseInteger(body.unitAmountMinor) }
+      : {}),
+  };
+}
+
+function parseVersionedDeleteRequest(body: unknown): VersionedDeleteRequest | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  const version = parseInteger(body.version);
+
+  if (version === undefined) {
+    return null;
+  }
+
+  return { version };
 }
 
 function parseClassifyItems(value: unknown): ClassifyItemInput[] | null {
@@ -235,6 +323,37 @@ function parseCategoryPatchRequest(body: unknown): CategoryPatchRequest | null {
     ...(parseString(body.colorToken) ? { colorToken: parseString(body.colorToken) } : {}),
     ...(parseString(body.iconKey) ? { iconKey: parseString(body.iconKey) } : {}),
     ...(parseString(body.name) ? { name: parseString(body.name) } : {}),
+  };
+}
+
+function parseMerchantUpsertRequest(body: unknown): MerchantUpsertRequest | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  const label = parseString(body.label);
+
+  if (label === undefined) {
+    return null;
+  }
+
+  return { label };
+}
+
+function parseMerchantPatchRequest(body: unknown): MerchantPatchRequest | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  const version = parseInteger(body.version);
+
+  if (version === undefined) {
+    return null;
+  }
+
+  return {
+    version,
+    ...(parseString(body.label) !== undefined ? { label: parseString(body.label) } : {}),
   };
 }
 
@@ -394,12 +513,15 @@ function parseTransactionsQuery(query: unknown): DomainListTransactionsQuery | n
   const page = query.page === undefined ? undefined : Number(query.page);
   const pageSize = query.pageSize === undefined ? undefined : Number(query.pageSize);
   const status = query.status === undefined ? undefined : parseTransactionStatus(query.status);
+  const includeDeleted =
+    query.includeDeleted === undefined ? undefined : parseQueryBoolean(query.includeDeleted);
 
   if (
     (query.page !== undefined && (page === undefined || !Number.isInteger(page) || page < 1)) ||
     (query.pageSize !== undefined &&
       (pageSize === undefined || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 200)) ||
-    (query.status !== undefined && !status)
+    (query.status !== undefined && !status) ||
+    (query.includeDeleted !== undefined && includeDeleted === undefined)
   ) {
     return null;
   }
@@ -407,6 +529,7 @@ function parseTransactionsQuery(query: unknown): DomainListTransactionsQuery | n
   return {
     ...(parseString(query.categoryId) ? { categoryId: parseString(query.categoryId) } : {}),
     ...(parseString(query.from) ? { from: parseString(query.from) } : {}),
+    ...(includeDeleted !== undefined ? { includeDeleted } : {}),
     ...(parseString(query.merchantId) ? { merchantId: parseString(query.merchantId) } : {}),
     ...(page !== undefined ? { page } : {}),
     ...(pageSize !== undefined ? { pageSize } : {}),
@@ -414,6 +537,60 @@ function parseTransactionsQuery(query: unknown): DomainListTransactionsQuery | n
     ...(status ? { status } : {}),
     ...(parseString(query.to) ? { to: parseString(query.to) } : {}),
   };
+}
+
+function parseEntityListQuery(query: unknown): {
+  includeDeleted?: boolean | undefined;
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
+} | null {
+  if (!isRecord(query)) {
+    return {};
+  }
+
+  const page = query.page === undefined ? undefined : Number(query.page);
+  const pageSize = query.pageSize === undefined ? undefined : Number(query.pageSize);
+  const includeDeleted =
+    query.includeDeleted === undefined ? undefined : parseQueryBoolean(query.includeDeleted);
+
+  if (
+    (query.page !== undefined && (page === undefined || !Number.isInteger(page) || page < 1)) ||
+    (query.pageSize !== undefined &&
+      (pageSize === undefined || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 200)) ||
+    (query.includeDeleted !== undefined && includeDeleted === undefined)
+  ) {
+    return null;
+  }
+
+  return {
+    ...(includeDeleted !== undefined ? { includeDeleted } : {}),
+    ...(page !== undefined ? { page } : {}),
+    ...(pageSize !== undefined ? { pageSize } : {}),
+    ...(parseString(query.search) ? { search: parseString(query.search) } : {}),
+  };
+}
+
+function parseItemsQuery(query: unknown): DomainListItemsQuery | null {
+  const baseQuery = parseEntityListQuery(query);
+
+  if (baseQuery === null) {
+    return null;
+  }
+
+  if (!isRecord(query)) {
+    return baseQuery;
+  }
+
+  return {
+    ...baseQuery,
+    ...(parseString(query.categoryId) ? { categoryId: parseString(query.categoryId) } : {}),
+    ...(parseString(query.transactionId) ? { transactionId: parseString(query.transactionId) } : {}),
+  };
+}
+
+function parseMerchantsQuery(query: unknown): DomainListMerchantsQuery | null {
+  return parseEntityListQuery(query);
 }
 
 function badRequest(message: string, fieldErrors?: { field: string; message: string }[]) {
@@ -609,15 +786,164 @@ export function registerDomainRoutes(app: FastifyInstance, service: DomainServic
     }
   });
 
-  app.get('/v1/categories', async (request, reply) => {
+  app.get('/v1/items', async (request, reply) => {
     const accessToken = parseBearerToken(request.headers.authorization);
+    const query = parseItemsQuery(request.query);
 
     if (!accessToken) {
       return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
     }
 
+    if (query === null) {
+      return reply.status(400).send(badRequest('Expected valid item list query values.'));
+    }
+
     try {
-      return reply.status(200).send(service.listCategories(accessToken));
+      return reply.status(200).send(service.listItems(accessToken, query));
+    } catch (error) {
+      if (error instanceof SessionUnauthorizedError) {
+        return reply.status(401).send(unauthorized(error.message));
+      }
+      throw error;
+    }
+  });
+
+  app.get('/v1/items/:itemId', async (request, reply) => {
+    const accessToken = parseBearerToken(request.headers.authorization);
+    const itemId = parseString((request.params as Record<string, unknown>).itemId);
+
+    if (!accessToken) {
+      return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
+    }
+
+    if (!itemId) {
+      return reply.status(400).send(badRequest('Expected an itemId path parameter.'));
+    }
+
+    try {
+      return reply.status(200).send(service.getItemDetail(accessToken, itemId));
+    } catch (error) {
+      if (error instanceof SessionUnauthorizedError) {
+        return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainNotFoundError) {
+        return reply.status(404).send(notFound(error.message));
+      }
+      throw error;
+    }
+  });
+
+  app.post('/v1/transactions/:transactionId/items', async (request, reply) => {
+    const accessToken = parseBearerToken(request.headers.authorization);
+    const transactionId = parseString((request.params as Record<string, unknown>).transactionId);
+    const body = parseTransactionItemUpsertRequest(request.body);
+
+    if (!accessToken) {
+      return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
+    }
+
+    if (!transactionId || !body) {
+      return reply.status(400).send(badRequest('Expected valid transaction item create values.'));
+    }
+
+    try {
+      return reply.status(201).send(service.createItem(accessToken, transactionId, body));
+    } catch (error) {
+      if (error instanceof SessionUnauthorizedError) {
+        return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainBadRequestError) {
+        return reply.status(400).send(badRequest(error.message, error.fieldErrors));
+      }
+      if (error instanceof DomainConflictError) {
+        return reply.status(409).send(conflict(error.message));
+      }
+      if (error instanceof DomainNotFoundError) {
+        return reply.status(404).send(notFound(error.message));
+      }
+      throw error;
+    }
+  });
+
+  app.patch('/v1/items/:itemId', async (request, reply) => {
+    const accessToken = parseBearerToken(request.headers.authorization);
+    const itemId = parseString((request.params as Record<string, unknown>).itemId);
+    const body = parseTransactionItemPatchRequest(request.body);
+
+    if (!accessToken) {
+      return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
+    }
+
+    if (!itemId || !body) {
+      return reply.status(400).send(badRequest('Expected valid transaction item patch values.'));
+    }
+
+    try {
+      return reply.status(200).send(service.patchItem(accessToken, itemId, body));
+    } catch (error) {
+      if (error instanceof SessionUnauthorizedError) {
+        return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainBadRequestError) {
+        return reply.status(400).send(badRequest(error.message, error.fieldErrors));
+      }
+      if (error instanceof DomainConflictError) {
+        return reply.status(409).send(conflict(error.message));
+      }
+      if (error instanceof DomainNotFoundError) {
+        return reply.status(404).send(notFound(error.message));
+      }
+      throw error;
+    }
+  });
+
+  app.delete('/v1/items/:itemId', async (request, reply) => {
+    const accessToken = parseBearerToken(request.headers.authorization);
+    const itemId = parseString((request.params as Record<string, unknown>).itemId);
+    const body = parseVersionedDeleteRequest(request.body);
+
+    if (!accessToken) {
+      return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
+    }
+
+    if (!itemId || !body) {
+      return reply.status(400).send(badRequest('Expected valid transaction item delete values.'));
+    }
+
+    try {
+      service.deleteItem(accessToken, itemId, body);
+      return reply.status(204).send();
+    } catch (error) {
+      if (error instanceof SessionUnauthorizedError) {
+        return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainBadRequestError) {
+        return reply.status(400).send(badRequest(error.message, error.fieldErrors));
+      }
+      if (error instanceof DomainConflictError) {
+        return reply.status(409).send(conflict(error.message));
+      }
+      if (error instanceof DomainNotFoundError) {
+        return reply.status(404).send(notFound(error.message));
+      }
+      throw error;
+    }
+  });
+
+  app.get('/v1/categories', async (request, reply) => {
+    const accessToken = parseBearerToken(request.headers.authorization);
+    const query = parseEntityListQuery(request.query);
+
+    if (!accessToken) {
+      return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
+    }
+
+    if (query === null) {
+      return reply.status(400).send(badRequest('Expected valid category list query values.'));
+    }
+
+    try {
+      return reply.status(200).send(service.listCategories(accessToken, query?.includeDeleted));
     } catch (error) {
       if (error instanceof SessionUnauthorizedError) {
         return reply.status(401).send(unauthorized(error.message));
@@ -646,6 +972,139 @@ export function registerDomainRoutes(app: FastifyInstance, service: DomainServic
       }
       if (error instanceof DomainBadRequestError) {
         return reply.status(400).send(badRequest(error.message, error.fieldErrors));
+      }
+      throw error;
+    }
+  });
+
+  app.get('/v1/merchants', async (request, reply) => {
+    const accessToken = parseBearerToken(request.headers.authorization);
+    const query = parseMerchantsQuery(request.query);
+
+    if (!accessToken) {
+      return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
+    }
+
+    if (query === null) {
+      return reply.status(400).send(badRequest('Expected valid merchant list query values.'));
+    }
+
+    try {
+      return reply.status(200).send(service.listMerchants(accessToken, query));
+    } catch (error) {
+      if (error instanceof SessionUnauthorizedError) {
+        return reply.status(401).send(unauthorized(error.message));
+      }
+      throw error;
+    }
+  });
+
+  app.post('/v1/merchants', async (request, reply) => {
+    const accessToken = parseBearerToken(request.headers.authorization);
+    const body = parseMerchantUpsertRequest(request.body);
+
+    if (!accessToken) {
+      return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
+    }
+
+    if (!body) {
+      return reply.status(400).send(badRequest('Expected valid merchant create values.'));
+    }
+
+    try {
+      return reply.status(201).send(service.createMerchant(accessToken, body));
+    } catch (error) {
+      if (error instanceof SessionUnauthorizedError) {
+        return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainBadRequestError) {
+        return reply.status(400).send(badRequest(error.message, error.fieldErrors));
+      }
+      if (error instanceof DomainConflictError) {
+        return reply.status(409).send(conflict(error.message));
+      }
+      throw error;
+    }
+  });
+
+  app.get('/v1/merchants/:merchantId', async (request, reply) => {
+    const accessToken = parseBearerToken(request.headers.authorization);
+    const merchantId = parseString((request.params as Record<string, unknown>).merchantId);
+
+    if (!accessToken) {
+      return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
+    }
+
+    if (!merchantId) {
+      return reply.status(400).send(badRequest('Expected a merchantId path parameter.'));
+    }
+
+    try {
+      return reply.status(200).send(service.getMerchant(accessToken, merchantId));
+    } catch (error) {
+      if (error instanceof SessionUnauthorizedError) {
+        return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainNotFoundError) {
+        return reply.status(404).send(notFound(error.message));
+      }
+      throw error;
+    }
+  });
+
+  app.patch('/v1/merchants/:merchantId', async (request, reply) => {
+    const accessToken = parseBearerToken(request.headers.authorization);
+    const merchantId = parseString((request.params as Record<string, unknown>).merchantId);
+    const body = parseMerchantPatchRequest(request.body);
+
+    if (!accessToken) {
+      return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
+    }
+
+    if (!merchantId || !body) {
+      return reply.status(400).send(badRequest('Expected valid merchant patch values.'));
+    }
+
+    try {
+      return reply.status(200).send(service.patchMerchant(accessToken, merchantId, body));
+    } catch (error) {
+      if (error instanceof SessionUnauthorizedError) {
+        return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainBadRequestError) {
+        return reply.status(400).send(badRequest(error.message, error.fieldErrors));
+      }
+      if (error instanceof DomainConflictError) {
+        return reply.status(409).send(conflict(error.message));
+      }
+      if (error instanceof DomainNotFoundError) {
+        return reply.status(404).send(notFound(error.message));
+      }
+      throw error;
+    }
+  });
+
+  app.delete('/v1/merchants/:merchantId', async (request, reply) => {
+    const accessToken = parseBearerToken(request.headers.authorization);
+    const merchantId = parseString((request.params as Record<string, unknown>).merchantId);
+
+    if (!accessToken) {
+      return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
+    }
+
+    if (!merchantId) {
+      return reply.status(400).send(badRequest('Expected a merchantId path parameter.'));
+    }
+
+    try {
+      service.deleteMerchant(accessToken, merchantId);
+      return reply.status(204).send();
+    } catch (error) {
+      if (error instanceof SessionUnauthorizedError) {
+        return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainNotFoundError) {
+        return reply.status(404).send(notFound(error.message));
       }
       throw error;
     }
@@ -711,13 +1170,18 @@ export function registerDomainRoutes(app: FastifyInstance, service: DomainServic
 
   app.get('/v1/rules', async (request, reply) => {
     const accessToken = parseBearerToken(request.headers.authorization);
+    const query = parseEntityListQuery(request.query);
 
     if (!accessToken) {
       return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
     }
 
+    if (query === null) {
+      return reply.status(400).send(badRequest('Expected valid rule list query values.'));
+    }
+
     try {
-      return reply.status(200).send(service.listRules(accessToken));
+      return reply.status(200).send(service.listRules(accessToken, query?.includeDeleted));
     } catch (error) {
       if (error instanceof SessionUnauthorizedError) {
         return reply.status(401).send(unauthorized(error.message));
@@ -811,13 +1275,18 @@ export function registerDomainRoutes(app: FastifyInstance, service: DomainServic
 
   app.get('/v1/budgets', async (request, reply) => {
     const accessToken = parseBearerToken(request.headers.authorization);
+    const query = parseEntityListQuery(request.query);
 
     if (!accessToken) {
       return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
     }
 
+    if (query === null) {
+      return reply.status(400).send(badRequest('Expected valid budget list query values.'));
+    }
+
     try {
-      return reply.status(200).send(service.listBudgets(accessToken));
+      return reply.status(200).send(service.listBudgets(accessToken, query?.includeDeleted));
     } catch (error) {
       if (error instanceof SessionUnauthorizedError) {
         return reply.status(401).send(unauthorized(error.message));

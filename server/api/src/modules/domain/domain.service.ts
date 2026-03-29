@@ -10,6 +10,7 @@ import type {
   StoredBudget,
   StoredBudgetScope,
   StoredCategory,
+  StoredMerchant,
   StoredRule,
   StoredTransaction,
   StoredTransactionItem,
@@ -28,8 +29,14 @@ import type {
   CategoryPatchRequest,
   CategoryUpsertRequest,
   ClassifyTransactionRequest,
+  DomainListItemsQuery,
+  DomainListMerchantsQuery,
   DomainListTransactionsQuery,
   FieldError,
+  Merchant,
+  MerchantListResponse,
+  MerchantPatchRequest,
+  MerchantUpsertRequest,
   Rule,
   RuleDraft,
   RuleListResponse,
@@ -37,10 +44,15 @@ import type {
   RuleUpsertRequest,
   Transaction,
   TransactionDetailResponse,
+  TransactionItem,
+  TransactionItemListResponse,
+  TransactionItemPatchRequest,
+  TransactionItemUpsertRequest,
   TransactionListResponse,
   TransactionPatchRequest,
   TransactionStatus,
   TransactionUpsertRequest,
+  VersionedDeleteRequest,
 } from './domain.types.js';
 
 export interface DomainServiceDependencies {
@@ -56,22 +68,36 @@ export interface DomainService {
     transactionId: string,
     request: ClassifyTransactionRequest,
   ): TransactionDetailResponse;
+  createItem(
+    accessToken: string,
+    transactionId: string,
+    request: TransactionItemUpsertRequest,
+  ): TransactionItem;
   createBudget(accessToken: string, request: BudgetUpsertRequest): Budget;
   createCategory(accessToken: string, request: CategoryUpsertRequest): Category;
+  createMerchant(accessToken: string, request: MerchantUpsertRequest): Merchant;
   createRule(accessToken: string, request: RuleUpsertRequest): Rule;
   createTransaction(accessToken: string, request: TransactionUpsertRequest): Transaction;
+  deleteItem(accessToken: string, itemId: string, request: VersionedDeleteRequest): void;
   deleteBudget(accessToken: string, budgetId: string): void;
   deleteCategory(accessToken: string, categoryId: string): void;
+  deleteMerchant(accessToken: string, merchantId: string): void;
   deleteRule(accessToken: string, ruleId: string): void;
   deleteTransaction(accessToken: string, transactionId: string): void;
   getBudgetDetail(accessToken: string, budgetId: string): BudgetDetailResponse;
+  getItemDetail(accessToken: string, itemId: string): TransactionItem;
+  getMerchant(accessToken: string, merchantId: string): Merchant;
   getTransactionDetail(accessToken: string, transactionId: string): TransactionDetailResponse;
-  listBudgets(accessToken: string): BudgetListResponse;
-  listCategories(accessToken: string): CategoryListResponse;
-  listRules(accessToken: string): RuleListResponse;
+  listBudgets(accessToken: string, includeDeleted?: boolean): BudgetListResponse;
+  listCategories(accessToken: string, includeDeleted?: boolean): CategoryListResponse;
+  listItems(accessToken: string, query: DomainListItemsQuery): TransactionItemListResponse;
+  listMerchants(accessToken: string, query: DomainListMerchantsQuery): MerchantListResponse;
+  listRules(accessToken: string, includeDeleted?: boolean): RuleListResponse;
   listTransactions(accessToken: string, query: DomainListTransactionsQuery): TransactionListResponse;
+  patchItem(accessToken: string, itemId: string, request: TransactionItemPatchRequest): TransactionItem;
   patchBudget(accessToken: string, budgetId: string, request: BudgetPatchRequest): Budget;
   patchCategory(accessToken: string, categoryId: string, request: CategoryPatchRequest): Category;
+  patchMerchant(accessToken: string, merchantId: string, request: MerchantPatchRequest): Merchant;
   patchRule(accessToken: string, ruleId: string, request: RulePatchRequest): Rule;
   patchTransaction(
     accessToken: string,
@@ -108,10 +134,23 @@ function toCategory(record: StoredCategory): Category {
   return {
     colorToken: record.colorToken,
     createdAt: record.createdAt,
+    ...(record.deletedAt ? { deletedAt: record.deletedAt } : {}),
     iconKey: record.iconKey,
     id: record.id,
     isSystem: record.isSystem,
     name: record.name,
+    updatedAt: record.updatedAt,
+    version: record.version,
+  };
+}
+
+function toMerchant(record: StoredMerchant): Merchant {
+  return {
+    createdAt: record.createdAt,
+    ...(record.deletedAt ? { deletedAt: record.deletedAt } : {}),
+    id: record.id,
+    label: record.label,
+    normalizedLabel: record.normalizedLabel,
     updatedAt: record.updatedAt,
     version: record.version,
   };
@@ -124,6 +163,7 @@ function toRule(record: StoredRule): Rule {
     amountMinMinor: record.amountMinMinor,
     autoApply: record.autoApply,
     createdAt: record.createdAt,
+    ...(record.deletedAt ? { deletedAt: record.deletedAt } : {}),
     hourBucket: record.hourBucket,
     id: record.id,
     merchantMatchType: record.merchantMatchType,
@@ -144,6 +184,7 @@ function toBudget(record: StoredBudget): Budget {
     alert80: record.alert80,
     createdAt: record.createdAt,
     cycleAnchorDay: record.cycleAnchorDay,
+    ...(record.deletedAt ? { deletedAt: record.deletedAt } : {}),
     endDate: record.endDate,
     id: record.id,
     limitMinor: record.limitMinor,
@@ -175,8 +216,24 @@ function toTransaction(record: StoredTransaction): Transaction {
   };
 }
 
-function toTransactionItem(record: StoredTransactionItem): StoredTransactionItem {
-  return { ...record };
+function toTransactionItem(record: StoredTransactionItem): TransactionItem {
+  return {
+    ...(record.categoryId ? { categoryId: record.categoryId } : {}),
+    confirmed: record.confirmed,
+    createdAt: record.createdAt,
+    ...(record.deletedAt ? { deletedAt: record.deletedAt } : {}),
+    id: record.id,
+    itemName: record.itemName,
+    ...(record.itemNorm ? { itemNorm: record.itemNorm } : {}),
+    ...(record.qty !== undefined ? { qty: record.qty } : {}),
+    ...(record.suggestionScore !== undefined ? { suggestionScore: record.suggestionScore } : {}),
+    ...(record.suggestionSource ? { suggestionSource: record.suggestionSource } : {}),
+    totalAmountMinor: record.totalAmountMinor,
+    transactionId: record.transactionId,
+    ...(record.unitAmountMinor !== undefined ? { unitAmountMinor: record.unitAmountMinor } : {}),
+    updatedAt: record.updatedAt,
+    version: record.version,
+  };
 }
 
 function toAuditEvent(record: StoredAuditEvent): AuditEvent {
@@ -293,6 +350,119 @@ function validateCategoryPatch(request: CategoryPatchRequest): FieldError[] {
 
   if (request.name === undefined) {
     return errors.filter((error) => error.field !== 'name');
+  }
+
+  return errors;
+}
+
+function validateMerchantCreate(request: MerchantUpsertRequest): FieldError[] {
+  const errors: FieldError[] = [];
+  const label = normalizeOptionalString(request.label);
+
+  if (!label) {
+    errors.push({
+      field: 'label',
+      message: 'Merchant label is required.',
+    });
+  } else if (label.length > 120) {
+    errors.push({
+      field: 'label',
+      message: 'Merchant label must be 120 characters or fewer.',
+    });
+  }
+
+  return errors;
+}
+
+function validateMerchantPatch(request: MerchantPatchRequest): FieldError[] {
+  const errors = validateMerchantCreate({
+    label: request.label ?? 'placeholder',
+  });
+  requirePositiveInteger(request.version, 'version', errors);
+
+  if (request.label === undefined) {
+    return errors.filter((error) => error.field !== 'label');
+  }
+
+  return errors;
+}
+
+function validateItemCreate(request: TransactionItemUpsertRequest): FieldError[] {
+  const errors: FieldError[] = [];
+  requirePositiveInteger(request.transactionVersion, 'transactionVersion', errors);
+
+  const itemName = normalizeOptionalString(request.itemName);
+
+  if (!itemName) {
+    errors.push({
+      field: 'itemName',
+      message: 'itemName is required.',
+    });
+  }
+
+  if (!Number.isInteger(request.totalAmountMinor) || request.totalAmountMinor <= 0) {
+    errors.push({
+      field: 'totalAmountMinor',
+      message: 'totalAmountMinor must be a positive integer.',
+    });
+  }
+
+  if (request.qty !== undefined && request.qty <= 0) {
+    errors.push({
+      field: 'qty',
+      message: 'qty must be greater than zero.',
+    });
+  }
+
+  if (
+    request.unitAmountMinor !== undefined &&
+    (!Number.isInteger(request.unitAmountMinor) || request.unitAmountMinor <= 0)
+  ) {
+    errors.push({
+      field: 'unitAmountMinor',
+      message: 'unitAmountMinor must be a positive integer.',
+    });
+  }
+
+  return errors;
+}
+
+function validateItemPatch(request: TransactionItemPatchRequest): FieldError[] {
+  const errors: FieldError[] = [];
+  requirePositiveInteger(request.version, 'version', errors);
+
+  if (request.itemName !== undefined && !normalizeOptionalString(request.itemName)) {
+    errors.push({
+      field: 'itemName',
+      message: 'itemName cannot be empty.',
+    });
+  }
+
+  if (
+    request.totalAmountMinor !== undefined &&
+    (!Number.isInteger(request.totalAmountMinor) || request.totalAmountMinor <= 0)
+  ) {
+    errors.push({
+      field: 'totalAmountMinor',
+      message: 'totalAmountMinor must be a positive integer.',
+    });
+  }
+
+  if (request.qty !== undefined && request.qty <= 0) {
+    errors.push({
+      field: 'qty',
+      message: 'qty must be greater than zero.',
+    });
+  }
+
+  if (
+    request.unitAmountMinor !== undefined &&
+    (!Number.isInteger(request.unitAmountMinor) || request.unitAmountMinor <= 0)
+  ) {
+    errors.push({
+      field: 'unitAmountMinor',
+      message: 'unitAmountMinor must be a positive integer.',
+    });
   }
 
   return errors;
@@ -577,6 +747,43 @@ function buildAuditEvent(
   };
 }
 
+function deriveTransactionStatus(
+  currentStatus: TransactionStatus,
+  amountMinor: number,
+  items: StoredTransactionItem[],
+): TransactionStatus {
+  if (currentStatus === 'deleted') {
+    return 'deleted';
+  }
+
+  if (currentStatus === 'skipped' && items.length === 0) {
+    return 'skipped';
+  }
+
+  const totalMinor = items.reduce((total, item) => total + item.totalAmountMinor, 0);
+
+  if (totalMinor <= 0) {
+    return 'new';
+  }
+
+  if (totalMinor >= amountMinor) {
+    return 'classified';
+  }
+
+  return 'partial';
+}
+
+function paginate<T>(items: T[], page: number, pageSize: number) {
+  const startIndex = (page - 1) * pageSize;
+
+  return {
+    items: items.slice(startIndex, startIndex + pageSize),
+    page,
+    pageSize,
+    total: items.length,
+  };
+}
+
 function startOfUtcWeek(value: Date): Date {
   const result = new Date(value);
   result.setUTCHours(0, 0, 0, 0);
@@ -783,6 +990,54 @@ export function createDomainService({
     };
   }
 
+  function ensureUniqueMerchantLabel(
+    userId: string,
+    label: string,
+    excludedMerchantId?: string,
+  ): string {
+    const normalizedLabel = label.trim().toLowerCase();
+    const conflictingMerchant = repository
+      .listMerchants(userId)
+      .find(
+        (merchant) =>
+          merchant.normalizedLabel === normalizedLabel && merchant.id !== excludedMerchantId,
+      );
+
+    if (conflictingMerchant) {
+      throw new DomainConflictError('Merchant label already exists.');
+    }
+
+    return normalizedLabel;
+  }
+
+  function updateTransactionForItems(
+    transaction: StoredTransaction,
+    nextItems: StoredTransactionItem[],
+  ): StoredTransaction {
+    const activeItems = nextItems.filter((item) => !item.deletedAt);
+    const activeItemTotal = activeItems.reduce((total, item) => total + item.totalAmountMinor, 0);
+
+    if (activeItemTotal > transaction.amountMinor) {
+      throw new DomainBadRequestError([
+        {
+          field: 'totalAmountMinor',
+          message: 'Item totals cannot exceed the transaction amount.',
+        },
+      ]);
+    }
+
+    const nowIso = now();
+    const nextTransaction: StoredTransaction = {
+      ...transaction,
+      status: deriveTransactionStatus(transaction.status, transaction.amountMinor, activeItems),
+      updatedAt: nowIso,
+      version: transaction.version + 1,
+    };
+
+    repository.saveTransaction(nextTransaction);
+    return nextTransaction;
+  }
+
   return {
     classifyTransaction(accessToken, transactionId, request) {
       ensureValidOrThrow(validateClassifyRequest(request));
@@ -895,6 +1150,71 @@ export function createDomainService({
 
       return buildTransactionDetail(session.userId, transactionId);
     },
+    createItem(accessToken, transactionId, request) {
+      ensureValidOrThrow(validateItemCreate(request));
+
+      const session = authenticate(accessToken);
+      const transaction = repository.getTransaction(session.userId, transactionId);
+
+      if (!transaction || transaction.status === 'deleted') {
+        throw new DomainNotFoundError('Transaction not found.');
+      }
+
+      assertVersion(transaction.version, request.transactionVersion);
+
+      if (request.categoryId && !repository.getCategory(session.userId, request.categoryId)) {
+        throw new DomainBadRequestError([
+          {
+            field: 'categoryId',
+            message: 'categoryId must reference an existing category.',
+          },
+        ]);
+      }
+
+      const nowIso = now();
+      const item: StoredTransactionItem = {
+        ...(request.categoryId ? { categoryId: request.categoryId } : {}),
+        confirmed: true,
+        createdAt: nowIso,
+        id: randomId(),
+        itemName: request.itemName.trim(),
+        itemNorm: request.itemName.trim().toLowerCase(),
+        ...(request.qty !== undefined ? { qty: request.qty } : {}),
+        totalAmountMinor: request.totalAmountMinor,
+        transactionId,
+        ...(request.unitAmountMinor !== undefined
+          ? { unitAmountMinor: request.unitAmountMinor }
+          : {}),
+        updatedAt: nowIso,
+        userId: session.userId,
+        version: 1,
+      };
+
+      const nextItems = [
+        ...repository.listTransactionItems(session.userId, transactionId, true).filter(
+          (existingItem) => !existingItem.deletedAt,
+        ),
+        item,
+      ];
+      const nextTransaction = updateTransactionForItems(transaction, nextItems);
+
+      repository.saveTransactionItem(item);
+      repository.appendAuditEvent({
+        action: 'transaction.item_created',
+        actorDeviceId: session.deviceId,
+        after: {
+          itemId: item.id,
+          transactionStatus: nextTransaction.status,
+          transactionVersion: nextTransaction.version,
+        },
+        createdAt: nowIso,
+        id: randomId(),
+        transactionId,
+        userId: session.userId,
+      });
+
+      return toTransactionItem(item);
+    },
     createBudget(accessToken, request) {
       ensureValidOrThrow(validateBudgetRequest(request, true));
 
@@ -952,6 +1272,27 @@ export function createDomainService({
 
       repository.saveCategory(category);
       return toCategory(category);
+    },
+    createMerchant(accessToken, request) {
+      ensureValidOrThrow(validateMerchantCreate(request));
+
+      const session = authenticate(accessToken);
+      const nowIso = now();
+      const label = request.label.trim();
+      const normalizedLabel = ensureUniqueMerchantLabel(session.userId, label);
+      const merchant: StoredMerchant = {
+        createdAt: nowIso,
+        deletedAt: undefined,
+        id: randomId(),
+        label,
+        normalizedLabel,
+        updatedAt: nowIso,
+        userId: session.userId,
+        version: 1,
+      };
+
+      repository.saveMerchant(merchant);
+      return toMerchant(merchant);
     },
     createRule(accessToken, request) {
       ensureValidOrThrow(validateRuleRequest(request));
@@ -1021,6 +1362,58 @@ export function createDomainService({
 
       return toTransaction(transaction);
     },
+    deleteItem(accessToken, itemId, request) {
+      const errors: FieldError[] = [];
+      requirePositiveInteger(request.version, 'version', errors);
+      ensureValidOrThrow(errors);
+
+      const session = authenticate(accessToken);
+      const item = repository.getTransactionItem(session.userId, itemId);
+
+      if (!item) {
+        throw new DomainNotFoundError('Transaction item not found.');
+      }
+
+      assertVersion(item.version, request.version);
+
+      const transaction = repository.getTransaction(session.userId, item.transactionId);
+
+      if (!transaction) {
+        throw new DomainNotFoundError('Transaction not found.');
+      }
+
+      const nowIso = now();
+      const nextItem: StoredTransactionItem = {
+        ...item,
+        deletedAt: nowIso,
+        updatedAt: nowIso,
+        version: item.version + 1,
+      };
+      const nextItems = repository
+        .listTransactionItems(session.userId, item.transactionId, true)
+        .map((existingItem) => (existingItem.id === item.id ? nextItem : existingItem));
+      const nextTransaction = updateTransactionForItems(transaction, nextItems);
+
+      repository.saveTransactionItem(nextItem);
+      repository.appendAuditEvent({
+        action: 'transaction.item_deleted',
+        actorDeviceId: session.deviceId,
+        after: {
+          itemId: item.id,
+          transactionStatus: nextTransaction.status,
+          transactionVersion: nextTransaction.version,
+        },
+        before: {
+          itemVersion: item.version,
+          transactionStatus: transaction.status,
+          transactionVersion: transaction.version,
+        },
+        createdAt: nowIso,
+        id: randomId(),
+        transactionId: item.transactionId,
+        userId: session.userId,
+      });
+    },
     deleteBudget(accessToken, budgetId) {
       const session = authenticate(accessToken);
       const budget = repository.getBudget(session.userId, budgetId);
@@ -1049,6 +1442,21 @@ export function createDomainService({
         deletedAt: now(),
         updatedAt: now(),
         version: category.version + 1,
+      });
+    },
+    deleteMerchant(accessToken, merchantId) {
+      const session = authenticate(accessToken);
+      const merchant = repository.getMerchant(session.userId, merchantId);
+
+      if (!merchant) {
+        throw new DomainNotFoundError('Merchant not found.');
+      }
+
+      repository.saveMerchant({
+        ...merchant,
+        deletedAt: now(),
+        updatedAt: now(),
+        version: merchant.version + 1,
       });
     },
     deleteRule(accessToken, ruleId) {
@@ -1122,26 +1530,97 @@ export function createDomainService({
         summary,
       };
     },
+    getItemDetail(accessToken, itemId) {
+      const session = authenticate(accessToken);
+      const item = repository.getTransactionItem(session.userId, itemId);
+
+      if (!item) {
+        throw new DomainNotFoundError('Transaction item not found.');
+      }
+
+      return toTransactionItem(item);
+    },
+    getMerchant(accessToken, merchantId) {
+      const session = authenticate(accessToken);
+      const merchant = repository.getMerchant(session.userId, merchantId);
+
+      if (!merchant) {
+        throw new DomainNotFoundError('Merchant not found.');
+      }
+
+      return toMerchant(merchant);
+    },
     getTransactionDetail(accessToken, transactionId) {
       const session = authenticate(accessToken);
       return buildTransactionDetail(session.userId, transactionId);
     },
-    listBudgets(accessToken) {
+    listBudgets(accessToken, includeDeleted = false) {
       const session = authenticate(accessToken);
       return {
-        items: repository.listBudgets(session.userId).map(toBudget),
+        items: repository.listBudgets(session.userId, includeDeleted).map(toBudget),
       };
     },
-    listCategories(accessToken) {
+    listCategories(accessToken, includeDeleted = false) {
       const session = authenticate(accessToken);
       return {
-        items: repository.listCategories(session.userId).map(toCategory),
+        items: repository.listCategories(session.userId, includeDeleted).map(toCategory),
       };
     },
-    listRules(accessToken) {
+    listItems(accessToken, query) {
+      const session = authenticate(accessToken);
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 50;
+      const normalizedSearch = normalizeOptionalString(query.search)?.toLowerCase();
+      const filteredItems = repository
+        .listTransactionItems(session.userId, query.transactionId, query.includeDeleted ?? false)
+        .filter((item) => {
+          if (query.categoryId && item.categoryId !== query.categoryId) {
+            return false;
+          }
+
+          if (!normalizedSearch) {
+            return true;
+          }
+
+          return [item.itemName, item.itemNorm]
+            .filter((value): value is string => Boolean(value))
+            .some((value) => value.toLowerCase().includes(normalizedSearch));
+        });
+      const paginated = paginate(filteredItems, page, pageSize);
+
+      return {
+        ...paginated,
+        items: paginated.items.map(toTransactionItem),
+      };
+    },
+    listMerchants(accessToken, query) {
+      const session = authenticate(accessToken);
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 50;
+      const normalizedSearch = normalizeOptionalString(query.search)?.toLowerCase();
+      const filteredMerchants = repository
+        .listMerchants(session.userId, query.includeDeleted ?? false)
+        .filter((merchant) => {
+          if (!normalizedSearch) {
+            return true;
+          }
+
+          return (
+            merchant.label.toLowerCase().includes(normalizedSearch) ||
+            merchant.normalizedLabel.includes(normalizedSearch)
+          );
+        });
+      const paginated = paginate(filteredMerchants, page, pageSize);
+
+      return {
+        ...paginated,
+        items: paginated.items.map(toMerchant),
+      };
+    },
+    listRules(accessToken, includeDeleted = false) {
       const session = authenticate(accessToken);
       return {
-        items: repository.listRules(session.userId).map(toRule),
+        items: repository.listRules(session.userId, includeDeleted).map(toRule),
       };
     },
     listTransactions(accessToken, query) {
@@ -1162,7 +1641,7 @@ export function createDomainService({
           return transaction.status === query.status;
         }
 
-        if (transaction.status === 'deleted') {
+        if (!query.includeDeleted && transaction.status === 'deleted') {
           return false;
         }
 
@@ -1194,16 +1673,88 @@ export function createDomainService({
 
         return true;
       });
-
-      const total = filteredTransactions.length;
-      const startIndex = (page - 1) * pageSize;
+      const paginated = paginate(filteredTransactions, page, pageSize);
 
       return {
-        items: filteredTransactions.slice(startIndex, startIndex + pageSize).map(toTransaction),
-        page,
-        pageSize,
-        total,
+        ...paginated,
+        items: paginated.items.map(toTransaction),
       };
+    },
+    patchItem(accessToken, itemId, request) {
+      ensureValidOrThrow(validateItemPatch(request));
+
+      const session = authenticate(accessToken);
+      const item = repository.getTransactionItem(session.userId, itemId);
+
+      if (!item) {
+        throw new DomainNotFoundError('Transaction item not found.');
+      }
+
+      assertVersion(item.version, request.version);
+
+      if (request.categoryId && !repository.getCategory(session.userId, request.categoryId)) {
+        throw new DomainBadRequestError([
+          {
+            field: 'categoryId',
+            message: 'categoryId must reference an existing category.',
+          },
+        ]);
+      }
+
+      const transaction = repository.getTransaction(session.userId, item.transactionId);
+
+      if (!transaction) {
+        throw new DomainNotFoundError('Transaction not found.');
+      }
+
+      const nowIso = now();
+      const nextItem: StoredTransactionItem = {
+        ...item,
+        ...(request.categoryId !== undefined ? { categoryId: request.categoryId } : {}),
+        ...(request.confirmed !== undefined ? { confirmed: request.confirmed } : {}),
+        ...(request.itemName !== undefined
+          ? {
+              itemName: request.itemName.trim(),
+              itemNorm: request.itemName.trim().toLowerCase(),
+            }
+          : {}),
+        ...(request.qty !== undefined ? { qty: request.qty } : {}),
+        ...(request.totalAmountMinor !== undefined
+          ? { totalAmountMinor: request.totalAmountMinor }
+          : {}),
+        ...(request.unitAmountMinor !== undefined
+          ? { unitAmountMinor: request.unitAmountMinor }
+          : {}),
+        updatedAt: nowIso,
+        version: item.version + 1,
+      };
+      const nextItems = repository
+        .listTransactionItems(session.userId, item.transactionId, true)
+        .map((existingItem) => (existingItem.id === item.id ? nextItem : existingItem));
+      const nextTransaction = updateTransactionForItems(transaction, nextItems);
+
+      repository.saveTransactionItem(nextItem);
+      repository.appendAuditEvent({
+        action: 'transaction.item_updated',
+        actorDeviceId: session.deviceId,
+        after: {
+          itemId: item.id,
+          itemVersion: nextItem.version,
+          transactionStatus: nextTransaction.status,
+          transactionVersion: nextTransaction.version,
+        },
+        before: {
+          itemVersion: item.version,
+          transactionStatus: transaction.status,
+          transactionVersion: transaction.version,
+        },
+        createdAt: nowIso,
+        id: randomId(),
+        transactionId: item.transactionId,
+        userId: session.userId,
+      });
+
+      return toTransactionItem(nextItem);
     },
     patchBudget(accessToken, budgetId, request) {
       ensureValidOrThrow(validateBudgetRequest(request, false));
@@ -1270,6 +1821,37 @@ export function createDomainService({
 
       repository.saveCategory(nextCategory);
       return toCategory(nextCategory);
+    },
+    patchMerchant(accessToken, merchantId, request) {
+      ensureValidOrThrow(validateMerchantPatch(request));
+
+      const session = authenticate(accessToken);
+      const merchant = repository.getMerchant(session.userId, merchantId);
+
+      if (!merchant) {
+        throw new DomainNotFoundError('Merchant not found.');
+      }
+
+      assertVersion(merchant.version, request.version);
+      const nextLabel = request.label?.trim() ?? merchant.label;
+      const nextMerchant: StoredMerchant = {
+        ...merchant,
+        ...(request.label !== undefined
+          ? {
+              label: nextLabel,
+              normalizedLabel: ensureUniqueMerchantLabel(
+                session.userId,
+                nextLabel,
+                merchant.id,
+              ),
+            }
+          : {}),
+        updatedAt: now(),
+        version: merchant.version + 1,
+      };
+
+      repository.saveMerchant(nextMerchant);
+      return toMerchant(nextMerchant);
     },
     patchRule(accessToken, ruleId, request) {
       ensureValidOrThrow(validateRuleRequest(request, false));

@@ -144,4 +144,4 @@ Reason:
 - `API-002` is now done with typed contracts, modular Fastify session routes, refresh rotation, one-time pairing codes, replay/expiry protection, and durable on-disk session persistence across API restarts.
 - `API-003` remains `in_progress`, but its only remaining gap is mobile integration evidence rather than missing repo-side backend implementation.
 - `API-006` is now done with explicit bootstrap cache headers, runtime-version compatibility checks, OpenAPI header documentation, and proof that the mobile client already calls the endpoint.
-- `API-004` is now the earliest active canonical ticket: the first authenticated domain API slice is in repo, but the broader domain suite and staging evidence required by the backlog done-when are still missing.
+- `API-004` is still the earliest active canonical ticket: the repo now covers merchants and transaction items as part of the authenticated domain API slice, but versioned delete enforcement is still incomplete on older entity routes and the backlog done-when still requires staging evidence.

@@ -340,4 +340,330 @@ describe('domain routes', () => {
       total: 1,
     });
   });
+
+  it('supports merchant and item lifecycles plus includeDeleted list behavior', async () => {
+    const stores = createTempStores();
+    const app = buildApp(stores);
+    apps.push(app);
+    await app.ready();
+
+    const accessToken = await createGuestAccessToken(app);
+    const authHeaders = {
+      authorization: `Bearer ${accessToken}`,
+    };
+    const paidAt = new Date().toISOString();
+
+    const merchantResponse = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      payload: {
+        label: 'Swiggy',
+      },
+      url: '/v1/merchants',
+    });
+
+    expect(merchantResponse.statusCode).toBe(201);
+    const merchant = merchantResponse.json();
+
+    const patchMerchantResponse = await app.inject({
+      headers: authHeaders,
+      method: 'PATCH',
+      payload: {
+        label: 'Swiggy Instamart',
+        version: merchant.version,
+      },
+      url: `/v1/merchants/${merchant.id}`,
+    });
+
+    expect(patchMerchantResponse.statusCode).toBe(200);
+    const patchedMerchant = patchMerchantResponse.json();
+    expect(patchedMerchant).toMatchObject({
+      label: 'Swiggy Instamart',
+      normalizedLabel: 'swiggy instamart',
+      version: 2,
+    });
+
+    const getMerchantResponse = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: `/v1/merchants/${merchant.id}`,
+    });
+
+    expect(getMerchantResponse.statusCode).toBe(200);
+    expect(getMerchantResponse.json()).toMatchObject({
+      id: merchant.id,
+      label: 'Swiggy Instamart',
+    });
+
+    const duplicateMerchantResponse = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      payload: {
+        label: 'swiggy instamart',
+      },
+      url: '/v1/merchants',
+    });
+
+    expect(duplicateMerchantResponse.statusCode).toBe(409);
+
+    const categoryResponse = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      payload: {
+        name: 'Meals',
+      },
+      url: '/v1/categories',
+    });
+
+    expect(categoryResponse.statusCode).toBe(201);
+    const category = categoryResponse.json();
+
+    const transactionResponse = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      payload: {
+        amountMinor: 45000,
+        currencyCode: 'INR',
+        merchantId: merchant.id,
+        merchantNorm: 'swiggy instamart',
+        merchantRaw: 'Swiggy Instamart',
+        paidAt,
+        source: 'manual',
+      },
+      url: '/v1/transactions',
+    });
+
+    expect(transactionResponse.statusCode).toBe(201);
+    const transaction = transactionResponse.json();
+
+    const createItemResponse = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      payload: {
+        categoryId: category.id,
+        itemName: 'Lunch',
+        totalAmountMinor: 25000,
+        transactionVersion: transaction.version,
+      },
+      url: `/v1/transactions/${transaction.id}/items`,
+    });
+
+    expect(createItemResponse.statusCode).toBe(201);
+    const createdItem = createItemResponse.json();
+    expect(createdItem).toMatchObject({
+      categoryId: category.id,
+      itemName: 'Lunch',
+      totalAmountMinor: 25000,
+      version: 1,
+    });
+
+    const partialTransactionDetail = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: `/v1/transactions/${transaction.id}`,
+    });
+
+    expect(partialTransactionDetail.statusCode).toBe(200);
+    expect(partialTransactionDetail.json()).toMatchObject({
+      transaction: expect.objectContaining({
+        status: 'partial',
+        version: 2,
+      }),
+    });
+
+    const patchItemResponse = await app.inject({
+      headers: authHeaders,
+      method: 'PATCH',
+      payload: {
+        totalAmountMinor: 45000,
+        version: createdItem.version,
+      },
+      url: `/v1/items/${createdItem.id}`,
+    });
+
+    expect(patchItemResponse.statusCode).toBe(200);
+    const patchedItem = patchItemResponse.json();
+    expect(patchedItem).toMatchObject({
+      id: createdItem.id,
+      totalAmountMinor: 45000,
+      version: 2,
+    });
+
+    const getItemResponse = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: `/v1/items/${createdItem.id}`,
+    });
+
+    expect(getItemResponse.statusCode).toBe(200);
+    expect(getItemResponse.json()).toMatchObject({
+      id: createdItem.id,
+      totalAmountMinor: 45000,
+      version: 2,
+    });
+
+    const classifiedTransactionDetail = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: `/v1/transactions/${transaction.id}`,
+    });
+
+    expect(classifiedTransactionDetail.statusCode).toBe(200);
+    expect(classifiedTransactionDetail.json()).toMatchObject({
+      transaction: expect.objectContaining({
+        status: 'classified',
+        version: 3,
+      }),
+    });
+
+    const deleteItemResponse = await app.inject({
+      headers: authHeaders,
+      method: 'DELETE',
+      payload: {
+        version: patchedItem.version,
+      },
+      url: `/v1/items/${createdItem.id}`,
+    });
+
+    expect(deleteItemResponse.statusCode).toBe(204);
+
+    const itemsListResponse = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: '/v1/items',
+    });
+
+    expect(itemsListResponse.statusCode).toBe(200);
+    expect(itemsListResponse.json()).toMatchObject({
+      items: [],
+      total: 0,
+    });
+
+    const itemsIncludeDeletedResponse = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: '/v1/items?includeDeleted=true',
+    });
+
+    expect(itemsIncludeDeletedResponse.statusCode).toBe(200);
+    expect(itemsIncludeDeletedResponse.json()).toMatchObject({
+      items: [
+        expect.objectContaining({
+          deletedAt: expect.any(String),
+          id: createdItem.id,
+        }),
+      ],
+      total: 1,
+    });
+
+    const deleteCategoryResponse = await app.inject({
+      headers: authHeaders,
+      method: 'DELETE',
+      url: `/v1/categories/${category.id}`,
+    });
+
+    expect(deleteCategoryResponse.statusCode).toBe(204);
+
+    const categoriesDefaultResponse = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: '/v1/categories',
+    });
+
+    expect(categoriesDefaultResponse.statusCode).toBe(200);
+    expect(categoriesDefaultResponse.json()).toMatchObject({
+      items: [],
+    });
+
+    const categoriesIncludeDeletedResponse = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: '/v1/categories?includeDeleted=true',
+    });
+
+    expect(categoriesIncludeDeletedResponse.statusCode).toBe(200);
+    expect(categoriesIncludeDeletedResponse.json()).toMatchObject({
+      items: [
+        expect.objectContaining({
+          deletedAt: expect.any(String),
+          id: category.id,
+        }),
+      ],
+    });
+
+    const deleteMerchantResponse = await app.inject({
+      headers: authHeaders,
+      method: 'DELETE',
+      url: `/v1/merchants/${merchant.id}`,
+    });
+
+    expect(deleteMerchantResponse.statusCode).toBe(204);
+
+    const merchantsDefaultResponse = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: '/v1/merchants',
+    });
+
+    expect(merchantsDefaultResponse.statusCode).toBe(200);
+    expect(merchantsDefaultResponse.json()).toMatchObject({
+      items: [],
+      total: 0,
+    });
+
+    const merchantsIncludeDeletedResponse = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: '/v1/merchants?includeDeleted=true',
+    });
+
+    expect(merchantsIncludeDeletedResponse.statusCode).toBe(200);
+    expect(merchantsIncludeDeletedResponse.json()).toMatchObject({
+      items: [
+        expect.objectContaining({
+          deletedAt: expect.any(String),
+          id: merchant.id,
+        }),
+      ],
+      total: 1,
+    });
+
+    const deleteTransactionResponse = await app.inject({
+      headers: authHeaders,
+      method: 'DELETE',
+      url: `/v1/transactions/${transaction.id}`,
+    });
+
+    expect(deleteTransactionResponse.statusCode).toBe(204);
+
+    const transactionsDefaultResponse = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: '/v1/transactions?page=1&pageSize=20',
+    });
+
+    expect(transactionsDefaultResponse.statusCode).toBe(200);
+    expect(transactionsDefaultResponse.json()).toMatchObject({
+      items: [],
+      total: 0,
+    });
+
+    const transactionsIncludeDeletedResponse = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: '/v1/transactions?includeDeleted=true&page=1&pageSize=20',
+    });
+
+    expect(transactionsIncludeDeletedResponse.statusCode).toBe(200);
+    expect(transactionsIncludeDeletedResponse.json()).toMatchObject({
+      items: [
+        expect.objectContaining({
+          deletedAt: expect.any(String),
+          id: transaction.id,
+          status: 'deleted',
+        }),
+      ],
+      total: 1,
+    });
+  });
 });
