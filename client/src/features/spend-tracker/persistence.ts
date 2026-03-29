@@ -55,6 +55,7 @@ export interface PersistedSpendTrackerState {
   onboardingPreferences: OnboardingPreferences;
   notificationAccessState: NotificationAccessState;
   onboardingCompleted: boolean;
+  privacyModeEnabled?: boolean;
   rules?: SpendRule[];
   transactions: Transaction[];
 }
@@ -174,6 +175,7 @@ export const DEFAULT_ONBOARDING_PREFERENCES: OnboardingPreferences = {
   selectedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
   syncMode: 'local_only',
 };
+export const DEFAULT_PRIVACY_MODE_ENABLED = false;
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
 let schemaPromise: Promise<void> | null = null;
@@ -349,6 +351,11 @@ async function writeStateToDatabase(
       'INSERT INTO settings (key, value) VALUES (?, ?)',
       'onboarding_completed',
       state.onboardingCompleted ? 'true' : 'false',
+    );
+    await database.runAsync(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'privacy_mode_enabled',
+      state.privacyModeEnabled ? 'true' : 'false',
     );
     await database.runAsync(
       'INSERT INTO settings (key, value) VALUES (?, ?)',
@@ -748,6 +755,7 @@ async function readStateFromDatabase(
   const storedBudgetAlertQuietModeEnabled = settings.get('budget_alert_quiet_mode_enabled');
   const storedBudgetAlertQuietHoursStart = settings.get('budget_alert_quiet_hours_start_hour');
   const storedBudgetAlertQuietHoursEnd = settings.get('budget_alert_quiet_hours_end_hour');
+  const storedPrivacyModeEnabled = settings.get('privacy_mode_enabled');
   const storedSyncMode = settings.get('sync_mode');
   const budgets = normalizeBudgetDefinitions(
     budgetRows.map((row) => ({
@@ -930,6 +938,7 @@ async function readStateFromDatabase(
       ? storedNotificationAccessState
       : 'not_started',
     onboardingCompleted: settings.get('onboarding_completed') === 'true',
+    privacyModeEnabled: storedPrivacyModeEnabled === 'true',
     rules,
     transactions: merchantDirectory.transactions,
   };
@@ -977,6 +986,10 @@ async function readLegacyState(): Promise<PersistedSpendTrackerState | null> {
       ),
       notificationAccessState: candidate.notificationAccessState as NotificationAccessState,
       onboardingCompleted: candidate.onboardingCompleted as boolean,
+      privacyModeEnabled:
+        typeof candidate.privacyModeEnabled === 'boolean'
+          ? candidate.privacyModeEnabled
+          : DEFAULT_PRIVACY_MODE_ENABLED,
       rules:
         (candidate as { rules?: unknown }).rules !== undefined &&
         isSpendRuleList((candidate as { rules?: unknown }).rules)
@@ -1011,6 +1024,8 @@ function isPersistedSpendTrackerState(
     (candidate.rules === undefined || isSpendRuleList(candidate.rules)) &&
     typeof candidate.onboardingCompleted === 'boolean' &&
     isNotificationAccessState(candidate.notificationAccessState) &&
+    (candidate.privacyModeEnabled === undefined ||
+      typeof candidate.privacyModeEnabled === 'boolean') &&
     (candidate.onboardingPreferences === undefined ||
       isOnboardingPreferences(candidate.onboardingPreferences)) &&
     isTransactionList(candidate.transactions)

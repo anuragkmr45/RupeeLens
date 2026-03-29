@@ -1,5 +1,5 @@
 import { act, fireEvent, render, waitFor, type RenderAPI } from '@testing-library/react-native';
-import { Alert } from 'react-native';
+import { Alert, AppState } from 'react-native';
 
 import App from '../App';
 import {
@@ -820,6 +820,90 @@ describe('App', () => {
       screen.getByText('success · captured · google_pay_v1 v1.0.0'),
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Share redacted bundle' })).toBeTruthy();
+  });
+
+  it('opens Settings, persists local preferences, and exposes export and diagnostics entrypoints', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    try {
+      const screen = await renderApp();
+
+      fireEvent.press(await screen.findByText('Continue in local-only mode'));
+      fireEvent.press(screen.getAllByRole('button', { name: 'Settings' })[0]!);
+
+      expect(await screen.findByText('Capture, privacy, and support controls')).toBeTruthy();
+
+      fireEvent.press(screen.getByRole('button', { name: 'BHIM' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Salary cycle' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Prepare for sync later' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Mask previews' }));
+
+      await waitFor(() =>
+        expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            onboardingPreferences: {
+              budgetCycleId: 'salary_cycle',
+              selectedSourceAppIds: expect.arrayContaining(['bhim']),
+              syncMode: 'sync_later',
+            },
+            privacyModeEnabled: true,
+          }),
+        ),
+      );
+
+      fireEvent.press(screen.getByRole('button', { name: 'CSV export' }));
+      expect(alertSpy).toHaveBeenCalledWith(
+        'CSV export is not live yet',
+        expect.stringContaining('INT-008'),
+      );
+
+      fireEvent.press(screen.getByRole('button', { name: 'Backup / restore' }));
+      expect(alertSpy).toHaveBeenCalledWith(
+        'Backup and restore are planned next',
+        expect.stringContaining('later ticket'),
+      );
+
+      fireEvent.press(screen.getByRole('button', { name: 'Open diagnostics' }));
+      expect(await screen.findByText('Support-ready native capture status')).toBeTruthy();
+    } finally {
+      alertSpy.mockRestore();
+    }
+  });
+
+  it('shows a privacy cover while the app is inactive when privacy mode is enabled', async () => {
+    let appStateListener: ((nextAppState: string) => void) | null = null;
+    const addEventListenerSpy = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockImplementation((_type, listener) => {
+        appStateListener = listener as (nextAppState: string) => void;
+        return { remove: jest.fn() } as ReturnType<typeof AppState.addEventListener>;
+      });
+
+    try {
+      const screen = await renderApp();
+
+      fireEvent.press(await screen.findByText('Continue in local-only mode'));
+      fireEvent.press(screen.getAllByRole('button', { name: 'Settings' })[0]!);
+      fireEvent.press(screen.getByRole('button', { name: 'Mask previews' }));
+
+      expect(appStateListener).not.toBeNull();
+
+      await act(async () => {
+        appStateListener?.('background');
+      });
+
+      expect(await screen.findByText('Content hidden for app previews')).toBeTruthy();
+
+      await act(async () => {
+        appStateListener?.('active');
+      });
+
+      await waitFor(() =>
+        expect(screen.queryByText('Content hidden for app previews')).toBeNull(),
+      );
+    } finally {
+      addEventListenerSpy.mockRestore();
+    }
   });
 
   it('syncs bootstrap dedupe config into the native module', async () => {

@@ -121,6 +121,7 @@ import {
 import {
   clearStoredSpendTrackerState,
   DEFAULT_ONBOARDING_PREFERENCES,
+  DEFAULT_PRIVACY_MODE_ENABLED,
   loadStoredSpendTrackerState,
   saveStoredSpendTrackerState,
   type BudgetCycleId,
@@ -166,11 +167,12 @@ type Screen =
   | 'manual'
   | 'merchants'
   | 'onboarding'
+  | 'settings'
   | 'showcase'
   | 'split'
   | 'timeline';
-type PrimaryScreen = 'home' | 'inbox' | 'timeline';
-type DiagnosticsReturnScreen = 'home' | 'onboarding';
+type PrimaryScreen = 'home' | 'inbox' | 'settings' | 'timeline';
+type DiagnosticsReturnScreen = 'home' | 'onboarding' | 'settings';
 type ScreenReturnTarget = 'detail' | PrimaryScreen;
 type SplitReturnScreen = 'classify' | 'detail' | 'inbox';
 type BudgetScreenIntent = 'browse' | 'create';
@@ -323,6 +325,7 @@ export function SpendTrackerApp() {
   const [onboardingPreferences, setOnboardingPreferences] = useState<OnboardingPreferences>(
     DEFAULT_ONBOARDING_PREFERENCES,
   );
+  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(DEFAULT_PRIVACY_MODE_ENABLED);
   const [budgets, setBudgets] = useState<BudgetDefinition[]>([]);
   const [budgetAlerts, setBudgetAlerts] = useState<BudgetThresholdAlert[]>([]);
   const [budgetAlertSettings, setBudgetAlertSettings] = useState<BudgetAlertSettings>(
@@ -361,6 +364,7 @@ export function SpendTrackerApp() {
   const [bootstrapState, setBootstrapState] = useState<BootstrapConfigState>(
     createInitialBootstrapConfigState(),
   );
+  const [appStateStatus, setAppStateStatus] = useState(AppState.currentState);
 
   const pendingTransactions = getPendingTransactions(transactions);
   const allReviewTransactions = getInboxReviewTransactions(transactions, {
@@ -468,6 +472,9 @@ export function SpendTrackerApp() {
           storedState.budgetAlertSettings ?? DEFAULT_BUDGET_ALERT_SETTINGS,
         );
         setOnboardingPreferences(storedState.onboardingPreferences);
+        setPrivacyModeEnabled(
+          storedState.privacyModeEnabled ?? DEFAULT_PRIVACY_MODE_ENABLED,
+        );
         setNotificationAccessState(storedState.notificationAccessState);
         setOnboardingCompleted(storedState.onboardingCompleted);
         setMerchants(merchantDirectory.merchants);
@@ -503,6 +510,7 @@ export function SpendTrackerApp() {
     void refreshDiagnostics();
 
     const appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
+      setAppStateStatus(nextAppState);
       if (nextAppState === 'active') {
         void refreshDiagnostics();
       }
@@ -510,7 +518,7 @@ export function SpendTrackerApp() {
 
     return () => {
       isMounted = false;
-      appStateSubscription.remove();
+      appStateSubscription?.remove?.();
     };
   }, []);
 
@@ -639,6 +647,7 @@ export function SpendTrackerApp() {
       onboardingPreferences,
       notificationAccessState,
       onboardingCompleted,
+      privacyModeEnabled,
       rules,
       transactions,
     });
@@ -653,6 +662,7 @@ export function SpendTrackerApp() {
     notificationAccessState,
     onboardingCompleted,
     onboardingPreferences,
+    privacyModeEnabled,
     rules,
     transactions,
   ]);
@@ -731,6 +741,21 @@ export function SpendTrackerApp() {
         'Try again after the current screen settles. The bundle stays redacted by default.',
       );
     }
+  }
+
+  function handleOpenExportPlaceholder(mode: 'backup' | 'csv') {
+    if (mode === 'csv') {
+      Alert.alert(
+        'CSV export is not live yet',
+        'The visible export entrypoint is now in Settings, but the real CSV export flow still belongs to INT-008. Use the diagnostics bundle for support-safe sharing today.',
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Backup and restore are planned next',
+      'Local backup and restore entrypoints are visible here now, but the working backup flow still lands in a later ticket after CSV export support is in place.',
+    );
   }
 
   function getPostReviewScreen(nextTransactions: Transaction[]): PrimaryScreen {
@@ -887,6 +912,10 @@ export function SpendTrackerApp() {
 
   function handleOpenInsights() {
     setScreen('insights');
+  }
+
+  function handleSelectPrivacyMode(enabled: boolean) {
+    setPrivacyModeEnabled(enabled);
   }
 
   function handleOpenMerchants() {
@@ -1356,6 +1385,7 @@ export function SpendTrackerApp() {
     setBudgetAlertSettings(DEFAULT_BUDGET_ALERT_SETTINGS);
     setBudgetScreenIntent('browse');
     setOnboardingPreferences(DEFAULT_ONBOARDING_PREFERENCES);
+    setPrivacyModeEnabled(DEFAULT_PRIVACY_MODE_ENABLED);
     setNotificationAccessState('not_started');
     setOnboardingCompleted(false);
     setCategories(getDefaultCategories());
@@ -1590,11 +1620,32 @@ export function SpendTrackerApp() {
                 onOpenTimeline={handleOpenTimeline}
                 onOpenShowcase={() => setScreen('showcase')}
                 onResetDemoData={handleResetDemoData}
+            onSelectTab={(nextScreen) => setScreen(nextScreen)}
+            onStartClassification={(transactionId) =>
+              handleStartClassification(transactionId, 'home')
+            }
+            summary={summary}
+          />
+        ) : null}
+
+            {!isHydrating && screen === 'settings' ? (
+              <SettingsScreen
+                bootstrapState={bootstrapState}
+                captureDiagnostics={captureDiagnostics}
+                notificationAccessState={notificationAccessState}
+                onboardingPreferences={onboardingPreferences}
+                onClearSourceApps={handleClearSourceApps}
+                onOpenDiagnostics={() => handleOpenDiagnostics('settings')}
+                onOpenExportPlaceholder={handleOpenExportPlaceholder}
+                onOpenNotificationAccess={handleOpenNotificationAccess}
+                onSelectAllSourceApps={handleSelectAllSourceApps}
+                onSelectBudgetCycle={handleSelectBudgetCycle}
+                onSelectPrivacyMode={handleSelectPrivacyMode}
                 onSelectTab={(nextScreen) => setScreen(nextScreen)}
-                onStartClassification={(transactionId) =>
-                  handleStartClassification(transactionId, 'home')
-                }
-                summary={summary}
+                onSelectSyncMode={handleSelectSyncMode}
+                onShareDiagnosticsBundle={handleShareDiagnosticsBundle}
+                onToggleSourceApp={handleToggleSourceAppSelection}
+                privacyModeEnabled={privacyModeEnabled}
               />
             ) : null}
 
@@ -1639,6 +1690,17 @@ export function SpendTrackerApp() {
           </ScrollView>
         )}
       </View>
+      {privacyModeEnabled && appStateStatus !== 'active' ? (
+        <View pointerEvents="none" style={styles.privacyOverlay}>
+          <View style={styles.privacyOverlayCard}>
+            <Text style={styles.sectionEyebrow}>Privacy mode</Text>
+            <Text style={styles.cardTitle}>Content hidden for app previews</Text>
+            <Text style={styles.bodyCopy}>
+              Live spend details are masked while the app is inactive so lockscreen and task-switcher previews stay private.
+            </Text>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1971,6 +2033,8 @@ function HomeScreen({
       <View style={styles.tabs}>
         <TabButton isActive={true} label="Home" onPress={() => onSelectTab('home')} />
         <TabButton isActive={false} label="Inbox" onPress={() => onSelectTab('inbox')} />
+        <TabButton isActive={false} label="Timeline" onPress={() => onSelectTab('timeline')} />
+        <TabButton isActive={false} label="Settings" onPress={() => onSelectTab('settings')} />
       </View>
 
       <SectionCard accentColor={colors.accentSoft}>
@@ -2057,6 +2121,7 @@ function HomeScreen({
         <View style={styles.actionRow}>
           <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
           <ActionButton label="Review inbox" onPress={onOpenInbox} tone="secondary" />
+          <ActionButton label="Settings" onPress={() => onSelectTab('settings')} tone="secondary" />
           <ActionButton label="Manage categories" onPress={onOpenCategories} tone="secondary" />
           <ActionButton label="Manage merchants" onPress={onOpenMerchants} tone="secondary" />
           <ActionButton
@@ -2408,6 +2473,218 @@ function DiagnosticsScreen({
             No native capture events are stored yet.
           </Text>
         )}
+      </SectionCard>
+    </View>
+  );
+}
+
+function SettingsScreen({
+  bootstrapState,
+  captureDiagnostics,
+  notificationAccessState,
+  onboardingPreferences,
+  onClearSourceApps,
+  onOpenDiagnostics,
+  onOpenExportPlaceholder,
+  onOpenNotificationAccess,
+  onSelectAllSourceApps,
+  onSelectBudgetCycle,
+  onSelectPrivacyMode,
+  onSelectTab,
+  onSelectSyncMode,
+  onShareDiagnosticsBundle,
+  onToggleSourceApp,
+  privacyModeEnabled,
+}: {
+  bootstrapState: BootstrapConfigState;
+  captureDiagnostics: NativeCaptureDiagnostics;
+  notificationAccessState: NotificationAccessState;
+  onboardingPreferences: OnboardingPreferences;
+  onClearSourceApps: () => void;
+  onOpenDiagnostics: () => void;
+  onOpenExportPlaceholder: (mode: 'backup' | 'csv') => void;
+  onOpenNotificationAccess: () => Promise<void>;
+  onSelectAllSourceApps: () => void;
+  onSelectBudgetCycle: (budgetCycleId: BudgetCycleId) => void;
+  onSelectPrivacyMode: (enabled: boolean) => void;
+  onSelectTab: (screen: PrimaryScreen) => void;
+  onSelectSyncMode: (syncMode: SyncMode) => void;
+  onShareDiagnosticsBundle: () => Promise<void>;
+  onToggleSourceApp: (sourceAppId: SupportedSourceAppId) => void;
+  privacyModeEnabled: boolean;
+}) {
+  const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
+  const listenerStatusLabel = capturePausedRemotely
+    ? 'Capture paused remotely'
+    : captureDiagnostics.listenerPermissionGranted
+      ? 'Notification access granted'
+      : notificationAccessState === 'settings_opened'
+        ? 'Settings opened, permission still pending'
+        : 'Notification access not confirmed';
+  const selectedSourceAppsSummary =
+    onboardingPreferences.selectedSourceAppIds.length > 0
+      ? onboardingPreferences.selectedSourceAppIds
+          .map((sourceAppId) => getSourceAppLabel(sourceAppId))
+          .join(', ')
+      : 'None selected';
+  const nativeAllowlistSummary = formatSourceAppSummary(captureDiagnostics.allowedSourceAppIds);
+
+  return (
+    <View style={styles.stack}>
+      <View style={styles.tabs}>
+        <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
+        <TabButton isActive={false} label="Inbox" onPress={() => onSelectTab('inbox')} />
+        <TabButton isActive={false} label="Timeline" onPress={() => onSelectTab('timeline')} />
+        <TabButton isActive={true} label="Settings" onPress={() => undefined} />
+      </View>
+
+      <SectionCard accentColor={colors.accentSoft}>
+        <Text style={styles.sectionEyebrow}>Settings</Text>
+        <Text style={styles.sectionTitle}>Capture, privacy, and support controls</Text>
+        <Text style={styles.bodyCopy}>
+          These preferences stay local on this device today. Source apps, budget cycle, sync mode,
+          privacy mode, and diagnostics access now live in one visible screen instead of hidden
+          setup-only flows.
+        </Text>
+        <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>
+            Rollout channel: {formatRolloutChannel(bootstrapState.config.rolloutChannel)}
+          </Text>
+          <Text style={styles.helperCopy}>
+            Current budget cycle: {getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}
+          </Text>
+          <Text style={styles.helperCopy}>
+            Sync mode: {getSyncModeLabel(onboardingPreferences.syncMode)}
+          </Text>
+          <Text style={styles.helperCopy}>
+            Privacy mode: {privacyModeEnabled ? 'mask previews when inactive' : 'standard preview'}
+          </Text>
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.cardTitle}>Capture sources</Text>
+        <Text style={styles.bodyCopy}>
+          These selections sync straight into the native allowlist. The listener still stays
+          Android-first, but the chosen apps persist locally and remain editable here after
+          onboarding.
+        </Text>
+        <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>Listener status: {listenerStatusLabel}</Text>
+          <Text style={styles.helperCopy}>Selected source apps: {selectedSourceAppsSummary}</Text>
+          <Text style={styles.helperCopy}>Native allowlist: {nativeAllowlistSummary}</Text>
+        </View>
+        <View style={styles.actionRow}>
+          <ActionButton
+            label="Open notification access"
+            onPress={onOpenNotificationAccess}
+            tone="secondary"
+          />
+          <ActionButton label="Select all" onPress={onSelectAllSourceApps} tone="secondary" />
+          <ActionButton label="Clear all" onPress={onClearSourceApps} tone="secondary" />
+        </View>
+        <View style={styles.categoryGrid}>
+          {SOURCE_APP_OPTIONS.map((sourceApp) => (
+            <CategoryChip
+              key={sourceApp.id}
+              isActive={onboardingPreferences.selectedSourceAppIds.includes(sourceApp.id)}
+              label={sourceApp.label}
+              onPress={() => onToggleSourceApp(sourceApp.id)}
+            />
+          ))}
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={privacyModeEnabled ? colors.panelWarm : colors.successSoft}>
+        <Text style={styles.cardTitle}>Privacy mode</Text>
+        <Text style={styles.bodyCopy}>
+          When privacy mode is on, the app swaps in a neutral cover while it is inactive so
+          lockscreen and task-switcher previews do not show live spend details.
+        </Text>
+        <View style={styles.optionStack}>
+          <PreferenceCard
+            description="Show the normal app preview when switching away from the app."
+            isActive={!privacyModeEnabled}
+            label="Standard preview"
+            onPress={() => onSelectPrivacyMode(false)}
+          />
+          <PreferenceCard
+            description="Mask the app preview with a privacy cover while the app is inactive."
+            isActive={privacyModeEnabled}
+            label="Mask previews"
+            onPress={() => onSelectPrivacyMode(true)}
+          />
+        </View>
+        <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>
+            App lock: placeholder only for now. A real secure-entry flow still needs later native
+            work.
+          </Text>
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Sync and budget defaults</Text>
+        <Text style={styles.bodyCopy}>
+          These defaults already drive the current local dashboard and onboarding resume flow. The
+          sync preference is saved now even though the mobile sync client still lands later.
+        </Text>
+        <Text style={styles.fieldLabel}>Budget cycle</Text>
+        <View style={styles.optionStack}>
+          {BUDGET_CYCLE_OPTIONS.map((option) => (
+            <PreferenceCard
+              key={option.id}
+              description={option.description}
+              isActive={onboardingPreferences.budgetCycleId === option.id}
+              label={option.label}
+              onPress={() => onSelectBudgetCycle(option.id)}
+            />
+          ))}
+        </View>
+        <Text style={styles.fieldLabel}>Sync mode</Text>
+        <View style={styles.optionStack}>
+          {SYNC_MODE_OPTIONS.map((option) => (
+            <PreferenceCard
+              key={option.id}
+              description={option.description}
+              isActive={onboardingPreferences.syncMode === option.id}
+              label={option.label}
+              onPress={() => onSelectSyncMode(option.id)}
+            />
+          ))}
+        </View>
+        {onboardingPreferences.syncMode === 'sync_later' ? (
+          <Text style={styles.helperCopy}>
+            Device pairing stays intentionally placeholder-only here until the mobile sync client
+            and outbox flow land.
+          </Text>
+        ) : null}
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Export and support</Text>
+        <Text style={styles.bodyCopy}>
+          Diagnostics are live today. CSV export and backup/restore now have visible entrypoints
+          here, but the working data-export flows still belong to later tickets.
+        </Text>
+        <View style={styles.actionRow}>
+          <ActionButton label="Open diagnostics" onPress={onOpenDiagnostics} tone="primary" />
+          <ActionButton
+            label="Share redacted bundle"
+            onPress={onShareDiagnosticsBundle}
+            tone="secondary"
+          />
+          <ActionButton
+            label="CSV export"
+            onPress={() => onOpenExportPlaceholder('csv')}
+            tone="secondary"
+          />
+          <ActionButton
+            label="Backup / restore"
+            onPress={() => onOpenExportPlaceholder('backup')}
+            tone="secondary"
+          />
+        </View>
       </SectionCard>
     </View>
   );
@@ -3075,10 +3352,12 @@ function InboxScreen({
       }
       ListHeaderComponent={
         <View style={styles.inboxHeaderStack}>
-          <View style={styles.tabs}>
-            <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
-            <TabButton isActive={true} label="Inbox" onPress={() => onSelectTab('inbox')} />
-          </View>
+        <View style={styles.tabs}>
+          <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
+          <TabButton isActive={true} label="Inbox" onPress={() => onSelectTab('inbox')} />
+          <TabButton isActive={false} label="Timeline" onPress={() => onSelectTab('timeline')} />
+          <TabButton isActive={false} label="Settings" onPress={() => onSelectTab('settings')} />
+        </View>
 
           <SectionCard accentColor={colors.panelWarm}>
             <Text style={styles.sectionEyebrow}>Inbox</Text>
@@ -3263,6 +3542,7 @@ function InsightsScreen({
           <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
           <TabButton isActive={false} label="Inbox" onPress={() => onSelectTab('inbox')} />
           <TabButton isActive={false} label="Timeline" onPress={() => onSelectTab('timeline')} />
+          <TabButton isActive={false} label="Settings" onPress={() => onSelectTab('settings')} />
         </View>
 
         <SectionCard accentColor={colors.accentSoft}>
@@ -3463,6 +3743,7 @@ function TimelineScreen({
             <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
             <TabButton isActive={false} label="Inbox" onPress={() => onSelectTab('inbox')} />
             <TabButton isActive={true} label="Timeline" onPress={() => onSelectTab('timeline')} />
+            <TabButton isActive={false} label="Settings" onPress={() => onSelectTab('settings')} />
           </View>
 
           <SectionCard accentColor={colors.successSoft}>
@@ -6099,6 +6380,24 @@ const styles = StyleSheet.create({
   preferenceCardIdle: {
     backgroundColor: colors.canvas,
     borderColor: colors.edgeStrong,
+  },
+  privacyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    backgroundColor: colors.overlay,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    zIndex: 10,
+  },
+  privacyOverlayCard: {
+    backgroundColor: colors.panelStrong,
+    borderColor: colors.edgeStrong,
+    borderRadius: 28,
+    borderWidth: 1,
+    gap: 12,
+    maxWidth: 420,
+    padding: 20,
+    width: '100%',
   },
   preferenceDescription: {
     color: colors.inkMuted,

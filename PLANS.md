@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### UX-007 — Implement Settings, Privacy Mode, Export Entrypoints, And Diagnostics Access
+
+- **Status:** completed
+- **Ticket:** UX-007
+- **Goal:** Add a first-class Settings screen that lets users manage capture sources, privacy mode, sync mode, budget-cycle defaults, export entrypoints, diagnostics access, and app-lock placeholders using the local-first state already present in the client.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/persistence.ts` only if new local settings must persist, `client/src/features/spend-tracker/domain.ts` only if small helper functions are needed, focused client tests, and `client/src/lib/app-info.ts` only if current-scope copy changes.
+- **Rationale:** The re-audit on 2026-03-30 still leaves `SET-002` blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty again. `UX-005`, `INT-005`, `API-003`, `API-004`, `API-005`, `API-007`, and `QA-004` all still have external closeout gaps. `CAP-007` is now done, so `UX-007` becomes the earliest canonical `todo` with satisfied dependencies and the best single next ticket.
+- **Risks:** Settings work can sprawl into full sync, native privacy controls, or export implementation beyond entrypoints. This pass must stay inside local settings UI, persistence, privacy-mode behavior that the current app can truthfully enforce, and honest export entrypoints/placeholders without starting `INT-008`, sync-client work, or native app-lock infrastructure.
+- **API / schema impact:** No OpenAPI or backend schema changes expected. Local client settings state may expand additively if privacy-mode persistence or export metadata requires it.
+- **Rollout / flag plan:** Keep settings local-first. Reuse the existing diagnostics surface from `CAP-007` and the existing local onboarding preference state instead of introducing hidden or remote-only controls.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm db:validate` only if local persistence schema changes, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check`.
+- **Done when:** Users can reach a Settings screen without hidden gestures, update source apps, privacy mode, budget cycle, and sync mode locally with persistence across restart, reach diagnostics and export entrypoints from Settings, and repo-truth tracking reflects the result honestly based on available validation evidence.
+- **Outcome:** Completed the repo-side UX-007 implementation on 2026-03-30 by adding a first-class Settings screen reachable from the visible app tabs and Home, wiring local source-app, budget-cycle, sync-mode, and privacy-mode controls onto the existing persisted client state, adding an inactive-app privacy cover for app-preview and lockscreen masking, and exposing visible export entrypoints plus direct diagnostics access/share without hidden gestures. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/app.test.tsx __tests__/persistence.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. The canonical backlog ticket remains `in_progress` because its done-when still requires product and QA approval of the Settings surface.
+
 ### CAP-007 — Add Diagnostics Screen For Source App Status, Parser Version, And Recent Capture Logs
 
 - **Status:** completed

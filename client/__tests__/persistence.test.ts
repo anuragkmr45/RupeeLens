@@ -114,6 +114,7 @@ describe('spend-tracker persistence', () => {
         return [
           { key: 'selected_source_app_ids', value: '["google_pay","phonepe"]' },
           { key: 'budget_cycle_id', value: 'salary_cycle' },
+          { key: 'privacy_mode_enabled', value: 'true' },
           { key: 'sync_mode', value: 'sync_later' },
           { key: 'notification_access_state', value: 'settings_opened' },
           { key: 'onboarding_completed', value: 'true' },
@@ -210,6 +211,7 @@ describe('spend-tracker persistence', () => {
       },
       notificationAccessState: 'settings_opened',
       onboardingCompleted: true,
+      privacyModeEnabled: true,
       rules: [
         expect.objectContaining({
           autoApply: true,
@@ -312,6 +314,7 @@ describe('spend-tracker persistence', () => {
       },
       notificationAccessState: 'not_started',
       onboardingCompleted: true,
+      privacyModeEnabled: false,
       rules: [],
       transactions: seededTransactions,
     });
@@ -507,6 +510,7 @@ describe('spend-tracker persistence', () => {
       ],
       notificationAccessState: 'settings_opened',
       onboardingCompleted: true,
+      privacyModeEnabled: true,
       rules: [
         {
           amountBucket: 'under_250',
@@ -573,6 +577,11 @@ describe('spend-tracker persistence', () => {
       'INSERT INTO settings (key, value) VALUES (?, ?)',
       'sync_mode',
       'local_only',
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      'INSERT INTO settings (key, value) VALUES (?, ?)',
+      'privacy_mode_enabled',
+      'true',
     );
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT INTO settings (key, value) VALUES (?, ?)',

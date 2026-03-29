@@ -1,6 +1,6 @@
 # Project Phase Status
 
-Date: 2026-03-29
+Date: 2026-03-30
 Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`, and live source under `client/`, `server/`, and `packages/`
 
 ## Summary
@@ -66,6 +66,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Bottom-sheet quick classify flow with explicit suggestion chips, shared form primitives, save/skip controls, and reusable-rule plus auto-apply toggles
 - Full-screen split-items flow with add/remove/reorder controls, running totals, explicit remainder handling, and partial-save visibility back in Inbox
 - Local timeline/history flow with grouped day sections, search/filter chips, transaction detail, local notes, parser context, classification/audit history, and local edit/delete handoff
+- First-class Settings screen with visible capture-source controls, privacy-mode preview masking while the app is inactive, sync/budget defaults, export entrypoints, and diagnostics access/share
 - Seeded default categories plus local category create/edit/delete/merge, with the saved category list reused across classify, split, manual add, dashboard summaries, and Timeline search/detail
 - Deterministic merchant normalization with canonical merchant plus alias persistence, manual merge/split controls, review-only fuzzy merge suggestions, and merchant-aware reuse across manual add, classify, Inbox filters, Timeline search, and transaction detail
 - Deterministic local rule engine with SQLite-backed reusable rules, explanation metadata, and explicit auto-apply only for user-approved matches in quick classify and manual add
@@ -73,7 +74,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 **Remaining**
 
 - External QA/design acceptance for the split flow
-- Settings/privacy/export screens and captured-spend classify integration
+- Product and QA approval of the Settings surface plus captured-spend classify integration
 
 ## Sprint 4 — Budgets And Sync Foundation
 

@@ -539,12 +539,12 @@
       ],
       "tests": "Manual verification of setting toggles and persistence.",
       "done": "Settings screen approved by product and QA.",
-      "status": "done",
+      "status": "in_progress",
       "owner": "codex",
       "started_at": "2026-03-28",
-      "completed_at": "2026-03-28",
+      "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: the client now persists explicit local classification rules in SQLite with additive migrations, evaluates saved rules before history and merchant-keyword heuristics using merchant, amount bucket, hour bucket, and weekday factors, returns explanation metadata with deterministic priority, and auto-applies only explicit user-approved rules. Quick classify and manual add both create reusable rules through real toggles, and category/merchant merge handlers keep saved rules aligned. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28."
+      "tracking_notes": "Repo truth: UX-007 now adds a first-class Settings screen reachable from the visible app tabs and Home, with locally persisted source-app, budget-cycle, sync-mode, and privacy-mode controls; an inactive-app privacy cover for app-preview and lockscreen masking; visible CSV export and backup/restore entrypoints; and direct diagnostics access and redacted bundle sharing without hidden gestures. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/app.test.tsx __tests__/persistence.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because the backlog done-when still requires product and QA approval of the Settings surface."
     },
     {
       "id": "INT-001",
@@ -944,12 +944,12 @@
       ],
       "tests": "Offline/online toggle tests and repeated retry tests.",
       "done": "Multi-device sync stable in beta.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-28",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo truth: UX-007 now adds a first-class Settings screen reachable from the visible app tabs and Home, with locally persisted source-app, budget-cycle, sync-mode, and privacy-mode controls; an inactive-app privacy cover for app-preview and lockscreen masking; visible CSV export and backup/restore entrypoints; and direct diagnostics access and redacted bundle sharing without hidden gestures. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/app.test.tsx __tests__/persistence.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because the backlog done-when still requires product and QA approval of the Settings surface."
     },
     {
       "id": "QA-001",
