@@ -1,5 +1,11 @@
 package com.upispendtracker.client.capture
 
+data class SupportedParserDescriptor(
+  val parserId: String,
+  val parserVersion: String,
+  val sourceAppIds: List<String>,
+)
+
 class NotificationParserRegistry private constructor(
   private val packageSpecificParsers: Map<String, NotificationParser>,
   private val genericParsers: List<NotificationParser>,
@@ -56,6 +62,19 @@ class NotificationParserRegistry private constructor(
     )
   }
 
+  fun availableParsers(): List<SupportedParserDescriptor> {
+    return (packageSpecificParsers.values.toList() + genericParsers)
+      .distinctBy { parser -> parser.id }
+      .sortedBy { parser -> parser.id }
+      .map { parser ->
+        SupportedParserDescriptor(
+          parserId = parser.id,
+          parserVersion = parser.version,
+          sourceAppIds = parser.supportedSourceAppIds.toList().sorted(),
+        )
+      }
+  }
+
   companion object {
     const val TIMESTAMP_PROVENANCE_POSTED_AT_MS = "notification_posted_at_ms"
 
@@ -75,6 +94,8 @@ class NotificationParserRegistry private constructor(
         ),
       )
     }
+
+    fun supportedParsers(): List<SupportedParserDescriptor> = default().availableParsers()
 
     private fun createGooglePayParser(): NotificationParser {
       return RegexBackedNotificationParser(
@@ -223,6 +244,7 @@ class NotificationParserRegistry private constructor(
 
 private interface NotificationParser {
   val id: String
+  val supportedSourceAppIds: Set<String>
   val version: String
 
   fun parse(snapshot: NotificationCaptureSnapshot): ParserAttemptResult
@@ -261,7 +283,7 @@ private data class ParsedFieldMatch<T>(
 
 private class RegexBackedNotificationParser(
   override val id: String,
-  private val supportedSourceAppIds: Set<String>,
+  override val supportedSourceAppIds: Set<String>,
   override val version: String,
   private val confidence: Double,
   private val patterns: List<RegexPatternDefinition>,
@@ -306,7 +328,7 @@ private class RegexBackedNotificationParser(
 
 private class GenericTemplateNotificationParser(
   override val id: String,
-  private val supportedSourceAppIds: Set<String>,
+  override val supportedSourceAppIds: Set<String>,
   override val version: String,
   private val confidence: Double,
   private val amountRegex: Regex,

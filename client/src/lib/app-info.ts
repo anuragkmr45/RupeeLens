@@ -1,6 +1,6 @@
 export const APP_COPY = {
-  stage: 'INT-007 local insights',
+  stage: 'CAP-007 diagnostics',
   subtitle:
-    'Android-first onboarding with a cycle-aware dashboard, signed remote bootstrap config, seeded local categories with custom CRUD and merge, canonical merchants plus alias management, reusable local classification rules with optional auto-apply, a weighted local history ranker for suggestions, a canonical local budget engine, local budget create/edit plus quiet-mode threshold alerts, optimized local insights with prior-period comparison, filtered Inbox recovery, bottom-sheet quick classify, a full split-items editor, shared manual add primitives, and a local history/detail flow with parser context and notes.',
+    'Android-first onboarding with a cycle-aware dashboard, signed remote bootstrap config, seeded local categories with custom CRUD and merge, canonical merchants plus alias management, reusable local classification rules with optional auto-apply, a weighted local history ranker for suggestions, a canonical local budget engine, local budget create/edit plus quiet-mode threshold alerts, optimized local insights with prior-period comparison, filtered Inbox recovery, bottom-sheet quick classify, a full split-items editor, shared manual add primitives, a local history/detail flow with parser context and notes, and a dedicated native-capture diagnostics screen with parser inventory, recent failures/logs, and redacted debug-bundle sharing.',
   title: 'UPI Spend Tracker',
 } as const;

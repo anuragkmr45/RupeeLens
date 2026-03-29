@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### CAP-007 — Add Diagnostics Screen For Source App Status, Parser Version, And Recent Capture Logs
+
+- **Status:** completed
+- **Ticket:** CAP-007
+- **Goal:** Continue the partial native-capture diagnostics work by adding a dedicated diagnostics screen, parser-version and recent-failure visibility, and a redacted debug export path without widening scope into capture import, sync, or settings-system work.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md` only if repo-truth scope changes, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/android-capture/native-capture.ts`, `client/android/app/src/main/java/com/upispendtracker/client/capture/*`, and focused client/native tests.
+- **Rationale:** The re-audit on 2026-03-29 still leaves `SET-002` blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty again. `UX-005`, `INT-005`, `API-003`, `API-004`, `API-005`, `API-007`, and `QA-004` all still have external closeout gaps. `CAP-007` is the best actionable continuation because the repo already has a native diagnostics bridge and UI card, but it is missing the dedicated support-ready diagnostics surface, parser/failure visibility, and redacted export path required by the ticket.
+- **Risks:** Diagnostics work can sprawl into full settings architecture, support tooling, or native capture import. This pass must stay inside support-safe diagnostics visibility and export, and it must not start CAP-005, CAP-006, or UX-007 scope.
+- **API / schema impact:** No OpenAPI or backend schema changes expected. Native capture diagnostics payload shape and local UI state may expand additively.
+- **Rollout / flag plan:** Keep diagnostics additive and accessible from the app UI without developer mode. Do not claim connected-Android closeout if device validation is still unavailable.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, native unit or instrumentation tests if the diagnostics bridge changes, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, plus `pnpm db:validate` only if native/mobile persistence changes.
+- **Done when:** QA can distinguish permission, parser, and dedupe failures from the in-app diagnostics surface; parser versions and recent parse failures are visible; debug export is redacted by default; diagnostics are reachable without hidden gestures; and backlog status moves truthfully based on validation evidence available in this environment.
+- **Outcome:** Completed the repo-side CAP-007 implementation on 2026-03-29 by expanding the Android diagnostics bridge with supported parser inventory plus recent capture-log and parse-failure visibility from native capture storage, adding a dedicated Diagnostics screen reachable from Home without developer mode, and adding a redacted debug-bundle share path that omits notification previews and raw merchant text by default. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/app.test.tsx __tests__/native-capture.test.ts`, `./gradlew :app:testDebugUnitTest`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-29. The ticket can now close as `done`.
+
 ### QA-004 — Set Up OTA Channels, Runtime Versioning, And Rollback Playbook
 
 - **Status:** completed

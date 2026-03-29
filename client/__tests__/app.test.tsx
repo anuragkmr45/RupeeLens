@@ -216,8 +216,11 @@ jest.mock('../src/features/android-capture/native-capture', () => ({
     lastCapture: null,
     lastDedupeDecision: null,
     listenerPermissionGranted: false,
+    recentCaptureLog: [],
+    recentParseFailures: [],
     serviceAvailable: true,
     storedSnapshotCount: 0,
+    supportedParsers: [],
   }),
   DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS: {
     allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
@@ -231,8 +234,11 @@ jest.mock('../src/features/android-capture/native-capture', () => ({
     lastCapture: null,
     lastDedupeDecision: null,
     listenerPermissionGranted: false,
+    recentCaptureLog: [],
+    recentParseFailures: [],
     serviceAvailable: true,
     storedSnapshotCount: 0,
+    supportedParsers: [],
   },
   getNativeCaptureDiagnostics: jest.fn().mockResolvedValue({
     allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
@@ -246,8 +252,11 @@ jest.mock('../src/features/android-capture/native-capture', () => ({
     lastCapture: null,
     lastDedupeDecision: null,
     listenerPermissionGranted: false,
+    recentCaptureLog: [],
+    recentParseFailures: [],
     serviceAvailable: true,
     storedSnapshotCount: 0,
+    supportedParsers: [],
   }),
   setNativeCaptureDedupeConfig: jest.fn().mockResolvedValue({
     allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
@@ -261,8 +270,11 @@ jest.mock('../src/features/android-capture/native-capture', () => ({
     lastCapture: null,
     lastDedupeDecision: null,
     listenerPermissionGranted: false,
+    recentCaptureLog: [],
+    recentParseFailures: [],
     serviceAvailable: true,
     storedSnapshotCount: 0,
+    supportedParsers: [],
   }),
   setAllowedSourceApps: jest.fn().mockResolvedValue({
     allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
@@ -276,8 +288,11 @@ jest.mock('../src/features/android-capture/native-capture', () => ({
     lastCapture: null,
     lastDedupeDecision: null,
     listenerPermissionGranted: false,
+    recentCaptureLog: [],
+    recentParseFailures: [],
     serviceAvailable: true,
     storedSnapshotCount: 0,
+    supportedParsers: [],
   }),
 }));
 
@@ -368,8 +383,11 @@ function buildMockCaptureDiagnostics(
     lastCapture: null,
     lastDedupeDecision: null,
     listenerPermissionGranted: false,
+    recentCaptureLog: [],
+    recentParseFailures: [],
     serviceAvailable: true,
     storedSnapshotCount: 0,
+    supportedParsers: [],
     ...overrides,
   };
 }
@@ -702,7 +720,23 @@ describe('App', () => {
         sourceAppId: 'google_pay',
       },
       listenerPermissionGranted: true,
+      recentParseFailures: [
+        {
+          captureEventId: 91,
+          capturedAtMs: new Date('2026-03-26T10:00:00.000Z').getTime(),
+          failureReasonCode: 'unsupported_notification_format',
+          parserTrace: 'google_pay_v1:unsupported_notification_format',
+          sourceAppId: 'google_pay',
+        },
+      ],
       storedSnapshotCount: 3,
+      supportedParsers: [
+        {
+          parserId: 'google_pay_v1',
+          parserVersion: '1.0.0',
+          sourceAppIds: ['google_pay'],
+        },
+      ],
     });
 
     mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(diagnostics);
@@ -721,10 +755,71 @@ describe('App', () => {
     expect(
       screen.getByText('Dedupe config: 120s exact · 300s fuzzy · threshold 0.88'),
     ).toBeTruthy();
-    expect(
-      screen.getByText('Snapshot preview: title=Paid Rs 299 text=To Corner Store'),
-    ).toBeTruthy();
+    expect(screen.getByText('Supported parsers: 1')).toBeTruthy();
+    expect(screen.getByText('Recent parse failures: 1')).toBeTruthy();
     expect(screen.getByText(/Last dedupe: Exact duplicate/)).toBeTruthy();
+  });
+
+  it('opens the diagnostics screen from Home and shows parser and failure details', async () => {
+    const diagnostics = buildMockCaptureDiagnostics({
+      allowedSourceAppIds: ['google_pay', 'phonepe'],
+      listenerPermissionGranted: true,
+      recentCaptureLog: [
+        {
+          captureEventId: 77,
+          captureState: 'captured',
+          capturedAtMs: new Date('2026-03-26T10:15:00.000Z').getTime(),
+          parseStatus: 'success',
+          parserId: 'google_pay_v1',
+          parserVersion: '1.0.0',
+          sourceAppId: 'google_pay',
+          totalDuplicateCount: 0,
+        },
+      ],
+      recentParseFailures: [
+        {
+          captureEventId: 88,
+          capturedAtMs: new Date('2026-03-26T10:20:00.000Z').getTime(),
+          failureReasonCode: 'merchant_not_found',
+          parserTrace: 'generic_upi_v1:merchant_not_found',
+          sourceAppId: 'phonepe',
+        },
+      ],
+      supportedParsers: [
+        {
+          parserId: 'google_pay_v1',
+          parserVersion: '1.0.0',
+          sourceAppIds: ['google_pay'],
+        },
+        {
+          parserId: 'generic_upi_v1',
+          parserVersion: '1.0.0',
+          sourceAppIds: ['google_pay', 'phonepe'],
+        },
+      ],
+    });
+
+    mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(diagnostics);
+    mockedNativeCaptureModule.setNativeCaptureDedupeConfig.mockResolvedValue(diagnostics);
+    mockedNativeCaptureModule.setAllowedSourceApps.mockResolvedValue(diagnostics);
+
+    const screen = await renderApp();
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+    fireEvent.press(screen.getByRole('button', { name: 'Open diagnostics' }));
+
+    expect(await screen.findByText('Support-ready native capture status')).toBeTruthy();
+    expect(screen.getByText('Native google_pay_v1 v1.0.0 · Google Pay')).toBeTruthy();
+    expect(
+      screen.getByText('Native generic_upi_v1 v1.0.0 · Google Pay, PhonePe'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Reason: merchant_not_found · Trace: generic_upi_v1:merchant_not_found/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText('success · captured · google_pay_v1 v1.0.0'),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Share redacted bundle' })).toBeTruthy();
   });
 
   it('syncs bootstrap dedupe config into the native module', async () => {

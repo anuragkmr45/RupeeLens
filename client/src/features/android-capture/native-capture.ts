@@ -12,6 +12,12 @@ export interface NativeCaptureLastSnapshot {
   sourceAppId: SupportedSourceAppId;
 }
 
+export interface NativeCaptureSupportedParser {
+  parserId: string;
+  parserVersion: string;
+  sourceAppIds: SupportedSourceAppId[];
+}
+
 export interface NativeCaptureDedupeConfig {
   exactMatchWindowSeconds: number;
   fuzzyMatchWindowSeconds: number;
@@ -28,6 +34,26 @@ export interface NativeCaptureLastDedupeDecision {
   sourceAppId: SupportedSourceAppId;
 }
 
+export interface NativeCaptureRecentCaptureLogEntry {
+  captureEventId: number;
+  captureState: 'captured' | 'failed' | 'imported' | 'replied' | 'skipped';
+  capturedAtMs: number;
+  failureReasonCode?: string;
+  parseStatus: 'failed' | 'success';
+  parserId?: string;
+  parserVersion?: string;
+  sourceAppId: SupportedSourceAppId;
+  totalDuplicateCount: number;
+}
+
+export interface NativeCaptureRecentParseFailure {
+  captureEventId: number;
+  capturedAtMs: number;
+  failureReasonCode: string;
+  parserTrace?: string;
+  sourceAppId: SupportedSourceAppId;
+}
+
 export interface NativeCaptureDiagnostics {
   allowedSourceAppIds: SupportedSourceAppId[];
   dedupeConfig: NativeCaptureDedupeConfig;
@@ -36,8 +62,29 @@ export interface NativeCaptureDiagnostics {
   lastCapture: NativeCaptureLastSnapshot | null;
   lastDedupeDecision: NativeCaptureLastDedupeDecision | null;
   listenerPermissionGranted: boolean;
+  recentCaptureLog: NativeCaptureRecentCaptureLogEntry[];
+  recentParseFailures: NativeCaptureRecentParseFailure[];
   serviceAvailable: boolean;
   storedSnapshotCount: number;
+  supportedParsers: NativeCaptureSupportedParser[];
+}
+
+export interface CaptureTemplateVersionSummary {
+  sourceAppIds: SupportedSourceAppId[];
+  templateId: string;
+  version: string;
+}
+
+export interface RedactedCaptureDebugBundleInput {
+  captureDiagnostics: NativeCaptureDiagnostics;
+  enabledParserTemplates: CaptureTemplateVersionSummary[];
+  notificationAccessState: string;
+  rolloutChannel: string;
+  runtimeCompatibility?: {
+    compatible: boolean;
+    reason?: string;
+  } | null;
+  selectedSourceAppIds: SupportedSourceAppId[];
 }
 
 interface NotificationCaptureModuleShape {
@@ -64,8 +111,11 @@ export const DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS: NativeCaptureDiagnostics = {
   lastCapture: null,
   lastDedupeDecision: null,
   listenerPermissionGranted: false,
+  recentCaptureLog: [],
+  recentParseFailures: [],
   serviceAvailable: Platform.OS === 'android' ? Boolean(notificationCaptureModule) : false,
   storedSnapshotCount: 0,
+  supportedParsers: [],
 };
 
 function isSupportedSourceAppId(value: unknown): value is SupportedSourceAppId {
@@ -90,8 +140,11 @@ function parseDiagnostics(value: unknown): NativeCaptureDiagnostics {
     lastCapture?: unknown;
     lastDedupeDecision?: unknown;
     listenerPermissionGranted?: unknown;
+    recentCaptureLog?: unknown;
+    recentParseFailures?: unknown;
     serviceAvailable?: unknown;
     storedSnapshotCount?: unknown;
+    supportedParsers?: unknown;
   };
   const parsedAllowedSourceAppIds = Array.isArray(candidate.allowedSourceAppIds)
     ? candidate.allowedSourceAppIds.filter((sourceAppId): sourceAppId is SupportedSourceAppId =>
@@ -109,12 +162,15 @@ function parseDiagnostics(value: unknown): NativeCaptureDiagnostics {
     lastCapture: parseLastCapture(candidate.lastCapture),
     lastDedupeDecision: parseLastDedupeDecision(candidate.lastDedupeDecision),
     listenerPermissionGranted: candidate.listenerPermissionGranted === true,
+    recentCaptureLog: parseRecentCaptureLog(candidate.recentCaptureLog),
+    recentParseFailures: parseRecentParseFailures(candidate.recentParseFailures),
     serviceAvailable:
       typeof candidate.serviceAvailable === 'boolean'
         ? candidate.serviceAvailable
         : DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS.serviceAvailable,
     storedSnapshotCount:
       typeof candidate.storedSnapshotCount === 'number' ? candidate.storedSnapshotCount : 0,
+    supportedParsers: parseSupportedParsers(candidate.supportedParsers),
   };
 }
 
@@ -210,6 +266,191 @@ function parseLastDedupeDecision(value: unknown): NativeCaptureLastDedupeDecisio
       : {}),
     sourceAppId: candidate.sourceAppId,
   };
+}
+
+function parseSupportedParsers(value: unknown): NativeCaptureSupportedParser[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return [];
+    }
+
+    const candidate = entry as {
+      parserId?: unknown;
+      parserVersion?: unknown;
+      sourceAppIds?: unknown;
+    };
+
+    if (
+      typeof candidate.parserId !== 'string' ||
+      typeof candidate.parserVersion !== 'string' ||
+      !Array.isArray(candidate.sourceAppIds)
+    ) {
+      return [];
+    }
+
+    const sourceAppIds = candidate.sourceAppIds.filter((sourceAppId): sourceAppId is SupportedSourceAppId =>
+      isSupportedSourceAppId(sourceAppId),
+    );
+
+    return [
+      {
+        parserId: candidate.parserId,
+        parserVersion: candidate.parserVersion,
+        sourceAppIds,
+      },
+    ];
+  });
+}
+
+function parseRecentParseFailures(value: unknown): NativeCaptureRecentParseFailure[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return [];
+    }
+
+    const candidate = entry as {
+      captureEventId?: unknown;
+      capturedAtMs?: unknown;
+      failureReasonCode?: unknown;
+      parserTrace?: unknown;
+      sourceAppId?: unknown;
+    };
+
+    if (
+      typeof candidate.captureEventId !== 'number' ||
+      typeof candidate.capturedAtMs !== 'number' ||
+      typeof candidate.failureReasonCode !== 'string' ||
+      !isSupportedSourceAppId(candidate.sourceAppId)
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        captureEventId: candidate.captureEventId,
+        capturedAtMs: candidate.capturedAtMs,
+        failureReasonCode: candidate.failureReasonCode,
+        ...(typeof candidate.parserTrace === 'string' ? { parserTrace: candidate.parserTrace } : {}),
+        sourceAppId: candidate.sourceAppId,
+      },
+    ];
+  });
+}
+
+function parseRecentCaptureLog(value: unknown): NativeCaptureRecentCaptureLogEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return [];
+    }
+
+    const candidate = entry as {
+      captureEventId?: unknown;
+      captureState?: unknown;
+      capturedAtMs?: unknown;
+      failureReasonCode?: unknown;
+      parseStatus?: unknown;
+      parserId?: unknown;
+      parserVersion?: unknown;
+      sourceAppId?: unknown;
+      totalDuplicateCount?: unknown;
+    };
+
+    if (
+      typeof candidate.captureEventId !== 'number' ||
+      (candidate.captureState !== 'captured' &&
+        candidate.captureState !== 'failed' &&
+        candidate.captureState !== 'imported' &&
+        candidate.captureState !== 'replied' &&
+        candidate.captureState !== 'skipped') ||
+      typeof candidate.capturedAtMs !== 'number' ||
+      (candidate.parseStatus !== 'failed' && candidate.parseStatus !== 'success') ||
+      !isSupportedSourceAppId(candidate.sourceAppId) ||
+      typeof candidate.totalDuplicateCount !== 'number'
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        captureEventId: candidate.captureEventId,
+        captureState: candidate.captureState,
+        capturedAtMs: candidate.capturedAtMs,
+        ...(typeof candidate.failureReasonCode === 'string'
+          ? { failureReasonCode: candidate.failureReasonCode }
+          : {}),
+        parseStatus: candidate.parseStatus,
+        ...(typeof candidate.parserId === 'string' ? { parserId: candidate.parserId } : {}),
+        ...(typeof candidate.parserVersion === 'string'
+          ? { parserVersion: candidate.parserVersion }
+          : {}),
+        sourceAppId: candidate.sourceAppId,
+        totalDuplicateCount: candidate.totalDuplicateCount,
+      },
+    ];
+  });
+}
+
+export function buildRedactedCaptureDebugBundle({
+  captureDiagnostics,
+  enabledParserTemplates,
+  notificationAccessState,
+  rolloutChannel,
+  runtimeCompatibility,
+  selectedSourceAppIds,
+}: RedactedCaptureDebugBundleInput) {
+  return {
+    generatedAt: new Date().toISOString(),
+    nativeCapture: {
+      allowedSourceAppIds: captureDiagnostics.allowedSourceAppIds,
+      dedupeConfig: captureDiagnostics.dedupeConfig,
+      exactDuplicateCount: captureDiagnostics.exactDuplicateCount,
+      fuzzyDuplicateCount: captureDiagnostics.fuzzyDuplicateCount,
+      lastCapture: captureDiagnostics.lastCapture
+        ? {
+            capturedAtMs: captureDiagnostics.lastCapture.capturedAtMs,
+            packageName: captureDiagnostics.lastCapture.packageName,
+            sourceAppId: captureDiagnostics.lastCapture.sourceAppId,
+          }
+        : null,
+      lastDedupeDecision: captureDiagnostics.lastDedupeDecision
+        ? {
+            amountMinor: captureDiagnostics.lastDedupeDecision.amountMinor,
+            dedupeKind: captureDiagnostics.lastDedupeDecision.dedupeKind,
+            dedupedAtMs: captureDiagnostics.lastDedupeDecision.dedupedAtMs,
+            duplicateCount: captureDiagnostics.lastDedupeDecision.duplicateCount,
+            similarityScore: captureDiagnostics.lastDedupeDecision.similarityScore ?? null,
+            sourceAppId: captureDiagnostics.lastDedupeDecision.sourceAppId,
+          }
+        : null,
+      listenerPermissionGranted: captureDiagnostics.listenerPermissionGranted,
+      recentCaptureLog: captureDiagnostics.recentCaptureLog,
+      recentParseFailures: captureDiagnostics.recentParseFailures,
+      serviceAvailable: captureDiagnostics.serviceAvailable,
+      storedSnapshotCount: captureDiagnostics.storedSnapshotCount,
+      supportedParsers: captureDiagnostics.supportedParsers,
+    },
+    onboarding: {
+      notificationAccessState,
+      selectedSourceAppIds,
+    },
+    rollout: {
+      enabledParserTemplates,
+      rolloutChannel,
+      runtimeCompatibility: runtimeCompatibility ?? null,
+    },
+  } as const;
 }
 
 export async function getNativeCaptureDiagnostics(): Promise<NativeCaptureDiagnostics> {

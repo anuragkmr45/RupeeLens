@@ -361,12 +361,12 @@
       ],
       "tests": "Manual QA checklist with forced failure scenarios.",
       "done": "Support-ready diagnostics available.",
-      "status": "in_progress",
+      "status": "done",
       "owner": "codex",
       "started_at": "2026-03-27",
-      "completed_at": "",
+      "completed_at": "2026-03-29",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "`CAP-003` and `CAP-004` remain blocked on 2026-03-27 because `adb devices` is empty again, so this run continues `UX-006` instead of starting a later ticket. Scope is limited to extending the local mobile transaction model with durable parser metadata, searchable notes, and classification/audit history so Timeline detail can close truthfully."
+      "tracking_notes": "Repo truth: CAP-007 now exposes a dedicated Diagnostics screen reachable from Home without developer mode, extends the Android diagnostics bridge with supported parser inventory plus recent capture-log and parse-failure visibility, and shares a redacted debug bundle that omits notification previews and raw merchant text by default. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/app.test.tsx __tests__/native-capture.test.ts`, `./gradlew :app:testDebugUnitTest`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-29, so the ticket now meets its acceptance and done-when bar."
     },
     {
       "id": "UX-001",

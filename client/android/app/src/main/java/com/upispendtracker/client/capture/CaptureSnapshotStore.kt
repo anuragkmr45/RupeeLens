@@ -27,7 +27,10 @@ data class CaptureDiagnostics(
   val fuzzyDuplicateCount: Int,
   val lastCapture: LastCapturedSnapshot?,
   val lastDedupeDecision: LastDedupeDecision?,
+  val recentCaptureLog: List<RecentCaptureLogEntry>,
+  val recentParseFailures: List<RecentParseFailure>,
   val storedSnapshotCount: Int,
+  val supportedParsers: List<SupportedParserDescriptor>,
 )
 
 data class LastDedupeDecision(
@@ -37,6 +40,26 @@ data class LastDedupeDecision(
   val duplicateCount: Int,
   val merchantRaw: String,
   val similarityScore: Double?,
+  val sourceAppId: String,
+)
+
+data class RecentCaptureLogEntry(
+  val captureEventId: Long,
+  val captureState: String,
+  val capturedAtMs: Long,
+  val failureReasonCode: String?,
+  val parseStatus: String,
+  val parserId: String?,
+  val parserVersion: String?,
+  val sourceAppId: String,
+  val totalDuplicateCount: Int,
+)
+
+data class RecentParseFailure(
+  val captureEventId: Long,
+  val capturedAtMs: Long,
+  val failureReasonCode: String,
+  val parserTrace: String?,
   val sourceAppId: String,
 )
 
@@ -389,6 +412,20 @@ class CaptureRepository(context: Context) : AutoCloseable {
   fun getDiagnostics(): CaptureDiagnostics {
     val latestEvent = captureEventDao.getLatestEvent()
     val lastDuplicateEvent = captureEventDao.getLastDuplicateEvent()
+    val recentEvents = captureEventDao.listRecentEvents(DIAGNOSTICS_RECENT_EVENT_LIMIT)
+    val recentParseFailures =
+      recentEvents
+        .filter { event -> event.parseStatus == "failed" && !event.failureReasonCode.isNullOrBlank() }
+        .take(DIAGNOSTICS_RECENT_FAILURE_LIMIT)
+        .map { event ->
+          RecentParseFailure(
+            captureEventId = event.id,
+            capturedAtMs = event.capturedAtMs,
+            failureReasonCode = event.failureReasonCode.orEmpty(),
+            parserTrace = event.parserTrace,
+            sourceAppId = event.sourceAppId,
+          )
+        }
 
     return CaptureDiagnostics(
       exactDuplicateCount = captureEventDao.getExactDuplicateCount(),
@@ -414,7 +451,23 @@ class CaptureRepository(context: Context) : AutoCloseable {
             sourceAppId = event.sourceAppId,
           )
         },
+      recentCaptureLog =
+        recentEvents.map { event ->
+          RecentCaptureLogEntry(
+            captureEventId = event.id,
+            captureState = event.captureState,
+            capturedAtMs = event.capturedAtMs,
+            failureReasonCode = event.failureReasonCode,
+            parseStatus = event.parseStatus,
+            parserId = event.parserId,
+            parserVersion = event.parserVersion,
+            sourceAppId = event.sourceAppId,
+            totalDuplicateCount = event.totalDuplicateCount,
+          )
+        },
+      recentParseFailures = recentParseFailures,
       storedSnapshotCount = captureEventDao.countCaptureEvents(),
+      supportedParsers = NotificationParserRegistry.supportedParsers(),
     )
   }
 
@@ -552,6 +605,8 @@ class CaptureRepository(context: Context) : AutoCloseable {
 
   companion object {
     private const val DEFAULT_PENDING_FETCH_LIMIT = 50
+    private const val DIAGNOSTICS_RECENT_EVENT_LIMIT = 8
+    private const val DIAGNOSTICS_RECENT_FAILURE_LIMIT = 5
     private const val MAX_RETAINED_RAW_PAYLOADS = 200
   }
 }

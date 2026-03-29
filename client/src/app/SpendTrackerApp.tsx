@@ -8,6 +8,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -129,11 +130,13 @@ import {
   type SyncMode,
 } from '../features/spend-tracker/persistence';
 import {
+  buildRedactedCaptureDebugBundle,
   clearStoredCaptureSnapshots,
   DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS,
   getNativeCaptureDiagnostics,
   setNativeCaptureDedupeConfig,
   setAllowedSourceApps,
+  type CaptureTemplateVersionSummary,
   type NativeCaptureDiagnostics,
 } from '../features/android-capture/native-capture';
 import {
@@ -156,6 +159,7 @@ type Screen =
   | 'categories'
   | 'classify'
   | 'detail'
+  | 'diagnostics'
   | 'home'
   | 'inbox'
   | 'insights'
@@ -166,6 +170,7 @@ type Screen =
   | 'split'
   | 'timeline';
 type PrimaryScreen = 'home' | 'inbox' | 'timeline';
+type DiagnosticsReturnScreen = 'home' | 'onboarding';
 type ScreenReturnTarget = 'detail' | PrimaryScreen;
 type SplitReturnScreen = 'classify' | 'detail' | 'inbox';
 type BudgetScreenIntent = 'browse' | 'create';
@@ -342,6 +347,8 @@ export function SpendTrackerApp() {
     useState<TimelineFilters>(DEFAULT_TIMELINE_FILTERS);
   const [detailTransactionId, setDetailTransactionId] = useState<string | null>(null);
   const [detailReturnScreen, setDetailReturnScreen] = useState<PrimaryScreen>('timeline');
+  const [diagnosticsReturnScreen, setDiagnosticsReturnScreen] =
+    useState<DiagnosticsReturnScreen>('home');
   const [detailNoteDraft, setDetailNoteDraft] = useState('');
   const [classifyReturnScreen, setClassifyReturnScreen] =
     useState<ScreenReturnTarget | null>(null);
@@ -696,6 +703,34 @@ export function SpendTrackerApp() {
 
   async function handleRefreshCaptureDiagnostics() {
     setCaptureDiagnostics(await getNativeCaptureDiagnostics());
+  }
+
+  function handleOpenDiagnostics(returnScreen: DiagnosticsReturnScreen = 'home') {
+    setDiagnosticsReturnScreen(returnScreen);
+    setScreen('diagnostics');
+  }
+
+  async function handleShareDiagnosticsBundle() {
+    const debugBundle = buildRedactedCaptureDebugBundle({
+      captureDiagnostics,
+      enabledParserTemplates: buildEnabledParserTemplateSummaries(bootstrapState),
+      notificationAccessState,
+      rolloutChannel: bootstrapState.config.rolloutChannel,
+      runtimeCompatibility: bootstrapState.config.runtimeCompatibility ?? null,
+      selectedSourceAppIds: onboardingPreferences.selectedSourceAppIds,
+    });
+
+    try {
+      await Share.share({
+        message: JSON.stringify(debugBundle, null, 2),
+        title: 'UPI Spend Tracker diagnostics',
+      });
+    } catch {
+      Alert.alert(
+        'Unable to share diagnostics',
+        'Try again after the current screen settles. The bundle stays redacted by default.',
+      );
+    }
   }
 
   function getPostReviewScreen(nextTransactions: Transaction[]): PrimaryScreen {
@@ -1547,6 +1582,7 @@ export function SpendTrackerApp() {
                 onOpenCategories={handleOpenCategories}
                 onOpenInbox={() => setScreen('inbox')}
                 onOpenInsights={handleOpenInsights}
+                onOpenDiagnostics={() => handleOpenDiagnostics('home')}
                 onOpenManualEntry={() => handleOpenManualEntry('home')}
                 onOpenMerchants={handleOpenMerchants}
                 onOpenNotificationAccess={handleOpenNotificationAccess}
@@ -1559,6 +1595,19 @@ export function SpendTrackerApp() {
                   handleStartClassification(transactionId, 'home')
                 }
                 summary={summary}
+              />
+            ) : null}
+
+            {!isHydrating && screen === 'diagnostics' ? (
+              <DiagnosticsScreen
+                bootstrapState={bootstrapState}
+                captureDiagnostics={captureDiagnostics}
+                notificationAccessState={notificationAccessState}
+                onboardingPreferences={onboardingPreferences}
+                onBack={() => setScreen(diagnosticsReturnScreen)}
+                onOpenNotificationAccess={handleOpenNotificationAccess}
+                onRefreshCaptureDiagnostics={handleRefreshCaptureDiagnostics}
+                onShareDiagnosticsBundle={handleShareDiagnosticsBundle}
               />
             ) : null}
 
@@ -1859,6 +1908,7 @@ function HomeScreen({
   onCreateBudget,
   onOpenBudgets,
   onOpenCategories,
+  onOpenDiagnostics,
   onOpenInbox,
   onOpenInsights,
   onOpenManualEntry,
@@ -1885,6 +1935,7 @@ function HomeScreen({
   onCreateBudget: () => void;
   onOpenBudgets: () => void;
   onOpenCategories: () => void;
+  onOpenDiagnostics: () => void;
   onOpenInbox: () => void;
   onOpenInsights: () => void;
   onOpenManualEntry: () => void;
@@ -2163,6 +2214,7 @@ function HomeScreen({
 
       <CaptureDiagnosticsCard
         captureDiagnostics={captureDiagnostics}
+        onOpenDiagnostics={onOpenDiagnostics}
         onOpenNotificationAccess={onOpenNotificationAccess}
         onRefreshCaptureDiagnostics={onRefreshCaptureDiagnostics}
       />
@@ -2182,6 +2234,7 @@ function HomeScreen({
             onPress={onOpenNotificationAccess}
             tone="secondary"
           />
+          <ActionButton label="Diagnostics" onPress={onOpenDiagnostics} tone="secondary" />
           <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
           <ActionButton
             disabled={!showcaseEnabled}
@@ -2191,6 +2244,170 @@ function HomeScreen({
           />
           <ActionButton label="Reset demo data" onPress={onResetDemoData} tone="secondary" />
         </View>
+      </SectionCard>
+    </View>
+  );
+}
+
+function DiagnosticsScreen({
+  bootstrapState,
+  captureDiagnostics,
+  notificationAccessState,
+  onboardingPreferences,
+  onBack,
+  onOpenNotificationAccess,
+  onRefreshCaptureDiagnostics,
+  onShareDiagnosticsBundle,
+}: {
+  bootstrapState: BootstrapConfigState;
+  captureDiagnostics: NativeCaptureDiagnostics;
+  notificationAccessState: NotificationAccessState;
+  onboardingPreferences: OnboardingPreferences;
+  onBack: () => void;
+  onOpenNotificationAccess: () => Promise<void>;
+  onRefreshCaptureDiagnostics: () => Promise<void>;
+  onShareDiagnosticsBundle: () => Promise<void>;
+}) {
+  const enabledParserTemplates = buildEnabledParserTemplateSummaries(bootstrapState);
+
+  return (
+    <View style={styles.stack}>
+      <View style={styles.tabs}>
+        <TabButton isActive={false} label="Home" onPress={onBack} />
+        <TabButton isActive={true} label="Diagnostics" onPress={() => undefined} />
+      </View>
+
+      <SectionCard accentColor={colors.panelWarm}>
+        <Text style={styles.sectionEyebrow}>Diagnostics</Text>
+        <Text style={styles.sectionTitle}>Support-ready native capture status</Text>
+        <Text style={styles.bodyCopy}>
+          This screen stays reachable from Home without developer mode and keeps the bundle
+          redacted by default when it is shared.
+        </Text>
+        <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>
+            Notification setup: {notificationAccessState === 'settings_opened' ? 'settings opened' : 'not started'}
+          </Text>
+          <Text style={styles.helperCopy}>
+            Selected source apps:{' '}
+            {onboardingPreferences.selectedSourceAppIds.length > 0
+              ? onboardingPreferences.selectedSourceAppIds
+                  .map((sourceAppId) => getSourceAppLabel(sourceAppId))
+                  .join(', ')
+              : 'none selected yet'}
+          </Text>
+        </View>
+        <View style={styles.actionRow}>
+          <ActionButton label="Back to Home" onPress={onBack} tone="secondary" />
+          <ActionButton
+            label="Share redacted bundle"
+            onPress={onShareDiagnosticsBundle}
+            tone="primary"
+          />
+        </View>
+      </SectionCard>
+
+      <BootstrapConfigStatusCard bootstrapState={bootstrapState} />
+
+      <CaptureDiagnosticsCard
+        captureDiagnostics={captureDiagnostics}
+        onOpenNotificationAccess={onOpenNotificationAccess}
+        onRefreshCaptureDiagnostics={onRefreshCaptureDiagnostics}
+      />
+
+      <SectionCard accentColor={colors.successSoft}>
+        <Text style={styles.cardTitle}>Parser versions</Text>
+        <Text style={styles.bodyCopy}>
+          Native parser bundle versions and remote template versions are shown together so QA can
+          tell whether the issue came from parser code, template rollout, or permission state.
+        </Text>
+        <View style={styles.helperStack}>
+          {captureDiagnostics.supportedParsers.length > 0 ? (
+            captureDiagnostics.supportedParsers.map((parserDescriptor) => (
+              <Text
+                key={parserDescriptor.parserId}
+                style={styles.helperCopy}
+              >
+                Native {parserDescriptor.parserId} v{parserDescriptor.parserVersion} ·{' '}
+                {formatSourceAppIdsList(parserDescriptor.sourceAppIds)}
+              </Text>
+            ))
+          ) : (
+            <Text style={styles.helperCopy}>Native parser inventory is not available yet.</Text>
+          )}
+          {enabledParserTemplates.length > 0 ? (
+            enabledParserTemplates.map((templateSummary) => (
+              <Text
+                key={templateSummary.templateId}
+                style={styles.helperCopy}
+              >
+                Remote {templateSummary.templateId} v{templateSummary.version} ·{' '}
+                {formatSourceAppIdsList(templateSummary.sourceAppIds)}
+              </Text>
+            ))
+          ) : (
+            <Text style={styles.helperCopy}>No remote parser templates are enabled for this channel.</Text>
+          )}
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Recent parse failures</Text>
+        <Text style={styles.bodyCopy}>
+          Failures stay redacted here: no notification body or merchant text, only the source app,
+          time, reason code, and parser trace.
+        </Text>
+        {captureDiagnostics.recentParseFailures.length > 0 ? (
+          <View style={styles.listStack}>
+            {captureDiagnostics.recentParseFailures.map((parseFailure) => (
+              <View key={`failure_${parseFailure.captureEventId}`} style={styles.summaryRow}>
+                <View style={styles.summaryCopy}>
+                  <Text style={styles.summaryPrimary}>
+                    {getSourceAppLabel(parseFailure.sourceAppId)} ·{' '}
+                    {formatNativeCaptureMoment(parseFailure.capturedAtMs)}
+                  </Text>
+                  <Text style={styles.summarySecondary}>
+                    Reason: {parseFailure.failureReasonCode}
+                    {parseFailure.parserTrace ? ` · Trace: ${parseFailure.parserTrace}` : ''}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.bodyCopy}>
+            No recent parse failures are stored on this device.
+          </Text>
+        )}
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Recent capture log</Text>
+        <Text style={styles.bodyCopy}>
+          Use this to confirm whether the latest allowlisted notifications were parsed, deduped,
+          or are still waiting on later import work.
+        </Text>
+        {captureDiagnostics.recentCaptureLog.length > 0 ? (
+          <View style={styles.listStack}>
+            {captureDiagnostics.recentCaptureLog.map((captureLogEntry) => (
+              <View key={`capture_log_${captureLogEntry.captureEventId}`} style={styles.summaryRow}>
+                <View style={styles.summaryCopy}>
+                  <Text style={styles.summaryPrimary}>
+                    {getSourceAppLabel(captureLogEntry.sourceAppId)} ·{' '}
+                    {formatNativeCaptureMoment(captureLogEntry.capturedAtMs)}
+                  </Text>
+                  <Text style={styles.summarySecondary}>
+                    {formatRecentCaptureLogEntry(captureLogEntry)}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.bodyCopy}>
+            No native capture events are stored yet.
+          </Text>
+        )}
       </SectionCard>
     </View>
   );
@@ -2698,10 +2915,12 @@ function BootstrapConfigStatusCard({
 
 function CaptureDiagnosticsCard({
   captureDiagnostics,
+  onOpenDiagnostics,
   onOpenNotificationAccess,
   onRefreshCaptureDiagnostics,
 }: {
   captureDiagnostics: NativeCaptureDiagnostics;
+  onOpenDiagnostics?: () => void;
   onOpenNotificationAccess: () => Promise<void>;
   onRefreshCaptureDiagnostics: () => Promise<void>;
 }) {
@@ -2736,17 +2955,17 @@ function CaptureDiagnosticsCard({
             ? `${getSourceAppLabel(captureDiagnostics.lastCapture.sourceAppId)} · ${formatNativeCaptureMoment(captureDiagnostics.lastCapture.capturedAtMs)}`
             : 'No allowlisted notifications stored yet'}
         </Text>
-        {captureDiagnostics.lastCapture ? (
-          <Text style={styles.helperCopy}>
-            Snapshot preview: {captureDiagnostics.lastCapture.preview}
-          </Text>
-        ) : null}
+        <Text style={styles.helperCopy}>
+          Supported parsers: {captureDiagnostics.supportedParsers.length}
+        </Text>
+        <Text style={styles.helperCopy}>
+          Recent parse failures: {captureDiagnostics.recentParseFailures.length}
+        </Text>
         {captureDiagnostics.lastDedupeDecision ? (
           <Text style={styles.helperCopy}>
             Last dedupe: {formatDedupeKindLabel(captureDiagnostics.lastDedupeDecision.dedupeKind)}{' '}
             · {getSourceAppLabel(captureDiagnostics.lastDedupeDecision.sourceAppId)} ·{' '}
-            {formatCurrency(captureDiagnostics.lastDedupeDecision.amountMinor)} ·{' '}
-            {captureDiagnostics.lastDedupeDecision.merchantRaw} · duplicate #
+            {formatCurrency(captureDiagnostics.lastDedupeDecision.amountMinor)} · duplicate #
             {captureDiagnostics.lastDedupeDecision.duplicateCount} ·{' '}
             {formatNativeCaptureMoment(captureDiagnostics.lastDedupeDecision.dedupedAtMs)}
             {captureDiagnostics.lastDedupeDecision.similarityScore !== undefined
@@ -2766,6 +2985,9 @@ function CaptureDiagnosticsCard({
           onPress={onOpenNotificationAccess}
           tone="secondary"
         />
+        {onOpenDiagnostics ? (
+          <ActionButton label="Open diagnostics" onPress={onOpenDiagnostics} tone="secondary" />
+        ) : null}
       </View>
     </SectionCard>
   );
@@ -5428,6 +5650,49 @@ function formatDedupeKindLabel(dedupeKind: 'exact_duplicate' | 'fuzzy_duplicate'
 
 function formatNativeDedupeConfig(captureDiagnostics: NativeCaptureDiagnostics): string {
   return `${captureDiagnostics.dedupeConfig.exactMatchWindowSeconds}s exact · ${captureDiagnostics.dedupeConfig.fuzzyMatchWindowSeconds}s fuzzy · threshold ${captureDiagnostics.dedupeConfig.merchantSimilarityThreshold.toFixed(2)}`;
+}
+
+function buildEnabledParserTemplateSummaries(
+  bootstrapState: BootstrapConfigState,
+): CaptureTemplateVersionSummary[] {
+  return Object.entries(bootstrapState.config.parserConfig.templates)
+    .filter(([, template]) => template.enabled)
+    .map(([templateId, template]) => ({
+      sourceAppIds: template.sourceApps.filter(
+        (sourceAppId): sourceAppId is SupportedSourceAppId =>
+          sourceAppId === 'bhim' ||
+          sourceAppId === 'google_pay' ||
+          sourceAppId === 'paytm' ||
+          sourceAppId === 'phonepe',
+      ),
+      templateId,
+      version: template.version,
+    }));
+}
+
+function formatSourceAppIdsList(sourceAppIds: SupportedSourceAppId[]): string {
+  return sourceAppIds.map((sourceAppId) => getSourceAppLabel(sourceAppId)).join(', ');
+}
+
+function formatRecentCaptureLogEntry(
+  captureLogEntry: NativeCaptureDiagnostics['recentCaptureLog'][number],
+): string {
+  const parserSummary =
+    captureLogEntry.parserId && captureLogEntry.parserVersion
+      ? `${captureLogEntry.parserId} v${captureLogEntry.parserVersion}`
+      : captureLogEntry.parseStatus === 'failed'
+        ? 'No parser match saved'
+        : 'Parser metadata unavailable';
+
+  const failureSummary = captureLogEntry.failureReasonCode
+    ? ` · failure ${captureLogEntry.failureReasonCode}`
+    : '';
+  const duplicateSummary =
+    captureLogEntry.totalDuplicateCount > 0
+      ? ` · duplicates ${captureLogEntry.totalDuplicateCount}`
+      : '';
+
+  return `${captureLogEntry.parseStatus} · ${captureLogEntry.captureState} · ${parserSummary}${failureSummary}${duplicateSummary}`;
 }
 
 function getBudgetCycleStartDay(budgetCycleId: BudgetCycleId): number {

@@ -103,6 +103,59 @@ class NotificationCaptureModule(
       putInt("exactDuplicateCount", diagnostics.exactDuplicateCount)
       putInt("fuzzyDuplicateCount", diagnostics.fuzzyDuplicateCount)
       putInt("storedSnapshotCount", diagnostics.storedSnapshotCount)
+      putArray(
+        "supportedParsers",
+        Arguments.createArray().apply {
+          diagnostics.supportedParsers.forEach { parserDescriptor ->
+            pushMap(
+              Arguments.createMap().apply {
+                putString("parserId", parserDescriptor.parserId)
+                putString("parserVersion", parserDescriptor.parserVersion)
+                putArray(
+                  "sourceAppIds",
+                  buildStringArray(parserDescriptor.sourceAppIds),
+                )
+              },
+            )
+          }
+        },
+      )
+      putArray(
+        "recentParseFailures",
+        Arguments.createArray().apply {
+          diagnostics.recentParseFailures.forEach { parseFailure ->
+            pushMap(
+              Arguments.createMap().apply {
+                putDouble("captureEventId", parseFailure.captureEventId.toDouble())
+                putDouble("capturedAtMs", parseFailure.capturedAtMs.toDouble())
+                putString("failureReasonCode", parseFailure.failureReasonCode)
+                putString("parserTrace", parseFailure.parserTrace)
+                putString("sourceAppId", parseFailure.sourceAppId)
+              },
+            )
+          }
+        },
+      )
+      putArray(
+        "recentCaptureLog",
+        Arguments.createArray().apply {
+          diagnostics.recentCaptureLog.forEach { captureLogEntry ->
+            pushMap(
+              Arguments.createMap().apply {
+                putDouble("captureEventId", captureLogEntry.captureEventId.toDouble())
+                putString("captureState", captureLogEntry.captureState)
+                putDouble("capturedAtMs", captureLogEntry.capturedAtMs.toDouble())
+                putString("failureReasonCode", captureLogEntry.failureReasonCode)
+                putString("parseStatus", captureLogEntry.parseStatus)
+                putString("parserId", captureLogEntry.parserId)
+                putString("parserVersion", captureLogEntry.parserVersion)
+                putString("sourceAppId", captureLogEntry.sourceAppId)
+                putInt("totalDuplicateCount", captureLogEntry.totalDuplicateCount)
+              },
+            )
+          }
+        },
+      )
 
       diagnostics.lastCapture?.let { lastCapture ->
         putMap(

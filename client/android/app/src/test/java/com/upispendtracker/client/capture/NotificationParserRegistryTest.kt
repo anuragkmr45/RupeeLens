@@ -84,6 +84,15 @@ class NotificationParserRegistryTest {
     assertEquals("Blue Tokai", result.event.merchantRaw)
   }
 
+  @Test
+  fun `reports the supported parser inventory with versions`() {
+    val supportedParsers = NotificationParserRegistry.supportedParsers()
+
+    assertTrue(supportedParsers.any { parser -> parser.parserId == "google_pay_v1" && parser.parserVersion == "1.0.0" })
+    assertTrue(supportedParsers.any { parser -> parser.parserId == "generic_upi_v1" && parser.sourceAppIds.contains("phonepe") })
+    assertTrue(supportedParsers.any { parser -> parser.parserId == "merchant_first_v1" && parser.sourceAppIds.contains("paytm") })
+  }
+
   private fun buildFixtures(): List<ParserFixtureCase> {
     return listOf(
       ParserFixtureCase.success(

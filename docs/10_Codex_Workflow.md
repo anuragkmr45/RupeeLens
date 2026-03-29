@@ -127,14 +127,15 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `QA-004 — Set up OTA channels, runtime versioning, and rollback playbook` as a closeout pass once Expo project wiring, non-production OTA/rollback dry-run evidence, and engineering approval are available.
+- `UX-007 — Implement settings, privacy mode, export entrypoints, and diagnostics access` as a new execution.
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
 - `CAP-003` and `CAP-004` remain blocked on connected-Android validation because `adb devices` is empty in the current environment.
-- `UX-005`, `INT-005`, `API-003`, `API-004`, `API-005`, `API-007`, and now `QA-004` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, mobile integration evidence, staging evidence, remote Expo project wiring, non-production OTA/rollback dry-run evidence, engineering approval, or undefined latency targets rather than missing repo-side implementation.
+- `CAP-007` is now done, so `UX-007` is newly actionable because its remaining dependency set is satisfied in repo truth.
+- `UX-005`, `INT-005`, `API-003`, `API-004`, `API-005`, `API-007`, and `QA-004` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, mobile integration evidence, staging evidence, remote Expo project wiring, non-production OTA/rollback dry-run evidence, engineering approval, or undefined latency targets rather than missing repo-side implementation.
 - `SYNC-001` is not yet actionable because it depends on `CAP-006`.
 - `QA-001` is not yet actionable because it depends on blocked `SET-002`.
 - `QA-002`, `QA-003`, `QA-005`, `REL-001`, and `REL-002` all still have blocked dependencies.
-- There is no later canonical `todo` that is both dependency-satisfied and more actionable than a `QA-004` closeout pass.
+- There is no earlier canonical `todo` with satisfied dependencies that is more actionable than starting `UX-007`.
