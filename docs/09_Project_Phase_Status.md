@@ -87,10 +87,11 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Canonical local budget engine with overall, category, merchant, and item scopes across monthly, weekly, rolling, and custom cycles, including projected spend and threshold state now wired into Home
 - Local budget-management flow with list/create/edit UX, quiet-mode-aware 50/80/100 threshold alerts, persisted alert review state, and Home review cards backed by the canonical budget engine
 - Optimized local insights screen with current-cycle vs prior-cycle comparison and rollups for item, category, merchant, time-of-day, and day-of-week, validated on a generated 10k-transaction dataset
+- Working local CSV export from Settings for transactions, items, categories, and budgets, plus a local backup JSON export hook, stable documented schemas, and privacy-aware CSV redaction tied to the current privacy-mode setting
 
 **Remaining**
 
-- CSV export, backup/restore
+- Manual QA opening exported CSV files in spreadsheet tools, plus restore import beyond the current future-safe entrypoint
 - Mobile sync client integration and outbox/conflict-queue wiring
 - Worker jobs and export flows still need staging operation evidence
 

@@ -1,4 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
+import * as FileSystem from 'expo-file-system/legacy';
 import { type ReactNode, useEffect, useState } from 'react';
 import {
   AppState,
@@ -127,6 +128,7 @@ import {
   type BudgetCycleId,
   type NotificationAccessState,
   type OnboardingPreferences,
+  type PersistedSpendTrackerState,
   type SupportedSourceAppId,
   type SyncMode,
 } from '../features/spend-tracker/persistence';
@@ -151,6 +153,12 @@ import {
   refreshBootstrapConfig,
   type BootstrapConfigState,
 } from '../features/bootstrap-config/runtime-config';
+import {
+  buildCsvExportArtifact,
+  buildLocalBackupArtifact,
+  CSV_EXPORT_SCHEMAS,
+  type CsvExportKind,
+} from '../features/export/local-export';
 import { APP_COPY } from '../lib/app-info';
 import { colors } from '../theme/colors';
 import { DesignSystemShowcaseScreen } from './DesignSystemShowcaseScreen';
@@ -743,18 +751,71 @@ export function SpendTrackerApp() {
     }
   }
 
-  function handleOpenExportPlaceholder(mode: 'backup' | 'csv') {
-    if (mode === 'csv') {
+  function buildPersistedStateSnapshot(): PersistedSpendTrackerState {
+    return {
+      budgetAlertSettings,
+      budgetAlerts,
+      budgets,
+      categories,
+      merchantAliases,
+      merchants,
+      onboardingPreferences,
+      notificationAccessState,
+      onboardingCompleted,
+      privacyModeEnabled,
+      rules,
+      transactions,
+    };
+  }
+
+  async function shareExportArtifact(artifact: {
+    contents: string;
+    fileName: string;
+    title: string;
+  }) {
+    const baseDirectory = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+
+    if (!baseDirectory) {
       Alert.alert(
-        'CSV export is not live yet',
-        'The visible export entrypoint is now in Settings, but the real CSV export flow still belongs to INT-008. Use the diagnostics bundle for support-safe sharing today.',
+        'Export unavailable',
+        'This build does not expose a writable local directory for exports.',
       );
       return;
     }
 
+    const fileUri = `${baseDirectory}${artifact.fileName}`;
+
+    try {
+      await FileSystem.writeAsStringAsync(fileUri, artifact.contents, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      await Share.share({
+        message: `Saved ${artifact.title.toLowerCase()} locally and attached it for sharing.`,
+        title: artifact.title,
+        url: fileUri,
+      });
+    } catch {
+      Alert.alert(
+        'Unable to export right now',
+        `The app could not finish writing or sharing ${artifact.title.toLowerCase()}. Try again after the current screen settles.`,
+      );
+    }
+  }
+
+  async function handleExportCsv(kind: CsvExportKind) {
+    const artifact = buildCsvExportArtifact(kind, buildPersistedStateSnapshot());
+    await shareExportArtifact(artifact);
+  }
+
+  async function handleExportBackup() {
+    const artifact = buildLocalBackupArtifact(buildPersistedStateSnapshot());
+    await shareExportArtifact(artifact);
+  }
+
+  function handleOpenRestorePlaceholder() {
     Alert.alert(
-      'Backup and restore are planned next',
-      'Local backup and restore entrypoints are visible here now, but the working backup flow still lands in a later ticket after CSV export support is in place.',
+      'Restore stays future-safe for now',
+      'Local backup export is live, but restore still remains a guarded next-step entrypoint until import validation and rollback-safe recovery land in a later ticket.',
     );
   }
 
@@ -1636,8 +1697,10 @@ export function SpendTrackerApp() {
                 onboardingPreferences={onboardingPreferences}
                 onClearSourceApps={handleClearSourceApps}
                 onOpenDiagnostics={() => handleOpenDiagnostics('settings')}
-                onOpenExportPlaceholder={handleOpenExportPlaceholder}
+                onExportBackup={handleExportBackup}
+                onExportCsv={handleExportCsv}
                 onOpenNotificationAccess={handleOpenNotificationAccess}
+                onOpenRestorePlaceholder={handleOpenRestorePlaceholder}
                 onSelectAllSourceApps={handleSelectAllSourceApps}
                 onSelectBudgetCycle={handleSelectBudgetCycle}
                 onSelectPrivacyMode={handleSelectPrivacyMode}
@@ -2484,9 +2547,11 @@ function SettingsScreen({
   notificationAccessState,
   onboardingPreferences,
   onClearSourceApps,
+  onExportBackup,
+  onExportCsv,
   onOpenDiagnostics,
-  onOpenExportPlaceholder,
   onOpenNotificationAccess,
+  onOpenRestorePlaceholder,
   onSelectAllSourceApps,
   onSelectBudgetCycle,
   onSelectPrivacyMode,
@@ -2501,9 +2566,11 @@ function SettingsScreen({
   notificationAccessState: NotificationAccessState;
   onboardingPreferences: OnboardingPreferences;
   onClearSourceApps: () => void;
+  onExportBackup: () => Promise<void>;
+  onExportCsv: (kind: CsvExportKind) => Promise<void>;
   onOpenDiagnostics: () => void;
-  onOpenExportPlaceholder: (mode: 'backup' | 'csv') => void;
   onOpenNotificationAccess: () => Promise<void>;
+  onOpenRestorePlaceholder: () => void;
   onSelectAllSourceApps: () => void;
   onSelectBudgetCycle: (budgetCycleId: BudgetCycleId) => void;
   onSelectPrivacyMode: (enabled: boolean) => void;
@@ -2662,26 +2729,68 @@ function SettingsScreen({
       </SectionCard>
 
       <SectionCard accentColor={colors.panel}>
-        <Text style={styles.cardTitle}>Export and support</Text>
+        <Text style={styles.cardTitle}>Export data</Text>
         <Text style={styles.bodyCopy}>
-          Diagnostics are live today. CSV export and backup/restore now have visible entrypoints
-          here, but the working data-export flows still belong to later tickets.
+          CSV export is live here now for transactions, items, categories, and budgets. Privacy
+          mode redacts raw merchant text, notes, item labels, custom category labels, and custom
+          budget labels in those CSV files before sharing.
+        </Text>
+        <View style={styles.helperStack}>
+          <Text style={styles.helperCopy}>
+            Stable CSV columns: {CSV_EXPORT_SCHEMAS.transactions.length} transaction,{' '}
+            {CSV_EXPORT_SCHEMAS.items.length} item, {CSV_EXPORT_SCHEMAS.categories.length}{' '}
+            category, and {CSV_EXPORT_SCHEMAS.budgets.length} budget fields.
+          </Text>
+          <Text style={styles.helperCopy}>
+            Local backup export keeps the full device snapshot for future restore work. Use the
+            redacted diagnostics bundle instead when you only need support-safe sharing.
+          </Text>
+        </View>
+        <View style={styles.actionRow}>
+          <ActionButton
+            label="Transactions CSV"
+            onPress={() => onExportCsv('transactions')}
+            tone="primary"
+          />
+          <ActionButton
+            label="Items CSV"
+            onPress={() => onExportCsv('items')}
+            tone="secondary"
+          />
+          <ActionButton
+            label="Categories CSV"
+            onPress={() => onExportCsv('categories')}
+            tone="secondary"
+          />
+          <ActionButton
+            label="Budgets CSV"
+            onPress={() => onExportCsv('budgets')}
+            tone="secondary"
+          />
+          <ActionButton
+            label="Export local backup"
+            onPress={onExportBackup}
+            tone="secondary"
+          />
+          <ActionButton
+            label="Restore backup"
+            onPress={onOpenRestorePlaceholder}
+            tone="secondary"
+          />
+        </View>
+      </SectionCard>
+
+      <SectionCard accentColor={colors.panel}>
+        <Text style={styles.cardTitle}>Support and diagnostics</Text>
+        <Text style={styles.bodyCopy}>
+          Native capture diagnostics stay live here with a redacted sharing path, so support work
+          does not depend on raw notification text exports.
         </Text>
         <View style={styles.actionRow}>
           <ActionButton label="Open diagnostics" onPress={onOpenDiagnostics} tone="primary" />
           <ActionButton
             label="Share redacted bundle"
             onPress={onShareDiagnosticsBundle}
-            tone="secondary"
-          />
-          <ActionButton
-            label="CSV export"
-            onPress={() => onOpenExportPlaceholder('csv')}
-            tone="secondary"
-          />
-          <ActionButton
-            label="Backup / restore"
-            onPress={() => onOpenExportPlaceholder('backup')}
             tone="secondary"
           />
         </View>

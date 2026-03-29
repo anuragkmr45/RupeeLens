@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### INT-008 — Implement CSV Export And Local Backup/Restore Entrypoint
+
+- **Status:** in_progress
+- **Ticket:** INT-008
+- **Goal:** Replace the current Settings export placeholders with real local CSV export actions for transactions, items, categories, and budgets, plus a practical local backup export hook and a visible restore entrypoint that stays within local-first scope.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `client/src/app/SpendTrackerApp.tsx`, a client export helper module, focused client tests, and `client/src/lib/app-info.ts` only if current-scope copy changes.
+- **Rationale:** The re-audit on 2026-03-30 still leaves `SET-002` blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty again. `UX-005`, `INT-005`, `API-003`, `API-004`, `API-005`, `API-007`, `SYNC-001`, and `QA-004` all still have external closeout gaps. `UX-007` is now implemented in repo truth, so `INT-008` becomes the earliest canonical `todo` with satisfied dependencies and the best single next ticket. The backlog rows for `INT-008` are also stale and must be corrected before implementation.
+- **Risks:** Export work can sprawl into backend export APIs, sync, cloud backup, or full restore/import tooling. This pass must stay inside local client export generation, stable documented CSV schemas, privacy-aware redaction where applicable, and a future-safe restore entrypoint without starting server export status APIs or mobile sync queue work.
+- **API / schema impact:** No OpenAPI or backend schema changes expected. Avoid local schema changes unless the export flow absolutely requires metadata persistence.
+- **Rollout / flag plan:** Keep exports local-first and reachable through the visible Settings surface added in `UX-007`. Reuse the current privacy-mode state to govern redaction behavior where this export mode requires it.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests for export generation and Settings/export UX, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check`. Run `pnpm db:validate` only if this pass changes persistence schema or migrations.
+- **Done when:** Settings can trigger real local CSV exports for the documented datasets, CSV columns are stable and documented, privacy-aware redaction is enforced where this export mode requires it, local backup export and restore entrypoints are visible, and backlog status reflects the available validation evidence truthfully.
+- **Outcome:** Implemented the repo-side INT-008 slice on 2026-03-30 by adding a pure local export helper with stable documented CSV schemas for transactions, items, categories, and budgets; privacy-aware CSV redaction keyed off the current privacy-mode setting; a full-fidelity local backup JSON export artifact; and working Settings actions that now write/share those exports instead of showing placeholders. Focused client validation passed with `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/local-export.test.ts __tests__/app.test.tsx`, plus repo-wide `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`. The canonical backlog ticket remains `in_progress` because its done-when still requires manual QA opening the exported CSV files in spreadsheet tools.
+
 ### UX-007 — Implement Settings, Privacy Mode, Export Entrypoints, And Diagnostics Access
 
 - **Status:** completed

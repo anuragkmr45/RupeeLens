@@ -1,5 +1,5 @@
 import { act, fireEvent, render, waitFor, type RenderAPI } from '@testing-library/react-native';
-import { Alert, AppState } from 'react-native';
+import { Alert, AppState, Share } from 'react-native';
 
 import App from '../App';
 import {
@@ -27,6 +27,15 @@ jest.mock('../src/features/spend-tracker/persistence', () => ({
   clearStoredSpendTrackerState: jest.fn().mockResolvedValue(undefined),
   loadStoredSpendTrackerState: jest.fn().mockResolvedValue(null),
   saveStoredSpendTrackerState: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('expo-file-system/legacy', () => ({
+  EncodingType: {
+    UTF8: 'utf8',
+  },
+  cacheDirectory: 'file:///mock-cache/',
+  documentDirectory: 'file:///mock-documents/',
+  writeAsStringAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../src/features/bootstrap-config/runtime-config', () => ({
@@ -315,6 +324,9 @@ const mockedNativeCaptureModule = jest.requireMock(
     [NativeCaptureDedupeConfig]
   >;
   setAllowedSourceApps: jest.Mock<Promise<NativeCaptureDiagnostics>, [string[]]>;
+};
+const mockedFileSystem = jest.requireMock('expo-file-system/legacy') as {
+  writeAsStringAsync: jest.Mock<Promise<void>, [string, string, { encoding: string }]>;
 };
 
 function buildMockBootstrapState(
@@ -824,6 +836,9 @@ describe('App', () => {
 
   it('opens Settings, persists local preferences, and exposes export and diagnostics entrypoints', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const shareSpy = jest
+      .spyOn(Share, 'share')
+      .mockResolvedValue({ action: 'sharedAction' } as Awaited<ReturnType<typeof Share.share>>);
 
     try {
       const screen = await renderApp();
@@ -851,22 +866,41 @@ describe('App', () => {
         ),
       );
 
-      fireEvent.press(screen.getByRole('button', { name: 'CSV export' }));
-      expect(alertSpy).toHaveBeenCalledWith(
-        'CSV export is not live yet',
-        expect.stringContaining('INT-008'),
+      fireEvent.press(screen.getByRole('button', { name: 'Transactions CSV' }));
+      await waitFor(() =>
+        expect(mockedFileSystem.writeAsStringAsync).toHaveBeenCalledWith(
+          expect.stringContaining('upi-spend-tracker-transactions-'),
+          expect.stringContaining('transaction_id'),
+          expect.objectContaining({ encoding: 'utf8' }),
+        ),
+      );
+      expect(shareSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Transactions CSV',
+          url: expect.stringContaining('upi-spend-tracker-transactions-'),
+        }),
       );
 
-      fireEvent.press(screen.getByRole('button', { name: 'Backup / restore' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Export local backup' }));
+      await waitFor(() => expect(mockedFileSystem.writeAsStringAsync).toHaveBeenCalledTimes(2));
+      expect(mockedFileSystem.writeAsStringAsync.mock.calls[1]?.[0]).toContain(
+        'upi-spend-tracker-local-backup-',
+      );
+      expect(mockedFileSystem.writeAsStringAsync.mock.calls[1]?.[1]).toContain(
+        '"schema_version": "local_backup_v1"',
+      );
+
+      fireEvent.press(screen.getByRole('button', { name: 'Restore backup' }));
       expect(alertSpy).toHaveBeenCalledWith(
-        'Backup and restore are planned next',
-        expect.stringContaining('later ticket'),
+        'Restore stays future-safe for now',
+        expect.stringContaining('guarded next-step entrypoint'),
       );
 
       fireEvent.press(screen.getByRole('button', { name: 'Open diagnostics' }));
       expect(await screen.findByText('Support-ready native capture status')).toBeTruthy();
     } finally {
       alertSpy.mockRestore();
+      shareSpy.mockRestore();
     }
   });
 

@@ -740,12 +740,12 @@
       ],
       "tests": "Open exported CSV in spreadsheet tools and verify schema.",
       "done": "Export works in QA and is documented.",
-      "status": "done",
+      "status": "in_progress",
       "owner": "codex",
-      "started_at": "2026-03-28",
-      "completed_at": "2026-03-28",
+      "started_at": "2026-03-30",
+      "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Closed the existing bootstrap path by adding explicit `Cache-Control`, `ETag`, and `Vary` headers on `GET /v1/bootstrap/config`, enforcing runtime compatibility from both app version and native/runtime version, varying `configVersion` by compatibility inputs, documenting the cache headers in `docs/04_API_Contract.yaml`, and proving the mobile client already requests the endpoint with version-aware query params. `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand bootstrap-config.test.ts`, `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-28, so the ticket now meets its acceptance and done-when bar."
+      "tracking_notes": "Repo truth: Settings now generates working local CSV exports for transactions, items, categories, and budgets through a pure export helper with stable documented schemas, writes/shares those files locally, redacts raw merchant text, notes, item labels, custom category labels/descriptions, and custom budget labels when privacy mode is on, and also exports a full-fidelity local backup JSON artifact while leaving restore as a future-safe guarded entrypoint. Focused client validation passed with `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/local-export.test.ts __tests__/app.test.tsx`, plus repo-wide `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` on 2026-03-30. Status remains `in_progress` because the backlog done-when still requires manual QA opening the exported CSV files in spreadsheet tools, which was not available in this environment."
     },
     {
       "id": "API-001",

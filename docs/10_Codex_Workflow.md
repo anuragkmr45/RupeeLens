@@ -127,15 +127,16 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `INT-008 — Implement CSV export and local backup/restore entrypoint` as a new execution.
+- `CAP-005 — Build quick-classify notification with direct reply, split, and skip actions` as a new execution.
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
 - `CAP-003` and `CAP-004` remain blocked on connected-Android validation because `adb devices` is empty in the current environment.
-- `UX-007` is now implemented in repo truth even though its backlog status remains `in_progress` for product/QA approval, so `INT-008` now has its functional dependency set in place.
-- `UX-005`, `INT-005`, `API-003`, `API-004`, `API-005`, `API-007`, and `QA-004` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, mobile integration evidence, staging evidence, remote Expo project wiring, non-production OTA/rollback dry-run evidence, engineering approval, or undefined latency targets rather than missing repo-side implementation.
+- `INT-008` is now implemented in repo truth even though its backlog status remains `in_progress` for manual QA spreadsheet verification, so it no longer has a larger repo-side gap than the Android-native capture path.
+- `CAP-004` is blocked for environment-only closeout rather than missing repo-side code, so `CAP-005` can still make product progress on top of the current native capture repository foundation.
+- `UX-005`, `UX-007`, `INT-005`, `API-003`, `API-004`, `API-005`, `API-007`, and `QA-004` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, mobile integration evidence, staging evidence, remote Expo project wiring, non-production OTA/rollback dry-run evidence, engineering approval, or undefined latency targets rather than missing repo-side implementation.
 - `SYNC-001` is not yet actionable because it depends on `CAP-006`.
 - `QA-001` is not yet actionable because it depends on blocked `SET-002`.
 - `QA-002`, `QA-003`, `QA-005`, `REL-001`, and `REL-002` all still have blocked dependencies.
-- There is no earlier canonical `todo` with satisfied dependencies that is more actionable than starting `INT-008`.
+- There is no earlier canonical `todo` with satisfied dependencies that is more actionable than starting `CAP-005`.
