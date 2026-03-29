@@ -6,10 +6,12 @@ import { createBootstrapConfigModule } from './modules/bootstrap/bootstrap.modul
 import { createDomainModule } from './modules/domain/domain.module.js';
 import { createDomainRepository } from './modules/domain/domain.repository.js';
 import { createDomainService } from './modules/domain/domain.service.js';
-import { createSessionRepository } from './modules/sessions/sessions.repository.js';
-import { createSessionService } from './modules/sessions/sessions.service.js';
 import { createHealthModule } from './modules/health/health.module.js';
 import { registerApiModules } from './modules/module.js';
+import { createReportsModule } from './modules/reports/reports.module.js';
+import { createReportsService } from './modules/reports/reports.service.js';
+import { createSessionRepository } from './modules/sessions/sessions.repository.js';
+import { createSessionService } from './modules/sessions/sessions.service.js';
 import { createSessionsModule } from './modules/sessions/sessions.module.js';
 import { createSyncModule } from './modules/sync/sync.module.js';
 import { createSyncRepository } from './modules/sync/sync.repository.js';
@@ -39,6 +41,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     repository: domainRepository,
     sessionService,
   });
+  const reportsService = createReportsService({
+    repository: domainRepository,
+    sessionService,
+  });
   const syncRepository = createSyncRepository({
     syncStoreFile: options.syncStoreFile ?? runtimeConfig.syncStoreFile,
   });
@@ -58,6 +64,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     createBootstrapConfigModule(),
     createSessionsModule(sessionService),
     createDomainModule(domainService),
+    createReportsModule(reportsService),
     createSyncModule(syncService),
   ]);
 

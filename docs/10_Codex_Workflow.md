@@ -145,4 +145,4 @@ Reason:
 - `API-003` remains `in_progress`, but its only remaining gap is mobile integration evidence rather than missing repo-side backend implementation.
 - `API-006` is now done with explicit bootstrap cache headers, runtime-version compatibility checks, OpenAPI header documentation, and proof that the mobile client already calls the endpoint.
 - `API-004` remains `in_progress` in backlog tracking, but its remaining gap is staging evidence rather than missing repo-side implementation after the 2026-03-29 versioned-delete closeout pass.
-- `API-005` is now the next actionable repo-side backend ticket because its dependencies are satisfied by current repo truth even though `API-004` is not yet closable as `done` without staging.
+- `API-005` is now repo-side implemented with authenticated summary and breakdown routes plus top-N metadata, but it remains `in_progress` because the backlog done-when still requires explicit latency-target evidence that is not defined or provable in this environment.

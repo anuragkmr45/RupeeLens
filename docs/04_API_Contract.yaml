@@ -2345,10 +2345,21 @@ components:
       type: object
       required:
       - groupBy
+      - limit
+      - totalGroups
+      - hasMore
       - items
       properties:
         groupBy:
           type: string
+        limit:
+          type: integer
+          minimum: 1
+        totalGroups:
+          type: integer
+          minimum: 0
+        hasMore:
+          type: boolean
         items:
           type: array
           items:
