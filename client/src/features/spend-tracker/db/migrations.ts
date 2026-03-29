@@ -16,6 +16,12 @@ export const SETTINGS_TABLE_SQL = `
     value TEXT NOT NULL
   );
 `;
+export const SYNC_SETTINGS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS sync_settings (
+    key TEXT PRIMARY KEY NOT NULL,
+    value TEXT NOT NULL
+  );
+`;
 export const CATEGORIES_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS categories (
     id TEXT PRIMARY KEY NOT NULL,
@@ -120,6 +126,58 @@ export const BUDGET_THRESHOLD_ALERTS_TABLE_SQL = `
     status TEXT NOT NULL CHECK(status IN ('active', 'quieted', 'reviewed')),
     message TEXT NOT NULL
   );
+`;
+export const SYNC_ENTITY_VERSIONS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS sync_entity_versions (
+    entity_type TEXT NOT NULL CHECK(entity_type IN ('transaction', 'transaction_item', 'category', 'merchant', 'merchant_alias', 'rule', 'budget', 'budget_scope')),
+    entity_id TEXT NOT NULL,
+    version INTEGER NOT NULL CHECK(version >= 0),
+    PRIMARY KEY (entity_type, entity_id)
+  );
+`;
+export const SYNC_OUTBOX_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS sync_outbox (
+    op_id TEXT PRIMARY KEY NOT NULL,
+    entity_type TEXT NOT NULL CHECK(entity_type IN ('transaction', 'transaction_item', 'category', 'merchant', 'merchant_alias', 'rule', 'budget', 'budget_scope')),
+    entity_id TEXT NOT NULL,
+    entity_version INTEGER NOT NULL CHECK(entity_version >= 1),
+    op_type TEXT NOT NULL CHECK(op_type IN ('upsert', 'delete')),
+    payload_json TEXT NOT NULL,
+    occurred_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'retry_scheduled', 'conflict', 'blocked')),
+    attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0),
+    last_attempt_at TEXT,
+    last_error_code TEXT,
+    last_error_message TEXT,
+    next_retry_at TEXT
+  );
+`;
+export const SYNC_OUTBOX_STATUS_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_sync_outbox_status
+  ON sync_outbox(status, next_retry_at, occurred_at);
+`;
+export const SYNC_OUTBOX_ENTITY_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_sync_outbox_entity
+  ON sync_outbox(entity_type, entity_id, entity_version);
+`;
+export const SYNC_CONFLICTS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS sync_conflicts (
+    id TEXT PRIMARY KEY NOT NULL,
+    source TEXT NOT NULL CHECK(source IN ('push', 'pull')),
+    op_id TEXT NOT NULL,
+    entity_type TEXT NOT NULL CHECK(entity_type IN ('transaction', 'transaction_item', 'category', 'merchant', 'merchant_alias', 'rule', 'budget', 'budget_scope')),
+    entity_id TEXT NOT NULL,
+    client_version INTEGER NOT NULL CHECK(client_version >= 0),
+    server_version INTEGER NOT NULL CHECK(server_version >= 1),
+    conflict_reason TEXT NOT NULL,
+    detected_at TEXT NOT NULL,
+    server_state_json TEXT NOT NULL
+  );
+`;
+export const SYNC_CONFLICTS_ENTITY_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_sync_conflicts_entity
+  ON sync_conflicts(entity_type, entity_id, detected_at DESC);
 `;
 export const TRANSACTIONS_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS transactions (
@@ -393,5 +451,32 @@ export const mobileMigrations: readonly MobileMigration[] = [
   {
     id: '019_create_budget_threshold_alerts_table',
     sql: BUDGET_THRESHOLD_ALERTS_TABLE_SQL,
+  },
+  {
+    id: '020_create_sync_settings_table',
+    sql: SYNC_SETTINGS_TABLE_SQL,
+  },
+  {
+    id: '021_create_sync_entity_versions_table',
+    sql: SYNC_ENTITY_VERSIONS_TABLE_SQL,
+  },
+  {
+    id: '022_create_sync_outbox_table',
+    sql: SYNC_OUTBOX_TABLE_SQL,
+  },
+  {
+    id: '023_create_sync_outbox_indexes',
+    sql: `
+      ${SYNC_OUTBOX_STATUS_INDEX_SQL}
+      ${SYNC_OUTBOX_ENTITY_INDEX_SQL}
+    `,
+  },
+  {
+    id: '024_create_sync_conflicts_table',
+    sql: SYNC_CONFLICTS_TABLE_SQL,
+  },
+  {
+    id: '025_create_sync_conflicts_entity_index',
+    sql: SYNC_CONFLICTS_ENTITY_INDEX_SQL,
   },
 ] as const;

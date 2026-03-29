@@ -20,6 +20,14 @@ import {
   loadStoredSpendTrackerState,
   saveStoredSpendTrackerState,
 } from '../src/features/spend-tracker/persistence';
+import {
+  createInitialSyncState,
+  type PersistedSyncState,
+} from '../src/features/sync/domain';
+import {
+  loadStoredSyncState,
+  saveStoredSyncState,
+} from '../src/features/sync/persistence';
 
 jest.mock('../src/features/spend-tracker/persistence', () => ({
   DEFAULT_ONBOARDING_PREFERENCES: {
@@ -30,6 +38,31 @@ jest.mock('../src/features/spend-tracker/persistence', () => ({
   clearStoredSpendTrackerState: jest.fn().mockResolvedValue(undefined),
   loadStoredSpendTrackerState: jest.fn().mockResolvedValue(null),
   saveStoredSpendTrackerState: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('../src/features/sync/persistence', () => ({
+  clearStoredSyncState: jest.fn().mockResolvedValue(undefined),
+  loadStoredSyncState: jest.fn().mockResolvedValue({
+    conflicts: [],
+    deviceId: 'device_local_test',
+    entityVersions: [],
+    lastCursor: null,
+    lastErrorMessage: null,
+    lastStatus: 'idle',
+    lastSyncAttemptAt: null,
+    lastSyncSuccessAt: null,
+    outbox: [],
+  }),
+  saveStoredSyncState: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('../src/features/sync/runtime', () => ({
+  probeSyncReachability: jest.fn().mockResolvedValue({
+    checkedAt: '2026-03-30T10:00:00.000Z',
+    isExpensive: false,
+    status: 'online',
+  }),
+  runSyncCycle: jest.fn(async ({ syncState }) => syncState),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -335,6 +368,10 @@ const mockedLoadStoredSpendTrackerState =
   loadStoredSpendTrackerState as jest.MockedFunction<typeof loadStoredSpendTrackerState>;
 const mockedSaveStoredSpendTrackerState =
   saveStoredSpendTrackerState as jest.MockedFunction<typeof saveStoredSpendTrackerState>;
+const mockedLoadStoredSyncState =
+  loadStoredSyncState as jest.MockedFunction<typeof loadStoredSyncState>;
+const mockedSaveStoredSyncState =
+  saveStoredSyncState as jest.MockedFunction<typeof saveStoredSyncState>;
 const mockedBootstrapConfigModule = jest.requireMock(
   '../src/features/bootstrap-config/runtime-config'
 ) as {
@@ -533,6 +570,16 @@ function buildStoredState(
   };
 }
 
+function buildStoredSyncState(
+  overrides: Partial<PersistedSyncState> = {},
+): PersistedSyncState {
+  return {
+    ...createInitialSyncState('2026-03-30T09:55:00.000Z'),
+    deviceId: 'device_local_test',
+    ...overrides,
+  };
+}
+
 describe('App', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -542,9 +589,11 @@ describe('App', () => {
       .mockImplementation(
         () =>
           ({ remove: jest.fn() }) as unknown as ReturnType<typeof Linking.addEventListener>,
-      );
+    );
     mockedLoadStoredSpendTrackerState.mockResolvedValue(null);
     mockedSaveStoredSpendTrackerState.mockResolvedValue(undefined);
+    mockedLoadStoredSyncState.mockResolvedValue(buildStoredSyncState());
+    mockedSaveStoredSyncState.mockResolvedValue(undefined);
     mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(
       buildMockCaptureDiagnostics(),
     );
@@ -652,12 +701,73 @@ describe('App', () => {
     expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
     expect(screen.getByText('Remote bootstrap config')).toBeTruthy();
     expect(screen.getByText('Android capture diagnostics')).toBeTruthy();
+    expect(screen.getByText('Sync queue')).toBeTruthy();
     expect(screen.getByText('Budget progress')).toBeTruthy();
     expect(screen.getByText(/Projected spend:/)).toBeTruthy();
     expect(screen.getByText('Top items')).toBeTruthy();
     expect(screen.getByText('Create budget')).toBeTruthy();
     expect(screen.getByText('1 pending')).toBeTruthy();
     expect(screen.getByText('Settings opened, permission still pending')).toBeTruthy();
+  });
+
+  it('shows the local sync queue honestly when sync mode is enabled before pairing exists', async () => {
+    mockedLoadStoredSpendTrackerState.mockResolvedValue(
+      buildStoredState({
+        onboardingPreferences: {
+          budgetCycleId: 'calendar_month',
+          selectedSourceAppIds: ['google_pay', 'phonepe'],
+          syncMode: 'sync_later',
+        },
+      }),
+    );
+    mockedLoadStoredSyncState.mockResolvedValue(
+      buildStoredSyncState({
+        lastStatus: 'pending',
+        outbox: [
+          {
+            attemptCount: 0,
+            createdAt: '2026-03-30T10:00:00.000Z',
+            entityId: 'txn_local_1',
+            entityType: 'transaction',
+            entityVersion: 1,
+            lastAttemptAt: null,
+            lastErrorCode: null,
+            lastErrorMessage: null,
+            nextRetryAt: null,
+            occurredAt: '2026-03-30T10:00:00.000Z',
+            opId: 'transaction_txn_local_1_v1',
+            opType: 'upsert',
+            payload: {
+              amountMinor: 18900,
+              merchant: 'Native Chai Stall',
+              status: 'uncategorized',
+            },
+            status: 'pending',
+          },
+        ],
+      }),
+    );
+
+    const screen = await renderApp();
+
+    expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
+    expect(screen.getByText('Sync queue')).toBeTruthy();
+    expect(screen.getByText('Status: Waiting for pairing')).toBeTruthy();
+    expect(screen.getByText('Queued writes: 1 · Ready now: 1')).toBeTruthy();
+
+    await waitFor(() =>
+      expect(mockedSaveStoredSyncState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deviceId: 'device_local_test',
+          outbox: [
+            expect.objectContaining({
+              entityId: 'txn_local_1',
+              entityType: 'transaction',
+            }),
+          ],
+        }),
+      ),
+    );
   });
 
   it('opens the design system showcase from Home', async () => {

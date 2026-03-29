@@ -338,7 +338,7 @@
       "done": "Native-to-JS bridge documented and reliable.",
       "status": "done",
       "owner": "codex",
-      "started_at": "2026-03-28",
+      "started_at": "2026-03-30",
       "completed_at": "2026-03-30",
       "commit_ref": "pending-local-commit",
       "tracking_notes": "Completed CAP-006 on 2026-03-30 by exposing pending native capture records plus reply metadata through the Android bridge, emitting capture-change events to React Native, importing native captures idempotently into the existing local transaction store with deterministic IDs, and routing `upispendtracker://capture-action` deep links into classify and split flows with reply-based prefill. Focused client tests now cover import-on-launch, import idempotency helpers, and action-route classify handoff; `./gradlew :app:testDebugUnitTest`, `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, repo-wide `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed. No schema or OpenAPI changes were required."
@@ -541,10 +541,10 @@
       "done": "Settings screen approved by product and QA.",
       "status": "in_progress",
       "owner": "codex",
-      "started_at": "2026-03-28",
+      "started_at": "2026-03-30",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: UX-007 now adds a first-class Settings screen reachable from the visible app tabs and Home, with locally persisted source-app, budget-cycle, sync-mode, and privacy-mode controls; an inactive-app privacy cover for app-preview and lockscreen masking; visible CSV export and backup/restore entrypoints; and direct diagnostics access and redacted bundle sharing without hidden gestures. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/app.test.tsx __tests__/persistence.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because the backlog done-when still requires product and QA approval of the Settings surface."
+      "tracking_notes": "Re-audit on 2026-03-30 confirmed `SET-002` remains blocked because `gh` is unavailable, and `CAP-003` plus `CAP-004` remain blocked because `adb devices` is empty in the current environment. `CAP-005`, `UX-005`, `INT-005`, `INT-008`, `API-003`, `API-004`, `API-005`, `API-007`, and `QA-004` still only have external closeout gaps. `SYNC-001` is now the earliest actionable canonical ticket because the client still lacks a persisted outbox, retry scheduler, network observation, sync chunking, and conflict UI hooks even though `API-003` and `CAP-006` are available."
     },
     {
       "id": "INT-001",
@@ -949,7 +949,7 @@
       "started_at": "2026-03-28",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: UX-007 now adds a first-class Settings screen reachable from the visible app tabs and Home, with locally persisted source-app, budget-cycle, sync-mode, and privacy-mode controls; an inactive-app privacy cover for app-preview and lockscreen masking; visible CSV export and backup/restore entrypoints; and direct diagnostics access and redacted bundle sharing without hidden gestures. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/app.test.tsx __tests__/persistence.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because the backlog done-when still requires product and QA approval of the Settings surface."
+      "tracking_notes": "Repo truth: the client now has a first mobile sync foundation with additive SQLite tables for sync settings, entity versions, outbox entries, and conflict records; deterministic outbox diffing from local writes unless sync mode stays `local_only`; reachability-aware chunked sync runtime helpers against the existing `API-003` endpoints; exponential backoff with deterministic jitter; restart-safe persistence resume; and honest sync queue/conflict cards in Home, Timeline, and Settings. Focused client validation covered outbox diffing, retry/conflict behavior, sync persistence, migration adoption, and app-level sync queue rendering; `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because pairing/session credentials are still not provisioned on the client and the backlog done-when still requires multi-device sync to be stable in beta."
     },
     {
       "id": "QA-001",

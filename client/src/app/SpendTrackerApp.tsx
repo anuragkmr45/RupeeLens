@@ -133,6 +133,25 @@ import {
   type SyncMode,
 } from '../features/spend-tracker/persistence';
 import {
+  buildSyncQueueSummary,
+  createInitialSyncNetworkState,
+  createInitialSyncState,
+  queueSyncOperationsFromStateDiff,
+  type PersistedSyncState,
+  type SyncConflictQueueEntry,
+  type SyncNetworkState,
+  type SyncQueueSummary,
+} from '../features/sync/domain';
+import {
+  clearStoredSyncState,
+  loadStoredSyncState,
+  saveStoredSyncState,
+} from '../features/sync/persistence';
+import {
+  probeSyncReachability,
+  runSyncCycle,
+} from '../features/sync/runtime';
+import {
   getCaptureClassificationSeed,
   getImportedCaptureTransactionId,
   parseCaptureActionUrl,
@@ -386,11 +405,20 @@ export function SpendTrackerApp() {
     createInitialBootstrapConfigState(),
   );
   const [appStateStatus, setAppStateStatus] = useState(AppState.currentState);
+  const [syncState, setSyncState] = useState<PersistedSyncState>(createInitialSyncState());
+  const [syncNetworkState, setSyncNetworkState] = useState<SyncNetworkState>(
+    createInitialSyncNetworkState(),
+  );
+  const [isSyncRefreshInFlight, setIsSyncRefreshInFlight] = useState(false);
   const transactionsRef = useRef(transactions);
   const merchantsRef = useRef(merchants);
   const merchantAliasesRef = useRef(merchantAliases);
   const nativeCaptureImportInFlightRef = useRef(false);
+  const syncPassInFlightRef = useRef(false);
+  const syncStateRef = useRef(syncState);
+  const lastPersistedStateRef = useRef<PersistedSpendTrackerState | null>(null);
   const handledInitialCaptureUrlRef = useRef(false);
+  const hasSyncCredentials = false;
 
   const pendingTransactions = getPendingTransactions(transactions);
   const allReviewTransactions = getInboxReviewTransactions(transactions, {
@@ -473,19 +501,32 @@ export function SpendTrackerApp() {
     merchantAliases,
   );
   const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
+  const syncSummary = buildSyncQueueSummary({
+    hasSyncCredentials,
+    networkState: syncNetworkState,
+    syncMode: onboardingPreferences.syncMode,
+    syncState,
+  });
   transactionsRef.current = transactions;
   merchantsRef.current = merchants;
   merchantAliasesRef.current = merchantAliases;
+  syncStateRef.current = syncState;
 
   useEffect(() => {
     let isMounted = true;
 
     async function hydrateLocalState() {
-      const storedState = await loadStoredSpendTrackerState();
+      const [storedState, storedSyncState] = await Promise.all([
+        loadStoredSpendTrackerState(),
+        loadStoredSyncState(),
+      ]);
 
       if (!isMounted) {
         return;
       }
+
+      setSyncState(storedSyncState);
+      syncStateRef.current = storedSyncState;
 
       if (storedState) {
         const merchantDirectory = reconcileMerchantState(
@@ -511,6 +552,36 @@ export function SpendTrackerApp() {
         setRules(storedState.rules ?? []);
         setTransactions(merchantDirectory.transactions);
         setScreen(storedState.onboardingCompleted ? 'home' : 'onboarding');
+        lastPersistedStateRef.current = {
+          budgetAlertSettings: storedState.budgetAlertSettings ?? DEFAULT_BUDGET_ALERT_SETTINGS,
+          budgetAlerts: storedState.budgetAlerts ?? [],
+          budgets: storedState.budgets ?? [],
+          categories: storedState.categories,
+          merchantAliases: merchantDirectory.merchantAliases,
+          merchants: merchantDirectory.merchants,
+          onboardingPreferences: storedState.onboardingPreferences,
+          notificationAccessState: storedState.notificationAccessState,
+          onboardingCompleted: storedState.onboardingCompleted,
+          privacyModeEnabled:
+            storedState.privacyModeEnabled ?? DEFAULT_PRIVACY_MODE_ENABLED,
+          rules: storedState.rules ?? [],
+          transactions: merchantDirectory.transactions,
+        };
+      } else {
+        lastPersistedStateRef.current = {
+          budgetAlertSettings: DEFAULT_BUDGET_ALERT_SETTINGS,
+          budgetAlerts: [],
+          budgets: [],
+          categories: getDefaultCategories(),
+          merchantAliases: seededMerchantAliases,
+          merchants: seededMerchants,
+          onboardingPreferences: DEFAULT_ONBOARDING_PREFERENCES,
+          notificationAccessState: 'not_started',
+          onboardingCompleted: false,
+          privacyModeEnabled: DEFAULT_PRIVACY_MODE_ENABLED,
+          rules: [],
+          transactions: seededTransactions,
+        };
       }
 
       setIsHydrating(false);
@@ -753,7 +824,7 @@ export function SpendTrackerApp() {
       return;
     }
 
-    void saveStoredSpendTrackerState({
+    const nextPersistedState: PersistedSpendTrackerState = {
       budgetAlertSettings,
       budgetAlerts,
       budgets,
@@ -766,7 +837,22 @@ export function SpendTrackerApp() {
       privacyModeEnabled,
       rules,
       transactions,
+    };
+    const previousPersistedState = lastPersistedStateRef.current ?? nextPersistedState;
+    const nextSyncState = queueSyncOperationsFromStateDiff({
+      currentSyncState: syncStateRef.current,
+      nextState: nextPersistedState,
+      previousState: previousPersistedState,
     });
+
+    lastPersistedStateRef.current = nextPersistedState;
+
+    if (!areSyncStatesEqual(syncStateRef.current, nextSyncState)) {
+      syncStateRef.current = nextSyncState;
+      setSyncState(nextSyncState);
+    }
+
+    void saveStoredSpendTrackerState(nextPersistedState);
   }, [
     budgetAlertSettings,
     budgetAlerts,
@@ -781,6 +867,43 @@ export function SpendTrackerApp() {
     privacyModeEnabled,
     rules,
     transactions,
+  ]);
+
+  useEffect(() => {
+    if (isHydrating) {
+      return;
+    }
+
+    void saveStoredSyncState(syncState);
+  }, [isHydrating, syncState]);
+
+  useEffect(() => {
+    if (isHydrating) {
+      return;
+    }
+
+    void performSyncCycle(false);
+
+    if (onboardingPreferences.syncMode !== 'sync_later') {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      if (AppState.currentState === 'active') {
+        void performSyncCycle(false);
+      }
+    }, 15_000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [
+    appStateStatus,
+    isHydrating,
+    onboardingPreferences.syncMode,
+    syncState.conflicts.length,
+    syncState.lastStatus,
+    syncState.outbox.length,
   ]);
 
   function applyMerchantDirectoryState(
@@ -975,6 +1098,58 @@ export function SpendTrackerApp() {
         'Unable to share diagnostics',
         'Try again after the current screen settles. The bundle stays redacted by default.',
       );
+    }
+  }
+
+  async function performSyncCycle(forceRefresh: boolean) {
+    if (syncPassInFlightRef.current) {
+      return;
+    }
+
+    syncPassInFlightRef.current = true;
+
+    if (forceRefresh) {
+      setIsSyncRefreshInFlight(true);
+    }
+
+    try {
+      if (onboardingPreferences.syncMode === 'local_only') {
+        const nextSyncState: PersistedSyncState = {
+          ...syncStateRef.current,
+          lastErrorMessage: null,
+          lastStatus:
+            syncStateRef.current.outbox.length > 0 ? 'local_only_paused' : 'idle',
+        };
+
+        syncStateRef.current = nextSyncState;
+        setSyncState(nextSyncState);
+        setSyncNetworkState(createInitialSyncNetworkState());
+        return;
+      }
+
+      const nextNetworkState =
+        forceRefresh || syncStateRef.current.outbox.length > 0
+          ? await probeSyncReachability()
+          : syncNetworkState;
+
+      setSyncNetworkState(nextNetworkState);
+
+      const nextSyncState = await runSyncCycle({
+        credentials: null,
+        networkState: nextNetworkState,
+        syncState: syncStateRef.current,
+      });
+
+      if (!areSyncStatesEqual(syncStateRef.current, nextSyncState)) {
+        syncStateRef.current = nextSyncState;
+        setSyncState(nextSyncState);
+      }
+    } finally {
+      syncPassInFlightRef.current = false;
+
+      if (forceRefresh) {
+        setIsSyncRefreshInFlight(false);
+      }
     }
   }
 
@@ -1509,6 +1684,10 @@ export function SpendTrackerApp() {
     }));
   }
 
+  async function handleSyncNow() {
+    await performSyncCycle(true);
+  }
+
   function handleSaveManualEntry() {
     const categoryId = manualDraft.categoryId;
     const itemLabel = manualDraft.itemLabel.trim();
@@ -1670,6 +1849,8 @@ export function SpendTrackerApp() {
   }
 
   async function handleResetDemoData() {
+    const resetSyncState = createInitialSyncState();
+
     setActiveTransactionId(null);
     setDetailTransactionId(null);
     setDetailNoteDraft('');
@@ -1691,10 +1872,28 @@ export function SpendTrackerApp() {
     setMerchantAliases(seededMerchantAliases);
     setRules([]);
     setTransactions(seededTransactions);
+    syncStateRef.current = resetSyncState;
+    setSyncState(resetSyncState);
+    setSyncNetworkState(createInitialSyncNetworkState());
+    lastPersistedStateRef.current = {
+      budgetAlertSettings: DEFAULT_BUDGET_ALERT_SETTINGS,
+      budgetAlerts: [],
+      budgets: [],
+      categories: getDefaultCategories(),
+      merchantAliases: seededMerchantAliases,
+      merchants: seededMerchants,
+      onboardingPreferences: DEFAULT_ONBOARDING_PREFERENCES,
+      notificationAccessState: 'not_started',
+      onboardingCompleted: false,
+      privacyModeEnabled: DEFAULT_PRIVACY_MODE_ENABLED,
+      rules: [],
+      transactions: seededTransactions,
+    };
     setScreen('onboarding');
 
     try {
       await clearStoredSpendTrackerState();
+      await clearStoredSyncState();
       setCaptureDiagnostics(await clearStoredCaptureSnapshots());
     } catch {
       Alert.alert(
@@ -1750,13 +1949,19 @@ export function SpendTrackerApp() {
             filteredTransactionsCount={timelineTransactions.length}
             filters={timelineFilters}
             hasActiveFilters={hasActiveTimelineFilters(timelineFilters)}
+            isSyncRefreshing={isSyncRefreshInFlight}
             onClearFilters={handleClearTimelineFilters}
             onOpenHome={() => setScreen('home')}
             onOpenInbox={() => setScreen('inbox')}
             onOpenManualEntry={() => handleOpenManualEntry('timeline')}
             onOpenTransaction={handleOpenTransactionDetail}
+            onRefreshSync={handleSyncNow}
             onSelectTab={(nextScreen) => setScreen(nextScreen)}
             onUpdateFilters={handleUpdateTimelineFilters}
+            syncMode={onboardingPreferences.syncMode}
+            syncNetworkState={syncNetworkState}
+            syncState={syncState}
+            syncSummary={syncSummary}
             timelineDayGroups={timelineDayGroups}
             timelineSourceAppOptions={timelineSourceAppOptions}
           />
@@ -1918,18 +2123,24 @@ export function SpendTrackerApp() {
                 onOpenTimeline={handleOpenTimeline}
                 onOpenShowcase={() => setScreen('showcase')}
                 onResetDemoData={handleResetDemoData}
-            onSelectTab={(nextScreen) => setScreen(nextScreen)}
-            onStartClassification={(transactionId) =>
-              handleStartClassification(transactionId, 'home')
-            }
-            summary={summary}
-          />
-        ) : null}
+                onSelectTab={(nextScreen) => setScreen(nextScreen)}
+                onStartClassification={(transactionId) =>
+                  handleStartClassification(transactionId, 'home')
+                }
+                onSyncNow={handleSyncNow}
+                summary={summary}
+                syncMode={onboardingPreferences.syncMode}
+                syncNetworkState={syncNetworkState}
+                syncState={syncState}
+                syncSummary={syncSummary}
+              />
+            ) : null}
 
             {!isHydrating && screen === 'settings' ? (
               <SettingsScreen
                 bootstrapState={bootstrapState}
                 captureDiagnostics={captureDiagnostics}
+                isSyncRefreshing={isSyncRefreshInFlight}
                 notificationAccessState={notificationAccessState}
                 onboardingPreferences={onboardingPreferences}
                 onClearSourceApps={handleClearSourceApps}
@@ -1938,6 +2149,7 @@ export function SpendTrackerApp() {
                 onExportCsv={handleExportCsv}
                 onOpenNotificationAccess={handleOpenNotificationAccess}
                 onOpenRestorePlaceholder={handleOpenRestorePlaceholder}
+                onRefreshSync={handleSyncNow}
                 onSelectAllSourceApps={handleSelectAllSourceApps}
                 onSelectBudgetCycle={handleSelectBudgetCycle}
                 onSelectPrivacyMode={handleSelectPrivacyMode}
@@ -1946,6 +2158,9 @@ export function SpendTrackerApp() {
                 onShareDiagnosticsBundle={handleShareDiagnosticsBundle}
                 onToggleSourceApp={handleToggleSourceAppSelection}
                 privacyModeEnabled={privacyModeEnabled}
+                syncNetworkState={syncNetworkState}
+                syncState={syncState}
+                syncSummary={syncSummary}
               />
             ) : null}
 
@@ -2282,7 +2497,12 @@ function HomeScreen({
   onResetDemoData,
   onSelectTab,
   onStartClassification,
+  onSyncNow,
   summary,
+  syncMode,
+  syncNetworkState,
+  syncState,
+  syncSummary,
 }: {
   bootstrapState: BootstrapConfigState;
   budgetCount: number;
@@ -2309,7 +2529,12 @@ function HomeScreen({
   onResetDemoData: () => Promise<void>;
   onSelectTab: (screen: PrimaryScreen) => void;
   onStartClassification: (transactionId: string) => void;
+  onSyncNow: () => Promise<void>;
   summary: DashboardSummary;
+  syncMode: SyncMode;
+  syncNetworkState: SyncNetworkState;
+  syncState: PersistedSyncState;
+  syncSummary: SyncQueueSummary;
 }) {
   const selectedSourceAppsSummary =
     onboardingPreferences.selectedSourceAppIds.length > 0
@@ -2558,6 +2783,11 @@ function HomeScreen({
           <Text style={styles.helperCopy}>
             Sync mode: {getSyncModeLabel(onboardingPreferences.syncMode)}
           </Text>
+          <Text style={styles.helperCopy}>
+            Sync queue: {syncSummary.pendingCount} queued write
+            {syncSummary.pendingCount === 1 ? '' : 's'} · {syncSummary.conflictCount} conflict
+            {syncSummary.conflictCount === 1 ? '' : 's'}
+          </Text>
         </View>
         <StatusChip
           label={
@@ -2576,6 +2806,18 @@ function HomeScreen({
           }
         />
       </SectionCard>
+
+      <SyncQueueCard
+        secondaryAction={{
+          label: 'Open settings',
+          onPress: () => onSelectTab('settings'),
+        }}
+        onSyncNow={onSyncNow}
+        syncMode={syncMode}
+        syncNetworkState={syncNetworkState}
+        syncState={syncState}
+        syncSummary={syncSummary}
+      />
 
       <CaptureDiagnosticsCard
         captureDiagnostics={captureDiagnostics}
@@ -2781,6 +3023,7 @@ function DiagnosticsScreen({
 function SettingsScreen({
   bootstrapState,
   captureDiagnostics,
+  isSyncRefreshing,
   notificationAccessState,
   onboardingPreferences,
   onClearSourceApps,
@@ -2789,6 +3032,7 @@ function SettingsScreen({
   onOpenDiagnostics,
   onOpenNotificationAccess,
   onOpenRestorePlaceholder,
+  onRefreshSync,
   onSelectAllSourceApps,
   onSelectBudgetCycle,
   onSelectPrivacyMode,
@@ -2797,9 +3041,13 @@ function SettingsScreen({
   onShareDiagnosticsBundle,
   onToggleSourceApp,
   privacyModeEnabled,
+  syncNetworkState,
+  syncState,
+  syncSummary,
 }: {
   bootstrapState: BootstrapConfigState;
   captureDiagnostics: NativeCaptureDiagnostics;
+  isSyncRefreshing: boolean;
   notificationAccessState: NotificationAccessState;
   onboardingPreferences: OnboardingPreferences;
   onClearSourceApps: () => void;
@@ -2808,6 +3056,7 @@ function SettingsScreen({
   onOpenDiagnostics: () => void;
   onOpenNotificationAccess: () => Promise<void>;
   onOpenRestorePlaceholder: () => void;
+  onRefreshSync: () => Promise<void>;
   onSelectAllSourceApps: () => void;
   onSelectBudgetCycle: (budgetCycleId: BudgetCycleId) => void;
   onSelectPrivacyMode: (enabled: boolean) => void;
@@ -2816,6 +3065,9 @@ function SettingsScreen({
   onShareDiagnosticsBundle: () => Promise<void>;
   onToggleSourceApp: (sourceAppId: SupportedSourceAppId) => void;
   privacyModeEnabled: boolean;
+  syncNetworkState: SyncNetworkState;
+  syncState: PersistedSyncState;
+  syncSummary: SyncQueueSummary;
 }) {
   const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
   const listenerStatusLabel = capturePausedRemotely
@@ -2931,7 +3183,8 @@ function SettingsScreen({
         <Text style={styles.cardTitle}>Sync and budget defaults</Text>
         <Text style={styles.bodyCopy}>
           These defaults already drive the current local dashboard and onboarding resume flow. The
-          sync preference is saved now even though the mobile sync client still lands later.
+          outbox now queues writes locally whenever sync mode is enabled, even if this device still
+          has to wait for pairing before cloud sync can actually run.
         </Text>
         <Text style={styles.fieldLabel}>Budget cycle</Text>
         <View style={styles.optionStack}>
@@ -2959,11 +3212,29 @@ function SettingsScreen({
         </View>
         {onboardingPreferences.syncMode === 'sync_later' ? (
           <Text style={styles.helperCopy}>
-            Device pairing stays intentionally placeholder-only here until the mobile sync client
-            and outbox flow land.
+            Pairing is still intentionally missing from this screen. Until that arrives, the local
+            outbox keeps writes safe on-device and shows exactly why cloud sync is blocked.
           </Text>
         ) : null}
       </SectionCard>
+
+      <SyncQueueCard
+        secondaryAction={{
+          label: 'Open timeline',
+          onPress: () => onSelectTab('timeline'),
+        }}
+        onSyncNow={onRefreshSync}
+        syncMode={onboardingPreferences.syncMode}
+        syncNetworkState={syncNetworkState}
+        syncState={syncState}
+        syncSummary={syncSummary}
+      />
+
+      {isSyncRefreshing ? (
+        <Text style={styles.helperCopy}>
+          Refreshing the local outbox and sync status for this device.
+        </Text>
+      ) : null}
 
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Export data</Text>
@@ -3033,6 +3304,103 @@ function SettingsScreen({
         </View>
       </SectionCard>
     </View>
+  );
+}
+
+function SyncQueueCard({
+  secondaryAction,
+  onSyncNow,
+  syncMode,
+  syncNetworkState,
+  syncState,
+  syncSummary,
+}: {
+  secondaryAction?: {
+    label: string;
+    onPress: () => void;
+  };
+  onSyncNow: () => Promise<void>;
+  syncMode: SyncMode;
+  syncNetworkState: SyncNetworkState;
+  syncState: PersistedSyncState;
+  syncSummary: SyncQueueSummary;
+}) {
+  const accentColor =
+    syncSummary.conflictCount > 0
+      ? colors.panelWarm
+      : syncSummary.tone === 'ready'
+        ? colors.successSoft
+        : colors.panel;
+  const recentConflicts = syncState.conflicts.slice(0, 3);
+
+  return (
+    <SectionCard accentColor={accentColor}>
+      <Text style={styles.cardTitle}>Sync queue</Text>
+      <Text style={styles.bodyCopy}>
+        Local writes still commit first on this device. The outbox retains them until cloud sync is
+        allowed to run, then retries in small chunks without blocking the rest of the app.
+      </Text>
+      <View style={styles.helperStack}>
+        <Text style={styles.helperCopy}>Status: {syncSummary.statusLabel}</Text>
+        <Text style={styles.helperCopy}>{syncSummary.detail}</Text>
+        <Text style={styles.helperCopy}>
+          Network observer: {formatSyncNetworkLabel(syncNetworkState)}
+        </Text>
+        <Text style={styles.helperCopy}>
+          Queued writes: {syncSummary.pendingCount} · Ready now: {syncSummary.readyCount}
+        </Text>
+        <Text style={styles.helperCopy}>
+          Conflicts: {syncSummary.conflictCount}
+        </Text>
+        {syncState.lastSyncSuccessAt ? (
+          <Text style={styles.helperCopy}>
+            Last successful sync: {formatCaptureMoment(syncState.lastSyncSuccessAt)}
+          </Text>
+        ) : null}
+        {syncSummary.nextRetryAt ? (
+          <Text style={styles.helperCopy}>
+            Next retry window: {formatCaptureMoment(syncSummary.nextRetryAt)}
+          </Text>
+        ) : null}
+        {syncState.lastErrorMessage ? (
+          <Text style={styles.helperCopy}>
+            Last sync error: {syncState.lastErrorMessage}
+          </Text>
+        ) : null}
+        {syncMode === 'sync_later' ? (
+          <Text style={styles.helperCopy}>
+            Device pairing and token provisioning still land later. Until then, the outbox stays
+            local-first and truthful about why cloud sync is paused.
+          </Text>
+        ) : null}
+      </View>
+      {recentConflicts.length > 0 ? (
+        <View style={styles.listStack}>
+          {recentConflicts.map((conflict) => (
+            <View key={conflict.id} style={styles.summaryRow}>
+              <View style={styles.summaryCopy}>
+                <Text style={styles.summaryPrimary}>{formatSyncConflictTitle(conflict)}</Text>
+                <Text style={styles.summarySecondary}>
+                  {formatSyncConflictReason(conflict)}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+      <View style={styles.actionRow}>
+        {syncMode === 'sync_later' ? (
+          <ActionButton label="Sync now" onPress={onSyncNow} tone="primary" />
+        ) : null}
+        {secondaryAction ? (
+          <ActionButton
+            label={secondaryAction.label}
+            onPress={secondaryAction.onPress}
+            tone="secondary"
+          />
+        ) : null}
+      </View>
+    </SectionCard>
   );
 }
 
@@ -4030,13 +4398,19 @@ function TimelineScreen({
   filteredTransactionsCount,
   filters,
   hasActiveFilters,
+  isSyncRefreshing,
   onClearFilters,
   onOpenHome,
   onOpenInbox,
   onOpenManualEntry,
   onOpenTransaction,
+  onRefreshSync,
   onSelectTab,
   onUpdateFilters,
+  syncMode,
+  syncNetworkState,
+  syncState,
+  syncSummary,
   timelineDayGroups,
   timelineSourceAppOptions,
 }: {
@@ -4045,13 +4419,19 @@ function TimelineScreen({
   filteredTransactionsCount: number;
   filters: TimelineFilters;
   hasActiveFilters: boolean;
+  isSyncRefreshing: boolean;
   onClearFilters: () => void;
   onOpenHome: () => void;
   onOpenInbox: () => void;
   onOpenManualEntry: () => void;
   onOpenTransaction: (transactionId: string, returnScreen?: PrimaryScreen) => void;
+  onRefreshSync: () => Promise<void>;
   onSelectTab: (screen: PrimaryScreen) => void;
   onUpdateFilters: (nextFilters: Partial<TimelineFilters>) => void;
+  syncMode: SyncMode;
+  syncNetworkState: SyncNetworkState;
+  syncState: PersistedSyncState;
+  syncSummary: SyncQueueSummary;
   timelineDayGroups: TimelineDayGroup[];
   timelineSourceAppOptions: string[];
 }) {
@@ -4107,12 +4487,30 @@ function TimelineScreen({
                 Parser context, saved notes, and audit history come straight from the local
                 transaction records shown here.
               </Text>
+              {syncMode === 'sync_later' ? (
+                <Text style={styles.helperCopy}>
+                  Pull to refresh rechecks the local outbox, reachability, and conflict queue for
+                  this device.
+                </Text>
+              ) : null}
             </View>
             <View style={styles.actionRow}>
               <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
               <ActionButton label="Open inbox" onPress={onOpenInbox} tone="secondary" />
             </View>
           </SectionCard>
+
+          <SyncQueueCard
+            secondaryAction={{
+              label: 'Open settings',
+              onPress: () => onSelectTab('settings'),
+            }}
+            onSyncNow={onRefreshSync}
+            syncMode={syncMode}
+            syncNetworkState={syncNetworkState}
+            syncState={syncState}
+            syncSummary={syncSummary}
+          />
 
           <SectionCard accentColor={colors.panel}>
             <Text style={styles.cardTitle}>Search and filters</Text>
@@ -4244,6 +4642,10 @@ function TimelineScreen({
           </SectionCard>
         </View>
       }
+      onRefresh={() => {
+        void onRefreshSync();
+      }}
+      refreshing={isSyncRefreshing}
       renderItem={({ item }) => (
         <SectionCard accentColor={colors.panelWarm}>
           <Text style={styles.cardTitle}>{item.label}</Text>
@@ -6459,6 +6861,77 @@ function hasActiveTimelineFilters(filters: TimelineFilters): boolean {
     filters.sourceApp !== DEFAULT_TIMELINE_FILTERS.sourceApp ||
     filters.statusFilter !== DEFAULT_TIMELINE_FILTERS.statusFilter
   );
+}
+
+function formatSyncNetworkLabel(syncNetworkState: SyncNetworkState): string {
+  switch (syncNetworkState.status) {
+    case 'online':
+      return syncNetworkState.checkedAt
+        ? `Online as of ${formatCaptureMoment(syncNetworkState.checkedAt)}`
+        : 'Online';
+    case 'offline':
+      return syncNetworkState.checkedAt
+        ? `Offline as of ${formatCaptureMoment(syncNetworkState.checkedAt)}`
+        : 'Offline';
+    default:
+      return 'Reachability not checked yet';
+  }
+}
+
+function formatSyncConflictTitle(conflict: SyncConflictQueueEntry): string {
+  const serverLabel =
+    (typeof conflict.serverState.label === 'string' && conflict.serverState.label) ||
+    (typeof conflict.serverState.merchant === 'string' && conflict.serverState.merchant) ||
+    (typeof conflict.serverState.alias === 'string' && conflict.serverState.alias) ||
+    (typeof conflict.serverState.itemLabel === 'string' && conflict.serverState.itemLabel) ||
+    conflict.entityId;
+
+  return `${getSyncEntityLabel(conflict.entityType)} · ${serverLabel}`;
+}
+
+function formatSyncConflictReason(conflict: SyncConflictQueueEntry): string {
+  switch (conflict.conflictReason) {
+    case 'missing_server_base':
+      return 'The server does not have the expected base version for this local write yet.';
+    case 'remote_change_pending_review':
+      return 'Another device changed this record first. Review before trusting the remote state locally.';
+    case 'remote_delete_pending_review':
+      return 'Another device deleted this record first. Review before removing it locally.';
+    case 'version_mismatch':
+      return 'The server version moved ahead of this local write. Review before retrying.';
+    default:
+      return `Conflict reason: ${conflict.conflictReason.replace(/_/g, ' ')}`;
+  }
+}
+
+function getSyncEntityLabel(entityType: PersistedSyncState['entityVersions'][number]['entityType']): string {
+  switch (entityType) {
+    case 'budget':
+      return 'Budget';
+    case 'budget_scope':
+      return 'Budget scope';
+    case 'category':
+      return 'Category';
+    case 'merchant':
+      return 'Merchant';
+    case 'merchant_alias':
+      return 'Merchant alias';
+    case 'rule':
+      return 'Rule';
+    case 'transaction':
+      return 'Transaction';
+    case 'transaction_item':
+      return 'Transaction item';
+    default:
+      return 'Entity';
+  }
+}
+
+function areSyncStatesEqual(
+  leftSyncState: PersistedSyncState,
+  rightSyncState: PersistedSyncState,
+): boolean {
+  return JSON.stringify(leftSyncState) === JSON.stringify(rightSyncState);
 }
 
 const styles = StyleSheet.create({

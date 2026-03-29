@@ -983,7 +983,7 @@ Worker runtime operational in staging.
 - **Story points:** 8
 - **Goal:** Guarantee offline writes and resilient sync on poor networks.
 - **Dependencies:** API-003, CAP-006
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-30 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth: the client now has a first mobile sync foundation with additive SQLite tables for sync settings, entity versions, outbox entries, and conflict records; deterministic outbox diffing from local writes unless sync mode stays `local_only`; reachability-aware chunked sync runtime helpers against the existing `API-003` endpoints; exponential backoff with deterministic jitter; restart-safe persistence resume; and honest sync queue/conflict cards in Home, Timeline, and Settings. Focused client validation covered outbox diffing, retry/conflict behavior, sync persistence, migration adoption, and app-level sync queue rendering; `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because pairing/session credentials are still not provisioned on the client and the backlog done-when still requires multi-device sync to be stable in beta.
 
 **Description**  
 Create outbox table, idempotency keys, retry scheduler, network observer, sync chunking, and conflict queue UI hooks. Respect battery and data-saver constraints.

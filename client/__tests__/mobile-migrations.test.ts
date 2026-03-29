@@ -56,8 +56,8 @@ describe('mobile migration runner', () => {
       now: () => '2026-03-26T00:00:00.000Z',
     });
 
-    expect(database.execAsync).toHaveBeenCalledTimes(20);
-    expect(database.runAsync).toHaveBeenCalledTimes(19);
+    expect(database.execAsync).toHaveBeenCalledTimes(26);
+    expect(database.runAsync).toHaveBeenCalledTimes(25);
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
       '001_create_settings_table',
@@ -66,6 +66,11 @@ describe('mobile migration runner', () => {
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
       '019_create_budget_threshold_alerts_table',
+      '2026-03-26T00:00:00.000Z',
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
+      '025_create_sync_conflicts_entity_index',
       '2026-03-26T00:00:00.000Z',
     );
   });
@@ -116,6 +121,12 @@ describe('mobile migration runner', () => {
           { id: '017_create_classification_rules_merchant_index' },
           { id: '018_create_budgets_table' },
           { id: '019_create_budget_threshold_alerts_table' },
+          { id: '020_create_sync_settings_table' },
+          { id: '021_create_sync_entity_versions_table' },
+          { id: '022_create_sync_outbox_table' },
+          { id: '023_create_sync_outbox_indexes' },
+          { id: '024_create_sync_conflicts_table' },
+          { id: '025_create_sync_conflicts_entity_index' },
         ];
       }
 
@@ -145,8 +156,20 @@ describe('mobile migration runner', () => {
       expect.stringContaining('CREATE TABLE IF NOT EXISTS budget_threshold_alerts'),
     );
     expect(database.execAsync).toHaveBeenCalledWith(
+      expect.stringContaining('CREATE TABLE IF NOT EXISTS sync_settings'),
+    );
+    expect(database.execAsync).toHaveBeenCalledWith(
+      expect.stringContaining('CREATE TABLE IF NOT EXISTS sync_entity_versions'),
+    );
+    expect(database.execAsync).toHaveBeenCalledWith(
+      expect.stringContaining('CREATE TABLE IF NOT EXISTS sync_outbox'),
+    );
+    expect(database.execAsync).toHaveBeenCalledWith(
+      expect.stringContaining('CREATE TABLE IF NOT EXISTS sync_conflicts'),
+    );
+    expect(database.execAsync).toHaveBeenCalledWith(
       expect.stringContaining('ADD COLUMN merchant_raw TEXT NOT NULL DEFAULT'),
     );
-    expect(database.runAsync).toHaveBeenCalledTimes(19);
+    expect(database.runAsync).toHaveBeenCalledTimes(25);
   });
 });
