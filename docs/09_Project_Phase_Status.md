@@ -38,12 +38,12 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Native parser registry with package-specific launch-app parsers, generic fallback parsing, structured field provenance, reason-coded failures, parser-result persistence, a 30-plus-case fixture suite, and connected Android validation that exercises success and failure persistence
 - Repo-side native capture dedupe with exact/fuzzy suppression, bootstrap-delivered thresholds, duplicate counters, and diagnostics exposure
 - Repo-side actionable review-notification foundation with direct reply, open-app classify / split, skip persistence, and privacy-aware lockscreen redaction for successful unique captures
+- Native-to-JS capture bridge that exposes pending native captures plus reply metadata, imports them idempotently into the local transaction store, and routes classify / split action deep links into the existing review flows
 - Dedicated in-app diagnostics screen reachable from Home with supported parser inventory, recent parse failures, recent capture logs, and redacted debug-bundle sharing without developer mode
 
 **Remaining**
 
-- Connected-device closeout for dedupe and the new Room-backed native capture repository is still blocked because this environment does not currently have a stable connected-Android validation path
-- Native capture domain-import work and the true notification-to-classify handoff still remain
+- Connected-device closeout for dedupe, the Room-backed native capture repository, and the notification-action path is still blocked because this environment does not currently have a stable connected-Android validation path
 
 ## Sprint 2 — First Usable App
 
@@ -53,10 +53,11 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Local SQLite-backed dashboard with cycle-aware totals, budget progress, top items, recent activity preview, quick actions, and persisted progress
 - Inbox for uncategorized local transactions with status, merchant, source-app, amount, and age filters plus revisitable skipped items, local delete actions, and seeded 1,000-item FlatList validation
 - In-app classify flow with immediate dashboard refresh
+- Native captured transactions now import safely into the JS local store on launch/foreground and notification-action deep links can open classify or split with reply-based prefill
 
 **Remaining**
 
-- End-to-end notification-driven quick-classify flow still needs native-to-JS import/routing plus connected-Android manual action validation
+- Connected-Android manual action validation for the end-to-end notification-driven quick-classify path is still pending
 - Budget creation flow and partial/conflict Inbox views beyond the new split path
 
 ## Sprint 3 — Core UX And Intelligence

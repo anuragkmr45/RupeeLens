@@ -268,6 +268,7 @@ class CaptureActionReceiver : BroadcastReceiver() {
             nextState = CaptureEventState.REPLIED,
             updatedAtMs = createdAtMs,
           )
+          NotificationCaptureEventEmitter.emitCaptureChanged(captureEventId)
         }
 
         ACTION_OPEN_CLASSIFY -> {
@@ -283,6 +284,7 @@ class CaptureActionReceiver : BroadcastReceiver() {
             nextState = CaptureEventState.REPLIED,
             updatedAtMs = createdAtMs,
           )
+          NotificationCaptureEventEmitter.emitCaptureChanged(captureEventId)
           launchApp(context, captureEventId, "classify")
         }
 
@@ -299,6 +301,7 @@ class CaptureActionReceiver : BroadcastReceiver() {
             nextState = CaptureEventState.REPLIED,
             updatedAtMs = createdAtMs,
           )
+          NotificationCaptureEventEmitter.emitCaptureChanged(captureEventId)
           launchApp(context, captureEventId, "split")
         }
 
@@ -315,6 +318,7 @@ class CaptureActionReceiver : BroadcastReceiver() {
             nextState = CaptureEventState.SKIPPED,
             updatedAtMs = createdAtMs,
           )
+          NotificationCaptureEventEmitter.emitCaptureChanged(captureEventId)
         }
       }
     } finally {

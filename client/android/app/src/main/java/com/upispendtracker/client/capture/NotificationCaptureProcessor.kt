@@ -59,6 +59,7 @@ class NotificationCaptureProcessor(
                 sourceAppId = parseResult.event.sourceAppId,
               ),
             )
+            NotificationCaptureEventEmitter.emitCaptureChanged(captureEventId)
           }
           return true
         }

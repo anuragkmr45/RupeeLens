@@ -149,6 +149,7 @@ data class StoredCaptureReplyRecord(
 
 data class StoredNotificationCaptureRecord(
   val amountProvenance: String?,
+  val capturedAtMs: Long,
   val captureEventId: Long,
   val captureState: CaptureEventState,
   val exactDedupeKey: String?,
@@ -245,6 +246,10 @@ class CaptureRepository(context: Context) : AutoCloseable {
           replyText = entity.replyText,
         )
       }
+  }
+
+  fun getCaptureRecord(captureEventId: Long): StoredNotificationCaptureRecord? {
+    return captureEventDao.getById(captureEventId)?.toStoredRecord()
   }
 
   fun upsertSyncMarker(
@@ -572,6 +577,7 @@ class CaptureRepository(context: Context) : AutoCloseable {
   private fun CaptureEventEntity.toStoredRecord(): StoredNotificationCaptureRecord {
     return StoredNotificationCaptureRecord(
       amountProvenance = amountProvenance,
+      capturedAtMs = capturedAtMs,
       captureEventId = id,
       captureState = CaptureEventState.fromWireValue(captureState),
       exactDedupeKey = exactDedupeKey,

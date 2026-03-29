@@ -16,11 +16,85 @@ class NotificationCaptureModule(
   private val settingsStore = CaptureSettingsStore(reactContext)
   private val snapshotStore = CaptureSnapshotStore(reactContext)
 
+  init {
+    NotificationCaptureEventEmitter.attach(reactContext)
+  }
+
   override fun getName(): String = "NotificationCaptureModule"
+
+  override fun invalidate() {
+    NotificationCaptureEventEmitter.detach(reactApplicationContext)
+    super.invalidate()
+  }
+
+  @ReactMethod
+  fun addListener(eventName: String) {
+    // Required so NativeEventEmitter can subscribe on Android without warnings.
+  }
+
+  @ReactMethod
+  fun removeListeners(count: Double) {
+    // Required so NativeEventEmitter can unsubscribe on Android without warnings.
+  }
 
   @ReactMethod
   fun getCaptureDiagnostics(promise: Promise) {
     promise.resolve(buildDiagnosticsMap())
+  }
+
+  @ReactMethod
+  fun getPendingCaptureEvents(limit: Double, promise: Promise) {
+    val normalizedLimit = limit.toInt().coerceIn(1, 200)
+    val pendingCaptureMaps =
+      Arguments.createArray().apply {
+        snapshotStore.fetchPendingCaptureEvents(normalizedLimit).forEach { pendingCapture ->
+          val captureMap =
+            buildCaptureEventMap(
+              captureEventId = pendingCapture.captureEventId,
+              replies = snapshotStore.getCaptureReplies(pendingCapture.captureEventId),
+              syncMarker = snapshotStore.getSyncMarker(pendingCapture.captureEventId),
+            )
+
+          if (captureMap != null) {
+            pushMap(captureMap)
+          }
+        }
+      }
+
+    promise.resolve(pendingCaptureMaps)
+  }
+
+  @ReactMethod
+  fun getCaptureEvent(captureEventId: Double, promise: Promise) {
+    promise.resolve(
+      buildCaptureEventMap(
+        captureEventId = captureEventId.toLong(),
+        replies = snapshotStore.getCaptureReplies(captureEventId.toLong()),
+        syncMarker = snapshotStore.getSyncMarker(captureEventId.toLong()),
+      ),
+    )
+  }
+
+  @ReactMethod
+  fun markCaptureImported(captureEventId: Double, linkedTransactionId: String, promise: Promise) {
+    snapshotStore.updateCaptureState(
+      captureEventId = captureEventId.toLong(),
+      nextState = CaptureEventState.IMPORTED,
+      linkedTransactionId = linkedTransactionId,
+    )
+    NotificationCaptureEventEmitter.emitCaptureChanged(captureEventId.toLong())
+    promise.resolve(null)
+  }
+
+  @ReactMethod
+  fun markCaptureImportFailed(captureEventId: Double, errorCode: String, promise: Promise) {
+    snapshotStore.updateCaptureState(
+      captureEventId = captureEventId.toLong(),
+      nextState = CaptureEventState.FAILED,
+      lastErrorCode = errorCode,
+    )
+    NotificationCaptureEventEmitter.emitCaptureChanged(captureEventId.toLong())
+    promise.resolve(null)
   }
 
   @ReactMethod
@@ -78,6 +152,7 @@ class NotificationCaptureModule(
   @ReactMethod
   fun clearStoredSnapshots(promise: Promise) {
     snapshotStore.clearSnapshots()
+    NotificationCaptureEventEmitter.emitCaptureChanged()
     promise.resolve(buildDiagnosticsMap())
   }
 
@@ -198,6 +273,64 @@ class NotificationCaptureModule(
   private fun buildStringArray(values: List<String>): WritableArray {
     return Arguments.createArray().apply {
       values.forEach { value -> pushString(value) }
+    }
+  }
+
+  private fun buildCaptureEventMap(
+    captureEventId: Long,
+    replies: List<StoredCaptureReplyRecord>,
+    syncMarker: CaptureSyncMarkerRecord?,
+  ): WritableMap? {
+    val record = snapshotStore.getCaptureRecord(captureEventId) ?: return null
+    val amountMinor = record.parsedAmountMinor ?: return null
+    val merchantRaw = record.merchantRaw ?: return null
+    val parsedTimestampMs = record.parsedTimestampMs ?: return null
+
+    return Arguments.createMap().apply {
+      putDouble("captureEventId", record.captureEventId.toDouble())
+      putString("captureState", record.captureState.wireValue)
+      putDouble("capturedAtMs", record.capturedAtMs.toDouble())
+      putString("linkedTransactionId", record.linkedTransactionId)
+      putString("merchantRaw", merchantRaw)
+      putString("notificationKey", record.notificationKey)
+      putDouble("parsedAmountMinor", amountMinor.toDouble())
+      putDouble("parsedTimestampMs", parsedTimestampMs.toDouble())
+      putString("sourceAppId", record.sourceAppId)
+      putArray(
+        "replies",
+        Arguments.createArray().apply {
+          replies.forEach { reply ->
+            pushMap(
+              Arguments.createMap().apply {
+                putString("actionType", reply.actionType.wireValue)
+                putDouble("captureEventId", reply.captureEventId.toDouble())
+                putString("categoryId", reply.categoryId)
+                putDouble("createdAtMs", reply.createdAtMs.toDouble())
+                putString("itemLabel", reply.itemLabel)
+                putDouble("replyId", reply.replyId.toDouble())
+                putString("replyText", reply.replyText)
+              },
+            )
+          }
+        },
+      )
+
+      record.parserId?.let { parserId ->
+        putMap(
+          "parserInfo",
+          Arguments.createMap().apply {
+            putString("parserId", parserId)
+            putString("parserVersion", record.parserVersion)
+            record.parserConfidence?.let { parserConfidence ->
+              putInt("confidenceBps", (parserConfidence * 10_000).toInt())
+            }
+          },
+        )
+      }
+
+      syncMarker?.let { marker ->
+        putString("syncState", marker.syncState.wireValue)
+      }
     }
   }
 }

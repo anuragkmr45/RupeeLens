@@ -127,16 +127,14 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `CAP-006 — Bridge native capture events into React Native store safely` as a continuation execution.
+- `SYNC-001 — Implement local-first outbox, retry policy, and conflict queue on mobile` as a new execution.
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
 - `CAP-003` and `CAP-004` remain blocked on connected-Android validation because `adb devices` is empty in the current environment.
-- `CAP-005` now has the native actionable-notification foundation in repo truth, but the ticket still is not closeable because end-to-end notification-to-classify handoff needs JS-visible capture import/routing and there is still no connected-Android manual action validation.
-- `CAP-006` is the earliest active ticket that closes that remaining product gap without pretending CAP-005 is already end to end.
+- `CAP-005` still needs connected-Android manual action validation, but the repo-side notification-to-classify handoff gap is now closed by `CAP-006`, so `CAP-005` no longer has a larger local implementation gap than the earliest actionable `todo`.
 - `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-003`, `API-004`, `API-005`, `API-007`, and `QA-004` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, manual QA spreadsheet verification, mobile integration evidence, staging evidence, remote Expo project wiring, non-production OTA/rollback dry-run evidence, engineering approval, or undefined latency targets rather than missing repo-side implementation.
 - `QA-001` is not yet actionable because it depends on blocked `SET-002`.
-- `QA-002`, `QA-003`, `QA-005`, `REL-001`, and `REL-002` all still have blocked dependencies.
-- `SYNC-001` is still not independently actionable because it depends on `CAP-006`.
-- There is no earlier canonical `todo` or active continuation with a larger repo-side implementation gap than continuing `CAP-006`.
+- `QA-002`, `QA-003`, `QA-005`, `REL-001`, and `REL-002` still have blocked dependencies.
+- `CAP-006` is now done, and repo truth already provides the prerequisite sync API surface from `API-003`, so `SYNC-001` becomes the earliest canonical `todo` with a real repo-side implementation gap.

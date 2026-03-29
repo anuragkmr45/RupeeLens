@@ -1,4 +1,4 @@
-import { NativeModules, Platform } from 'react-native';
+import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
 import {
   DEFAULT_ONBOARDING_PREFERENCES,
@@ -54,6 +54,37 @@ export interface NativeCaptureRecentParseFailure {
   sourceAppId: SupportedSourceAppId;
 }
 
+export interface NativeCaptureReplyRecord {
+  actionType: 'direct_reply' | 'open_app' | 'skip' | 'split';
+  captureEventId: number;
+  categoryId?: string | null;
+  createdAtMs: number;
+  itemLabel?: string | null;
+  replyId: number;
+  replyText?: string | null;
+}
+
+export interface NativeCaptureEventParserInfo {
+  confidenceBps: number | null;
+  parserId: string;
+  parserVersion: string;
+}
+
+export interface NativeCaptureEventRecord {
+  captureEventId: number;
+  captureState: 'captured' | 'failed' | 'imported' | 'replied' | 'skipped';
+  capturedAtMs: number;
+  linkedTransactionId?: string | null;
+  merchantRaw: string;
+  notificationKey: string;
+  parsedAmountMinor: number;
+  parsedTimestampMs: number;
+  parserInfo: NativeCaptureEventParserInfo | null;
+  replies: NativeCaptureReplyRecord[];
+  sourceAppId: SupportedSourceAppId;
+  syncState?: 'failed' | 'imported' | 'pending_import' | null;
+}
+
 export interface NativeCaptureDiagnostics {
   allowedSourceAppIds: SupportedSourceAppId[];
   dedupeConfig: NativeCaptureDedupeConfig;
@@ -89,16 +120,23 @@ export interface RedactedCaptureDebugBundleInput {
 
 interface NotificationCaptureModuleShape {
   clearStoredSnapshots(): Promise<unknown>;
+  getCaptureEvent(captureEventId: number): Promise<unknown>;
   getCaptureDiagnostics(): Promise<unknown>;
+  getPendingCaptureEvents(limit: number): Promise<unknown>;
+  markCaptureImportFailed(captureEventId: number, errorCode: string): Promise<unknown>;
+  markCaptureImported(captureEventId: number, linkedTransactionId: string): Promise<unknown>;
   setDedupeConfig(config: NativeCaptureDedupeConfig): Promise<unknown>;
   setAllowedSourceApps(sourceAppIds: SupportedSourceAppId[]): Promise<unknown>;
   setPrivacyModeEnabled(enabled: boolean): Promise<unknown>;
+  addListener?(eventName: string): void;
+  removeListeners?(count: number): void;
 }
 
 const notificationCaptureModule =
   Platform.OS === 'android'
     ? (NativeModules.NotificationCaptureModule as NotificationCaptureModuleShape | undefined)
     : undefined;
+let notificationCaptureEventEmitter: NativeEventEmitter | null = null;
 
 export const DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS: NativeCaptureDiagnostics = {
   allowedSourceAppIds: DEFAULT_ONBOARDING_PREFERENCES.selectedSourceAppIds,
@@ -403,6 +441,148 @@ function parseRecentCaptureLog(value: unknown): NativeCaptureRecentCaptureLogEnt
   });
 }
 
+function parseCaptureReplies(value: unknown): NativeCaptureReplyRecord[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return [];
+    }
+
+    const candidate = entry as {
+      actionType?: unknown;
+      captureEventId?: unknown;
+      categoryId?: unknown;
+      createdAtMs?: unknown;
+      itemLabel?: unknown;
+      replyId?: unknown;
+      replyText?: unknown;
+    };
+
+    if (
+      (candidate.actionType !== 'direct_reply' &&
+        candidate.actionType !== 'open_app' &&
+        candidate.actionType !== 'skip' &&
+        candidate.actionType !== 'split') ||
+      typeof candidate.captureEventId !== 'number' ||
+      typeof candidate.createdAtMs !== 'number' ||
+      typeof candidate.replyId !== 'number'
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        actionType: candidate.actionType,
+        captureEventId: candidate.captureEventId,
+        ...(typeof candidate.categoryId === 'string' ? { categoryId: candidate.categoryId } : {}),
+        createdAtMs: candidate.createdAtMs,
+        ...(typeof candidate.itemLabel === 'string' ? { itemLabel: candidate.itemLabel } : {}),
+        replyId: candidate.replyId,
+        ...(typeof candidate.replyText === 'string' ? { replyText: candidate.replyText } : {}),
+      },
+    ];
+  });
+}
+
+function parseCaptureEventParserInfo(value: unknown): NativeCaptureEventParserInfo | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as {
+    confidenceBps?: unknown;
+    parserId?: unknown;
+    parserVersion?: unknown;
+  };
+
+  if (
+    typeof candidate.parserId !== 'string' ||
+    typeof candidate.parserVersion !== 'string'
+  ) {
+    return null;
+  }
+
+  return {
+    confidenceBps:
+      typeof candidate.confidenceBps === 'number' ? candidate.confidenceBps : null,
+    parserId: candidate.parserId,
+    parserVersion: candidate.parserVersion,
+  };
+}
+
+function parseCaptureEventRecord(value: unknown): NativeCaptureEventRecord | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as {
+    captureEventId?: unknown;
+    captureState?: unknown;
+    capturedAtMs?: unknown;
+    linkedTransactionId?: unknown;
+    merchantRaw?: unknown;
+    notificationKey?: unknown;
+    parsedAmountMinor?: unknown;
+    parsedTimestampMs?: unknown;
+    parserInfo?: unknown;
+    replies?: unknown;
+    sourceAppId?: unknown;
+    syncState?: unknown;
+  };
+
+  if (
+    typeof candidate.captureEventId !== 'number' ||
+    (candidate.captureState !== 'captured' &&
+      candidate.captureState !== 'failed' &&
+      candidate.captureState !== 'imported' &&
+      candidate.captureState !== 'replied' &&
+      candidate.captureState !== 'skipped') ||
+    typeof candidate.capturedAtMs !== 'number' ||
+    typeof candidate.merchantRaw !== 'string' ||
+    typeof candidate.notificationKey !== 'string' ||
+    typeof candidate.parsedAmountMinor !== 'number' ||
+    typeof candidate.parsedTimestampMs !== 'number' ||
+    !isSupportedSourceAppId(candidate.sourceAppId)
+  ) {
+    return null;
+  }
+
+  return {
+    captureEventId: candidate.captureEventId,
+    captureState: candidate.captureState,
+    capturedAtMs: candidate.capturedAtMs,
+    ...(typeof candidate.linkedTransactionId === 'string'
+      ? { linkedTransactionId: candidate.linkedTransactionId }
+      : {}),
+    merchantRaw: candidate.merchantRaw,
+    notificationKey: candidate.notificationKey,
+    parsedAmountMinor: candidate.parsedAmountMinor,
+    parsedTimestampMs: candidate.parsedTimestampMs,
+    parserInfo: parseCaptureEventParserInfo(candidate.parserInfo),
+    replies: parseCaptureReplies(candidate.replies),
+    sourceAppId: candidate.sourceAppId,
+    ...((candidate.syncState === 'failed' ||
+      candidate.syncState === 'imported' ||
+      candidate.syncState === 'pending_import') && {
+      syncState: candidate.syncState,
+    }),
+  };
+}
+
+function parseCaptureEventRecords(value: unknown): NativeCaptureEventRecord[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    const parsedEvent = parseCaptureEventRecord(entry);
+    return parsedEvent ? [parsedEvent] : [];
+  });
+}
+
 export function buildRedactedCaptureDebugBundle({
   captureDiagnostics,
   enabledParserTemplates,
@@ -511,4 +691,88 @@ export async function clearStoredCaptureSnapshots(): Promise<NativeCaptureDiagno
   }
 
   return parseDiagnostics(await notificationCaptureModule.clearStoredSnapshots());
+}
+
+export async function getPendingNativeCaptureEvents(
+  limit = 50,
+): Promise<NativeCaptureEventRecord[]> {
+  if (!notificationCaptureModule) {
+    return [];
+  }
+
+  try {
+    return parseCaptureEventRecords(
+      await notificationCaptureModule.getPendingCaptureEvents(limit),
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function getNativeCaptureEvent(
+  captureEventId: number,
+): Promise<NativeCaptureEventRecord | null> {
+  if (!notificationCaptureModule) {
+    return null;
+  }
+
+  try {
+    return parseCaptureEventRecord(
+      await notificationCaptureModule.getCaptureEvent(captureEventId),
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function markNativeCaptureImported(
+  captureEventId: number,
+  linkedTransactionId: string,
+): Promise<void> {
+  if (!notificationCaptureModule) {
+    return;
+  }
+
+  await notificationCaptureModule.markCaptureImported(captureEventId, linkedTransactionId);
+}
+
+export async function markNativeCaptureImportFailed(
+  captureEventId: number,
+  errorCode: string,
+): Promise<void> {
+  if (!notificationCaptureModule) {
+    return;
+  }
+
+  await notificationCaptureModule.markCaptureImportFailed(captureEventId, errorCode);
+}
+
+export function subscribeToPendingCaptureEvents(
+  listener: (captureEventId: number | null) => void,
+): () => void {
+  if (!notificationCaptureModule || Platform.OS !== 'android') {
+    return () => {};
+  }
+
+  if (!notificationCaptureEventEmitter) {
+    notificationCaptureEventEmitter = new NativeEventEmitter(
+      notificationCaptureModule as never,
+    );
+  }
+
+  const subscription = notificationCaptureEventEmitter.addListener(
+    'notificationCaptureChanged',
+    (value: unknown) => {
+      const candidate =
+        value && typeof value === 'object'
+          ? (value as { captureEventId?: unknown })
+          : undefined;
+
+      listener(typeof candidate?.captureEventId === 'number' ? candidate.captureEventId : null);
+    },
+  );
+
+  return () => {
+    subscription.remove();
+  };
 }

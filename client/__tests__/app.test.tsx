@@ -1,15 +1,18 @@
 import { act, fireEvent, render, waitFor, type RenderAPI } from '@testing-library/react-native';
-import { Alert, AppState, Share } from 'react-native';
+import { Alert, AppState, Linking, Share } from 'react-native';
 
 import App from '../App';
 import {
+  DEFAULT_BUDGET_ALERT_SETTINGS,
   getDefaultCategories,
   seededTransactions,
   type Transaction,
 } from '../src/features/spend-tracker/domain';
 import type {
   NativeCaptureDedupeConfig,
+  NativeCaptureEventRecord,
   NativeCaptureDiagnostics,
+  NativeCaptureReplyRecord,
 } from '../src/features/android-capture/native-capture';
 import type { BootstrapConfigState } from '../src/features/bootstrap-config/runtime-config';
 import {
@@ -249,6 +252,7 @@ jest.mock('../src/features/android-capture/native-capture', () => ({
     storedSnapshotCount: 0,
     supportedParsers: [],
   },
+  getNativeCaptureEvent: jest.fn().mockResolvedValue(null),
   getNativeCaptureDiagnostics: jest.fn().mockResolvedValue({
     allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
     dedupeConfig: {
@@ -267,6 +271,9 @@ jest.mock('../src/features/android-capture/native-capture', () => ({
     storedSnapshotCount: 0,
     supportedParsers: [],
   }),
+  getPendingNativeCaptureEvents: jest.fn().mockResolvedValue([]),
+  markNativeCaptureImportFailed: jest.fn().mockResolvedValue(undefined),
+  markNativeCaptureImported: jest.fn().mockResolvedValue(undefined),
   setNativeCaptureDedupeConfig: jest.fn().mockResolvedValue({
     allowedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
     dedupeConfig: {
@@ -321,6 +328,7 @@ jest.mock('../src/features/android-capture/native-capture', () => ({
     storedSnapshotCount: 0,
     supportedParsers: [],
   }),
+  subscribeToPendingCaptureEvents: jest.fn(() => jest.fn()),
 }));
 
 const mockedLoadStoredSpendTrackerState =
@@ -336,13 +344,18 @@ const mockedBootstrapConfigModule = jest.requireMock(
 const mockedNativeCaptureModule = jest.requireMock(
   '../src/features/android-capture/native-capture'
 ) as {
+  getNativeCaptureEvent: jest.Mock<Promise<NativeCaptureEventRecord | null>, [number]>;
   getNativeCaptureDiagnostics: jest.Mock<Promise<NativeCaptureDiagnostics>, []>;
+  getPendingNativeCaptureEvents: jest.Mock<Promise<NativeCaptureEventRecord[]>, [number?]>;
+  markNativeCaptureImportFailed: jest.Mock<Promise<void>, [number, string]>;
+  markNativeCaptureImported: jest.Mock<Promise<void>, [number, string]>;
   setNativeCaptureDedupeConfig: jest.Mock<
     Promise<NativeCaptureDiagnostics>,
     [NativeCaptureDedupeConfig]
   >;
   setAllowedSourceApps: jest.Mock<Promise<NativeCaptureDiagnostics>, [string[]]>;
   setNativeCapturePrivacyModeEnabled: jest.Mock<Promise<NativeCaptureDiagnostics>, [boolean]>;
+  subscribeToPendingCaptureEvents: jest.Mock<() => void, [(captureEventId: number | null) => void]>;
 };
 const mockedFileSystem = jest.requireMock('expo-file-system/legacy') as {
   writeAsStringAsync: jest.Mock<Promise<void>, [string, string, { encoding: string }]>;
@@ -423,6 +436,38 @@ function buildMockCaptureDiagnostics(
   };
 }
 
+function buildMockNativeCaptureEvent(
+  overrides: Partial<NativeCaptureEventRecord> = {},
+  replyOverrides: Partial<NativeCaptureReplyRecord>[] = [],
+): NativeCaptureEventRecord {
+  return {
+    captureEventId: 401,
+    captureState: 'captured',
+    capturedAtMs: new Date('2026-03-30T08:40:00.000Z').getTime(),
+    merchantRaw: 'Native Chai Stall',
+    notificationKey: 'capture-native-401',
+    parsedAmountMinor: 18900,
+    parsedTimestampMs: new Date('2026-03-30T08:38:00.000Z').getTime(),
+    parserInfo: {
+      confidenceBps: 9800,
+      parserId: 'gpay_upi_v1',
+      parserVersion: '1.0.0',
+    },
+    replies: replyOverrides.map((replyOverride, index) => ({
+      actionType: 'direct_reply',
+      captureEventId: 401,
+      createdAtMs: new Date('2026-03-30T08:41:00.000Z').getTime() + index,
+      itemLabel: 'Morning chai',
+      replyId: index + 1,
+      replyText: 'Morning chai',
+      ...replyOverride,
+    })),
+    sourceAppId: 'google_pay',
+    syncState: 'pending_import',
+    ...overrides,
+  };
+}
+
 function buildHighVolumeInboxTransactions(totalTransactions = 1_000): Transaction[] {
   return [
     {
@@ -466,14 +511,47 @@ function buildDefaultCategories() {
   return getDefaultCategories();
 }
 
+function buildStoredState(
+  overrides: Partial<
+    NonNullable<Awaited<ReturnType<typeof loadStoredSpendTrackerState>>>
+  > = {},
+) {
+  return {
+    budgetAlertSettings: DEFAULT_BUDGET_ALERT_SETTINGS,
+    budgetAlerts: [],
+    budgets: [],
+    categories: buildDefaultCategories(),
+    merchantAliases: [],
+    merchants: [],
+    onboardingCompleted: true,
+    onboardingPreferences: DEFAULT_ONBOARDING_PREFERENCES,
+    notificationAccessState: 'settings_opened' as const,
+    privacyModeEnabled: false,
+    rules: [],
+    transactions: [],
+    ...overrides,
+  };
+}
+
 describe('App', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(null);
+    jest
+      .spyOn(Linking, 'addEventListener')
+      .mockImplementation(
+        () =>
+          ({ remove: jest.fn() }) as unknown as ReturnType<typeof Linking.addEventListener>,
+      );
     mockedLoadStoredSpendTrackerState.mockResolvedValue(null);
     mockedSaveStoredSpendTrackerState.mockResolvedValue(undefined);
     mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(
       buildMockCaptureDiagnostics(),
     );
+    mockedNativeCaptureModule.getNativeCaptureEvent.mockResolvedValue(null);
+    mockedNativeCaptureModule.getPendingNativeCaptureEvents.mockResolvedValue([]);
+    mockedNativeCaptureModule.markNativeCaptureImportFailed.mockResolvedValue(undefined);
+    mockedNativeCaptureModule.markNativeCaptureImported.mockResolvedValue(undefined);
     mockedNativeCaptureModule.setNativeCaptureDedupeConfig.mockImplementation(
       async (dedupeConfig) => {
         const diagnostics = await mockedNativeCaptureModule.getNativeCaptureDiagnostics();
@@ -495,6 +573,7 @@ describe('App', () => {
     mockedNativeCaptureModule.setNativeCapturePrivacyModeEnabled.mockImplementation(async () =>
       mockedNativeCaptureModule.getNativeCaptureDiagnostics(),
     );
+    mockedNativeCaptureModule.subscribeToPendingCaptureEvents.mockReturnValue(jest.fn());
     mockedBootstrapConfigModule.hydrateBootstrapConfigCache.mockResolvedValue(
       buildMockBootstrapState(),
     );
@@ -523,6 +602,10 @@ describe('App', () => {
         source: 'network',
       }),
     );
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('shows the hydration screen before onboarding resumes', async () => {
@@ -1576,6 +1659,73 @@ describe('App', () => {
           ]),
         }),
       ),
+    );
+  });
+
+  it('imports pending native captures on launch and marks them imported locally', async () => {
+    mockedLoadStoredSpendTrackerState.mockResolvedValue(buildStoredState());
+    mockedNativeCaptureModule.getPendingNativeCaptureEvents.mockResolvedValue([
+      buildMockNativeCaptureEvent(),
+    ]);
+
+    await renderApp();
+
+    await waitFor(() =>
+      expect(mockedNativeCaptureModule.markNativeCaptureImported).toHaveBeenCalledWith(
+        401,
+        'txn_capture_401',
+      ),
+    );
+
+    await waitFor(() =>
+      expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          transactions: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'txn_capture_401',
+              merchant: 'Native Chai Stall',
+              parserInfo: expect.objectContaining({
+                parserId: 'gpay_upi_v1',
+                parserVersion: '1.0.0',
+              }),
+              sourceApp: 'Google Pay',
+              status: 'uncategorized',
+            }),
+          ]),
+        }),
+      ),
+    );
+  });
+
+  it('routes capture-action deep links into classify with reply seed', async () => {
+    mockedLoadStoredSpendTrackerState.mockResolvedValue(buildStoredState());
+    mockedNativeCaptureModule.getNativeCaptureEvent.mockResolvedValue(
+      buildMockNativeCaptureEvent(
+        {
+          captureState: 'replied',
+        },
+        [
+          {
+            actionType: 'direct_reply',
+            itemLabel: 'Morning chai',
+            replyText: 'Morning chai',
+          },
+        ],
+      ),
+    );
+    jest
+      .spyOn(Linking, 'getInitialURL')
+      .mockResolvedValue(
+        'upispendtracker://capture-action?route=classify&captureEventId=401',
+      );
+
+    const screen = await renderApp();
+
+    expect(await screen.findByText('Turn this payment into a usable spend')).toBeTruthy();
+    expect(screen.getByDisplayValue('Morning chai')).toBeTruthy();
+    expect(mockedNativeCaptureModule.markNativeCaptureImported).toHaveBeenCalledWith(
+      401,
+      'txn_capture_401',
     );
   });
 });

@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import * as FileSystem from 'expo-file-system/legacy';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import {
   AppState,
   Alert,
@@ -133,14 +133,26 @@ import {
   type SyncMode,
 } from '../features/spend-tracker/persistence';
 import {
+  getCaptureClassificationSeed,
+  getImportedCaptureTransactionId,
+  parseCaptureActionUrl,
+  upsertImportedCaptureTransaction,
+} from '../features/android-capture/import';
+import {
   buildRedactedCaptureDebugBundle,
   clearStoredCaptureSnapshots,
   DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS,
+  getNativeCaptureEvent,
   getNativeCaptureDiagnostics,
+  getPendingNativeCaptureEvents,
+  markNativeCaptureImportFailed,
+  markNativeCaptureImported,
   setNativeCaptureDedupeConfig,
   setAllowedSourceApps,
   setNativeCapturePrivacyModeEnabled,
+  subscribeToPendingCaptureEvents,
   type CaptureTemplateVersionSummary,
+  type NativeCaptureEventRecord,
   type NativeCaptureDiagnostics,
 } from '../features/android-capture/native-capture';
 import {
@@ -374,6 +386,11 @@ export function SpendTrackerApp() {
     createInitialBootstrapConfigState(),
   );
   const [appStateStatus, setAppStateStatus] = useState(AppState.currentState);
+  const transactionsRef = useRef(transactions);
+  const merchantsRef = useRef(merchants);
+  const merchantAliasesRef = useRef(merchantAliases);
+  const nativeCaptureImportInFlightRef = useRef(false);
+  const handledInitialCaptureUrlRef = useRef(false);
 
   const pendingTransactions = getPendingTransactions(transactions);
   const allReviewTransactions = getInboxReviewTransactions(transactions, {
@@ -456,6 +473,9 @@ export function SpendTrackerApp() {
     merchantAliases,
   );
   const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
+  transactionsRef.current = transactions;
+  merchantsRef.current = merchants;
+  merchantAliasesRef.current = merchantAliases;
 
   useEffect(() => {
     let isMounted = true;
@@ -522,6 +542,7 @@ export function SpendTrackerApp() {
       setAppStateStatus(nextAppState);
       if (nextAppState === 'active') {
         void refreshDiagnostics();
+        void importPendingNativeCaptures();
       }
     });
 
@@ -530,6 +551,68 @@ export function SpendTrackerApp() {
       appStateSubscription?.remove?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (isHydrating) {
+      return;
+    }
+
+    void importPendingNativeCaptures();
+  }, [isHydrating]);
+
+  useEffect(() => {
+    if (isHydrating) {
+      return;
+    }
+
+    return subscribeToPendingCaptureEvents((captureEventId) => {
+      if (typeof captureEventId === 'number') {
+        void syncSingleNativeCapture(captureEventId);
+        return;
+      }
+
+      void importPendingNativeCaptures();
+    });
+  }, [isHydrating]);
+
+  useEffect(() => {
+    if (isHydrating || handledInitialCaptureUrlRef.current) {
+      return;
+    }
+
+    handledInitialCaptureUrlRef.current = true;
+    let isMounted = true;
+
+    async function handleInitialCaptureUrl() {
+      const initialUrl = await Linking.getInitialURL();
+
+      if (!isMounted || !initialUrl) {
+        return;
+      }
+
+      await handleCaptureActionUrl(initialUrl);
+    }
+
+    void handleInitialCaptureUrl();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isHydrating]);
+
+  useEffect(() => {
+    if (isHydrating) {
+      return;
+    }
+
+    const linkingSubscription = Linking.addEventListener('url', ({ url }) => {
+      void handleCaptureActionUrl(url);
+    });
+
+    return () => {
+      linkingSubscription.remove();
+    };
+  }, [isHydrating]);
 
   useEffect(() => {
     if (isHydrating) {
@@ -702,8 +785,8 @@ export function SpendTrackerApp() {
 
   function applyMerchantDirectoryState(
     nextTransactions: Transaction[],
-    nextMerchants: MerchantRecord[] = merchants,
-    nextMerchantAliases: MerchantAliasRecord[] = merchantAliases,
+    nextMerchants: MerchantRecord[] = merchantsRef.current,
+    nextMerchantAliases: MerchantAliasRecord[] = merchantAliasesRef.current,
   ) {
     const merchantDirectory = reconcileMerchantState(
       nextTransactions,
@@ -711,11 +794,130 @@ export function SpendTrackerApp() {
       nextMerchantAliases,
     );
 
+    transactionsRef.current = merchantDirectory.transactions;
+    merchantsRef.current = merchantDirectory.merchants;
+    merchantAliasesRef.current = merchantDirectory.merchantAliases;
     setTransactions(merchantDirectory.transactions);
     setMerchants(merchantDirectory.merchants);
     setMerchantAliases(merchantDirectory.merchantAliases);
 
     return merchantDirectory;
+  }
+
+  function buildNativeCaptureImportErrorCode(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message.trim().slice(0, 64) || 'js_import_failed';
+    }
+
+    return 'js_import_failed';
+  }
+
+  async function importNativeCaptureRecord(
+    captureEvent: NativeCaptureEventRecord,
+  ): Promise<string> {
+    const nextTransactions = upsertImportedCaptureTransaction(
+      transactionsRef.current,
+      captureEvent,
+    );
+    const linkedTransactionId = getImportedCaptureTransactionId(captureEvent);
+
+    if (nextTransactions !== transactionsRef.current) {
+      applyMerchantDirectoryState(nextTransactions);
+    }
+
+    if (captureEvent.syncState === 'pending_import') {
+      try {
+        await markNativeCaptureImported(captureEvent.captureEventId, linkedTransactionId);
+      } catch {
+        // Native import state can be retried later; the JS transaction already exists locally.
+      }
+    }
+
+    return linkedTransactionId;
+  }
+
+  async function syncSingleNativeCapture(
+    captureEventId: number,
+  ): Promise<{ captureEvent: NativeCaptureEventRecord; transactionId: string } | null> {
+    const captureEvent = await getNativeCaptureEvent(captureEventId);
+
+    if (!captureEvent) {
+      return null;
+    }
+
+    try {
+      const transactionId = await importNativeCaptureRecord(captureEvent);
+
+      return {
+        captureEvent,
+        transactionId,
+      };
+    } catch (error) {
+      if (captureEvent.syncState === 'pending_import') {
+        try {
+          await markNativeCaptureImportFailed(
+            captureEvent.captureEventId,
+            buildNativeCaptureImportErrorCode(error),
+          );
+        } catch {
+          // Native failure markers are best-effort only.
+        }
+      }
+
+      return null;
+    }
+  }
+
+  async function importPendingNativeCaptures() {
+    if (nativeCaptureImportInFlightRef.current) {
+      return;
+    }
+
+    nativeCaptureImportInFlightRef.current = true;
+
+    try {
+      const pendingCaptureEvents = await getPendingNativeCaptureEvents();
+
+      for (const captureEvent of pendingCaptureEvents) {
+        try {
+          await importNativeCaptureRecord(captureEvent);
+        } catch (error) {
+          try {
+            await markNativeCaptureImportFailed(
+              captureEvent.captureEventId,
+              buildNativeCaptureImportErrorCode(error),
+            );
+          } catch {
+            // Native failure markers are best-effort only.
+          }
+        }
+      }
+    } finally {
+      nativeCaptureImportInFlightRef.current = false;
+    }
+  }
+
+  async function handleCaptureActionUrl(url: string) {
+    const parsedCaptureAction = parseCaptureActionUrl(url);
+
+    if (!parsedCaptureAction) {
+      return;
+    }
+
+    const syncedCapture = await syncSingleNativeCapture(parsedCaptureAction.captureEventId);
+
+    if (!syncedCapture) {
+      return;
+    }
+
+    const classificationSeed = getCaptureClassificationSeed(syncedCapture.captureEvent.replies);
+
+    if (parsedCaptureAction.route === 'split') {
+      handleStartSplit(syncedCapture.transactionId, 'inbox', classificationSeed);
+      return;
+    }
+
+    handleStartClassification(syncedCapture.transactionId, 'inbox', classificationSeed);
   }
 
   async function handleOpenNotificationAccess() {
@@ -856,16 +1058,26 @@ export function SpendTrackerApp() {
   function handleStartClassification(
     transactionId: string,
     returnScreen: ScreenReturnTarget | null = null,
+    classificationSeed: Pick<ClassificationDraft, 'categoryId' | 'itemLabel'> | null = null,
   ) {
-    const transaction = getTransactionById(transactions, transactionId);
+    const transaction = getTransactionById(transactionsRef.current, transactionId);
 
     if (!transaction) {
       return;
     }
 
+    const nextDraft = buildClassificationDraft(transaction);
+
     setActiveTransactionId(transaction.id);
     setClassifyReturnScreen(returnScreen);
-    setDraft(buildClassificationDraft(transaction));
+    setDraft({
+      ...nextDraft,
+      categoryId: classificationSeed?.categoryId ?? nextDraft.categoryId,
+      itemLabel:
+        classificationSeed?.itemLabel?.trim().length
+          ? classificationSeed.itemLabel
+          : nextDraft.itemLabel,
+    });
     setSplitDraft(EMPTY_SPLIT_DRAFT);
     setScreen('classify');
   }
@@ -1143,7 +1355,7 @@ export function SpendTrackerApp() {
     returnScreen: SplitReturnScreen,
     classificationSeed?: Pick<ClassificationDraft, 'categoryId' | 'itemLabel'> | null,
   ) {
-    const transaction = getTransactionById(transactions, transactionId);
+    const transaction = getTransactionById(transactionsRef.current, transactionId);
 
     if (!transaction) {
       return;

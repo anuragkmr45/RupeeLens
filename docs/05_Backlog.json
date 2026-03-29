@@ -316,7 +316,7 @@
       "started_at": "2026-03-27",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "CAP-005 now has repo-side native actionable review notifications for successful unique captures, direct-reply / classify / split / skip action persistence through the Room-backed native capture repository, privacy-mode-driven lockscreen redaction, a focused formatter test, and the required repo validation passes (`./gradlew :app:testDebugUnitTest`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check`) on 2026-03-30. The ticket remains in progress because `adb devices` is empty again so connected-Android manual/receiver validation could not run, and the real one-tap classify handoff still needs CAP-006 native-to-JS import/routing instead of a notification-only native foundation."
+      "tracking_notes": "CAP-005 now has the full repo-side notification-action foundation plus CAP-006 native-to-JS import/routing in place: actionable review notifications post for successful unique captures, direct-reply / classify / split / skip actions persist through the Room-backed native capture repository, privacy-mode lockscreen redaction is enforced, and the React Native app now imports those native captures idempotently and honors classify / split deep links with reply-based prefill. `./gradlew :app:testDebugUnitTest`, focused client tests, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. The ticket remains in progress only because `adb devices` is empty again, so connected-Android manual action and receiver validation could not be completed in this environment."
     },
     {
       "id": "CAP-006",
@@ -336,12 +336,12 @@
       ],
       "tests": "Launch app after multiple native captures; verify no duplicate imports.",
       "done": "Native-to-JS bridge documented and reliable.",
-      "status": "in_progress",
+      "status": "done",
       "owner": "codex",
       "started_at": "2026-03-28",
-      "completed_at": "",
+      "completed_at": "2026-03-30",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Workflow re-audit on 2026-03-28 rechecked blocked tickets first. `CAP-003` remains blocked because `adb devices` shows a connected device but `./gradlew :app:connectedDebugAndroidTest` still fails to install `app-debug.apk` on `M2102J20SI - 13` with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`, and `CAP-004` remains blocked by the same connected-Android closeout class. `UX-005` also still depends on external QA/design acceptance, so `INT-003` is the next actionable canonical ticket. Scope is limited to deterministic local rules, rule-aware suggestions, and classify/manual integration."
+      "tracking_notes": "Completed CAP-006 on 2026-03-30 by exposing pending native capture records plus reply metadata through the Android bridge, emitting capture-change events to React Native, importing native captures idempotently into the existing local transaction store with deterministic IDs, and routing `upispendtracker://capture-action` deep links into classify and split flows with reply-based prefill. Focused client tests now cover import-on-launch, import idempotency helpers, and action-route classify handoff; `./gradlew :app:testDebugUnitTest`, `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, repo-wide `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed. No schema or OpenAPI changes were required."
     },
     {
       "id": "CAP-007",

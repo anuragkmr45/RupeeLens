@@ -205,6 +205,9 @@ interface CaptureEventDao {
   @Query("SELECT * FROM capture_events ORDER BY captured_at_ms DESC, id DESC LIMIT 1")
   fun getLatestEvent(): CaptureEventEntity?
 
+  @Query("SELECT * FROM capture_events WHERE id = :captureEventId LIMIT 1")
+  fun getById(captureEventId: Long): CaptureEventEntity?
+
   @Query("SELECT * FROM capture_events ORDER BY captured_at_ms DESC, id DESC LIMIT :limit")
   fun listRecentEvents(limit: Int): List<CaptureEventEntity>
 
