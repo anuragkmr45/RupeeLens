@@ -918,12 +918,12 @@
       ],
       "tests": "Job retry tests and rollback-safe reruns.",
       "done": "Worker runtime operational in staging.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-29",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Workflow continuation on 2026-03-29 re-audited blocked and in-progress tickets first. `SET-002` remains blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty in the current environment. `UX-005`, `INT-005`, `API-003`, `API-004`, and `API-005` are still active in backlog tracking, but their remaining gaps are external acceptance, mobile integration, staging evidence, or undefined latency targets rather than missing repo-side implementation. This pass added the first real worker-side rollup refresh, stale-session/export cleanup, and queued CSV export processing foundation with delayed retries, dead-letter visibility, and queue-depth/failure logging on top of the durable local stores. Focused worker tests plus `pnpm --filter @upi-spend-tracker/worker typecheck`, `pnpm --filter @upi-spend-tracker/worker test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-29. Status remains `in_progress` because the canonical done-when still requires the worker runtime to be operational in staging."
     },
     {
       "id": "SYNC-001",

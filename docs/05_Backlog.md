@@ -931,7 +931,7 @@ Reports APIs meet latency and correctness targets.
 - **Story points:** 5
 - **Goal:** Allow staged rollout of parsers, kill switches, and behavior toggles.
 - **Dependencies:** SET-006, API-001
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: done | Owner: codex | Started At: 2026-03-28 | Completed At: 2026-03-28 | Commit Ref: pending-local-commit | Tracking Notes: Closed the existing bootstrap path by adding explicit `Cache-Control`, `ETag`, and `Vary` headers on `GET /v1/bootstrap/config`, enforcing runtime compatibility from both app version and native/runtime version, varying `configVersion` by compatibility inputs, documenting the cache headers in `docs/04_API_Contract.yaml`, and proving the mobile client already requests the endpoint with version-aware query params. `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand bootstrap-config.test.ts`, `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-28, so the ticket now meets its acceptance and done-when bar.
 
 **Description**  
 Serve config payload by app version, platform, runtime version, and rollout channel. Include parser config, feature flags, min-version rules, and content hash.
@@ -957,7 +957,7 @@ Bootstrap endpoint used by mobile app.
 - **Story points:** 5
 - **Goal:** Keep API paths fast and maintenance tasks isolated.
 - **Dependencies:** API-001, API-003, API-005
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-29 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Workflow continuation on 2026-03-29 re-audited blocked and in-progress tickets first. `SET-002` remains blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty in the current environment. `UX-005`, `INT-005`, `API-003`, `API-004`, and `API-005` are still active in backlog tracking, but their remaining gaps are external acceptance, mobile integration, staging evidence, or undefined latency targets rather than missing repo-side implementation. This pass added the first real worker-side rollup refresh, stale-session/export cleanup, and queued CSV export processing foundation with delayed retries, dead-letter visibility, and queue-depth/failure logging on top of the durable local stores. Focused worker tests plus `pnpm --filter @upi-spend-tracker/worker typecheck`, `pnpm --filter @upi-spend-tracker/worker test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-29. Status remains `in_progress` because the canonical done-when still requires the worker runtime to be operational in staging.
 
 **Description**  
 Create worker jobs for daily rollups, old-raw-data pruning, stale pairing cleanup, export generation, and delayed retries. Use DB-backed or simple queue abstraction compatible with monolith.

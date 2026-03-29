@@ -77,7 +77,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 **Done in repo**
 
-- Local SQLite transaction tables on mobile plus a modular backend skeleton with explicit API and worker module factories, tested runtime config loaders, and repository/service seams around health and heartbeat
+- Local SQLite transaction tables on mobile plus a modular backend skeleton with explicit API and worker module factories, tested runtime config loaders, and repository/service seams across health, bootstrap, sessions, sync, domain, reports, and worker jobs
 - First guest-session and device-pairing APIs with token refresh rotation, device registration, one-time pairing-code creation/consumption, replay/expiry protection, and durable on-disk persistence across API restarts, all covered by typed contracts and route/service integration tests
 - First authenticated sync push/pull APIs with idempotency-key replay handling, optimistic-concurrency conflict responses, cursor-based delta pulls, and durable on-disk sync persistence, covered by contract, repository, service, and route tests
 - Weighted local history-based suggestion ranker with explainable merchant, amount-bucket, hour-bucket, weekday, recency, and frequency scoring reused across classify and manual-entry flows
@@ -89,7 +89,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 - CSV export, backup/restore
 - Mobile sync client integration and outbox/conflict-queue wiring
-- Backend modular-monolith feature modules beyond health and heartbeat
+- Worker jobs and export flows still need staging operation evidence
 
 ## Sprint 5 — APIs And Reports
 
@@ -100,11 +100,11 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Expanded authenticated domain API slice for transactions, transaction items, merchants, classify flow, categories, rules, and budgets, backed by a durable file store with optimistic-concurrency conflicts, explicit includeDeleted list behavior, soft deletes, versioned delete enforcement across the current write routes, and route-level integration coverage
 - First authenticated reports module with `GET /v1/reports/summary` and `GET /v1/reports/breakdown`, deterministic period totals and comparison deltas, grouped rollups across category, merchant, item, hour-of-day, and day-of-week, plus top-N metadata on breakdown responses
 - Closed bootstrap API behavior with explicit cache headers, runtime-version compatibility checks, and mobile-client usage through the local bootstrap refresh path
-- Worker heartbeat scheduled through the shared worker module/runtime skeleton
+- Worker heartbeat plus the first rollup-refresh, stale-session/export-cleanup, and queued CSV export-processing jobs, all scheduled through the shared worker module/runtime skeleton with delayed-retry and queue-depth/failure logging
 
 **Remaining**
 
-- Staging deployment/evidence for the current domain API suite, reports latency-target evidence and any heavier rollup persistence, background jobs, and the mobile outbox/conflict queue
+- Staging deployment/evidence for the current domain API suite and worker job suite, reports latency-target evidence and any heavier rollup persistence, and the mobile outbox/conflict queue
 - Broader QA harnesses, parser fixtures, and release-quality matrix work
 
 ## Sprint 6 — Hardening

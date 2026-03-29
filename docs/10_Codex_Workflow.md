@@ -127,22 +127,13 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `API-005 — Implement reports and summary APIs with precomputed rollups`
+- `QA-004 — Set up OTA channels, runtime versioning, and rollback playbook`
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `CAP-003` and `CAP-004` both remain blocked on connected-Android validation because `adb devices` is empty again in the current environment.
-- `UX-005` remains `in_progress`, but its remaining acceptance is external QA/design signoff rather than repo-side implementation.
-- `UX-007` is not yet actionable because it depends on `CAP-007`.
-- `INT-008` is not yet actionable because it depends on `UX-007`.
-- `INT-003` is now done with deterministic local rules, SQLite-backed rule persistence, explanation metadata, and explicit auto-apply only for user-approved matches in the client.
-- `INT-004` is now done with a weighted local history ranker that aggregates repeated confirmations, uses recency and frequency, and exposes explainable suggestion factors without silently auto-applying heuristics.
-- `INT-005` is now repo-side implemented with canonical local budget math and Home integration, but it remains `in_progress` in backlog tracking because the ticket's done-when still requires product and QA acceptance that was not available in this environment.
-- `INT-006` is now done with local budget list/create/edit UX, persisted quiet-mode-aware threshold scheduling and review state, and Home integration through the canonical budget engine.
-- `INT-007` is now done with optimized local rollups, prior-period comparison, and an in-app insights screen validated on a 10k local dataset.
-- `API-002` is now done with typed contracts, modular Fastify session routes, refresh rotation, one-time pairing codes, replay/expiry protection, and durable on-disk session persistence across API restarts.
-- `API-003` remains `in_progress`, but its only remaining gap is mobile integration evidence rather than missing repo-side backend implementation.
-- `API-006` is now done with explicit bootstrap cache headers, runtime-version compatibility checks, OpenAPI header documentation, and proof that the mobile client already calls the endpoint.
-- `API-004` remains `in_progress` in backlog tracking, but its remaining gap is staging evidence rather than missing repo-side implementation after the 2026-03-29 versioned-delete closeout pass.
-- `API-005` is now repo-side implemented with authenticated summary and breakdown routes plus top-N metadata, but it remains `in_progress` because the backlog done-when still requires explicit latency-target evidence that is not defined or provable in this environment.
+- `CAP-003` and `CAP-004` remain blocked on connected-Android validation because `adb devices` is empty in the current environment.
+- `UX-005`, `INT-005`, `API-003`, `API-004`, `API-005`, and `API-007` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, mobile integration evidence, staging evidence, or undefined latency targets rather than missing repo-side implementation.
+- `SYNC-001` is not yet actionable because it depends on `CAP-006`.
+- `QA-001` is not yet actionable because it depends on blocked `SET-002`.
+- `QA-004` is now the earliest remaining canonical `todo` with satisfied dependencies: `SET-006` is done and `API-006` is done.
