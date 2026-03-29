@@ -127,7 +127,7 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `API-004 — Implement transactions, items, merchants, categories, rules, and budgets APIs`
+- `API-005 — Implement reports and summary APIs with precomputed rollups`
 
 Reason:
 
@@ -144,4 +144,5 @@ Reason:
 - `API-002` is now done with typed contracts, modular Fastify session routes, refresh rotation, one-time pairing codes, replay/expiry protection, and durable on-disk session persistence across API restarts.
 - `API-003` remains `in_progress`, but its only remaining gap is mobile integration evidence rather than missing repo-side backend implementation.
 - `API-006` is now done with explicit bootstrap cache headers, runtime-version compatibility checks, OpenAPI header documentation, and proof that the mobile client already calls the endpoint.
-- `API-004` is still the earliest active canonical ticket: the repo now covers merchants and transaction items as part of the authenticated domain API slice, but versioned delete enforcement is still incomplete on older entity routes and the backlog done-when still requires staging evidence.
+- `API-004` remains `in_progress` in backlog tracking, but its remaining gap is staging evidence rather than missing repo-side implementation after the 2026-03-29 versioned-delete closeout pass.
+- `API-005` is now the next actionable repo-side backend ticket because its dependencies are satisfied by current repo truth even though `API-004` is not yet closable as `done` without staging.

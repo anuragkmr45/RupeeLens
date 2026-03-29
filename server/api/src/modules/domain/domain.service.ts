@@ -79,11 +79,11 @@ export interface DomainService {
   createRule(accessToken: string, request: RuleUpsertRequest): Rule;
   createTransaction(accessToken: string, request: TransactionUpsertRequest): Transaction;
   deleteItem(accessToken: string, itemId: string, request: VersionedDeleteRequest): void;
-  deleteBudget(accessToken: string, budgetId: string): void;
-  deleteCategory(accessToken: string, categoryId: string): void;
-  deleteMerchant(accessToken: string, merchantId: string): void;
-  deleteRule(accessToken: string, ruleId: string): void;
-  deleteTransaction(accessToken: string, transactionId: string): void;
+  deleteBudget(accessToken: string, budgetId: string, request: VersionedDeleteRequest): void;
+  deleteCategory(accessToken: string, categoryId: string, request: VersionedDeleteRequest): void;
+  deleteMerchant(accessToken: string, merchantId: string, request: VersionedDeleteRequest): void;
+  deleteRule(accessToken: string, ruleId: string, request: VersionedDeleteRequest): void;
+  deleteTransaction(accessToken: string, transactionId: string, request: VersionedDeleteRequest): void;
   getBudgetDetail(accessToken: string, budgetId: string): BudgetDetailResponse;
   getItemDetail(accessToken: string, itemId: string): TransactionItem;
   getMerchant(accessToken: string, merchantId: string): Merchant;
@@ -465,6 +465,12 @@ function validateItemPatch(request: TransactionItemPatchRequest): FieldError[] {
     });
   }
 
+  return errors;
+}
+
+function validateVersionedDeleteRequest(request: VersionedDeleteRequest): FieldError[] {
+  const errors: FieldError[] = [];
+  requirePositiveInteger(request.version, 'version', errors);
   return errors;
 }
 
@@ -1363,9 +1369,7 @@ export function createDomainService({
       return toTransaction(transaction);
     },
     deleteItem(accessToken, itemId, request) {
-      const errors: FieldError[] = [];
-      requirePositiveInteger(request.version, 'version', errors);
-      ensureValidOrThrow(errors);
+      ensureValidOrThrow(validateVersionedDeleteRequest(request));
 
       const session = authenticate(accessToken);
       const item = repository.getTransactionItem(session.userId, itemId);
@@ -1414,13 +1418,17 @@ export function createDomainService({
         userId: session.userId,
       });
     },
-    deleteBudget(accessToken, budgetId) {
+    deleteBudget(accessToken, budgetId, request) {
+      ensureValidOrThrow(validateVersionedDeleteRequest(request));
+
       const session = authenticate(accessToken);
       const budget = repository.getBudget(session.userId, budgetId);
 
       if (!budget) {
         throw new DomainNotFoundError('Budget not found.');
       }
+
+      assertVersion(budget.version, request.version);
 
       repository.saveBudget({
         ...budget,
@@ -1429,13 +1437,17 @@ export function createDomainService({
         version: budget.version + 1,
       });
     },
-    deleteCategory(accessToken, categoryId) {
+    deleteCategory(accessToken, categoryId, request) {
+      ensureValidOrThrow(validateVersionedDeleteRequest(request));
+
       const session = authenticate(accessToken);
       const category = repository.getCategory(session.userId, categoryId);
 
       if (!category) {
         throw new DomainNotFoundError('Category not found.');
       }
+
+      assertVersion(category.version, request.version);
 
       repository.saveCategory({
         ...category,
@@ -1444,13 +1456,17 @@ export function createDomainService({
         version: category.version + 1,
       });
     },
-    deleteMerchant(accessToken, merchantId) {
+    deleteMerchant(accessToken, merchantId, request) {
+      ensureValidOrThrow(validateVersionedDeleteRequest(request));
+
       const session = authenticate(accessToken);
       const merchant = repository.getMerchant(session.userId, merchantId);
 
       if (!merchant) {
         throw new DomainNotFoundError('Merchant not found.');
       }
+
+      assertVersion(merchant.version, request.version);
 
       repository.saveMerchant({
         ...merchant,
@@ -1459,13 +1475,17 @@ export function createDomainService({
         version: merchant.version + 1,
       });
     },
-    deleteRule(accessToken, ruleId) {
+    deleteRule(accessToken, ruleId, request) {
+      ensureValidOrThrow(validateVersionedDeleteRequest(request));
+
       const session = authenticate(accessToken);
       const rule = repository.getRule(session.userId, ruleId);
 
       if (!rule) {
         throw new DomainNotFoundError('Rule not found.');
       }
+
+      assertVersion(rule.version, request.version);
 
       repository.saveRule({
         ...rule,
@@ -1474,13 +1494,17 @@ export function createDomainService({
         version: rule.version + 1,
       });
     },
-    deleteTransaction(accessToken, transactionId) {
+    deleteTransaction(accessToken, transactionId, request) {
+      ensureValidOrThrow(validateVersionedDeleteRequest(request));
+
       const session = authenticate(accessToken);
       const transaction = repository.getTransaction(session.userId, transactionId);
 
       if (!transaction) {
         throw new DomainNotFoundError('Transaction not found.');
       }
+
+      assertVersion(transaction.version, request.version);
 
       const nowIso = now();
       repository.saveTransaction({

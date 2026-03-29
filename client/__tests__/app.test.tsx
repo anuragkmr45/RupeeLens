@@ -387,7 +387,7 @@ function buildHighVolumeInboxTransactions(totalTransactions = 1_000): Transactio
     },
     ...Array.from({ length: totalTransactions - 1 }, (_, index) => ({
       amountMinor: 19900,
-      capturedAt: '2026-03-25T08:34:00+05:30',
+      capturedAt: '2026-03-29T08:34:00+05:30',
       id: `txn_inbox_scale_${index + 1}`,
       items: [],
       merchant: `Merchant ${String(index + 1).padStart(4, '0')}`,
@@ -856,6 +856,7 @@ describe('App', () => {
 
   it('keeps the inbox usable with 1000 local items and all filter types', async () => {
     jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-03-29T12:00:00+05:30'));
     mockedLoadStoredSpendTrackerState.mockResolvedValue({
       categories: buildDefaultCategories(),
       onboardingPreferences: DEFAULT_ONBOARDING_PREFERENCES,

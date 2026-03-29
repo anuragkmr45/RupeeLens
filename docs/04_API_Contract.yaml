@@ -381,9 +381,19 @@ paths:
       summary: Soft delete transaction
       parameters:
       - $ref: '#/components/parameters/TransactionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionedDeleteRequest'
       responses:
         '204':
           description: Transaction deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '404':
           $ref: '#/components/responses/NotFound'
   /v1/transactions/{transactionId}/classify:
@@ -682,9 +692,19 @@ paths:
       summary: Soft delete merchant
       parameters:
       - $ref: '#/components/parameters/MerchantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionedDeleteRequest'
       responses:
         '204':
           description: Merchant deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '404':
           $ref: '#/components/responses/NotFound'
   /v1/categories/{categoryId}:
@@ -713,9 +733,19 @@ paths:
       summary: Soft delete category
       parameters:
       - $ref: '#/components/parameters/CategoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionedDeleteRequest'
       responses:
         '204':
           description: Category deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/rules:
     get:
       tags:
@@ -776,9 +806,19 @@ paths:
       summary: Delete rule
       parameters:
       - $ref: '#/components/parameters/RuleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionedDeleteRequest'
       responses:
         '204':
           description: Rule deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/budgets:
     get:
       tags:
@@ -852,9 +892,19 @@ paths:
       summary: Delete budget
       parameters:
       - $ref: '#/components/parameters/BudgetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionedDeleteRequest'
       responses:
         '204':
           description: Budget deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /v1/reports/summary:
     get:
       tags:

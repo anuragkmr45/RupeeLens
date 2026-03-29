@@ -268,6 +268,7 @@ describe('domain routes', () => {
     });
 
     expect(patchCategoryResponse.statusCode).toBe(200);
+    const patchedCategory = patchCategoryResponse.json();
 
     const stalePatchResponse = await app.inject({
       headers: authHeaders,
@@ -281,9 +282,23 @@ describe('domain routes', () => {
 
     expect(stalePatchResponse.statusCode).toBe(409);
 
+    const staleDeleteCategoryResponse = await app.inject({
+      headers: authHeaders,
+      method: 'DELETE',
+      payload: {
+        version: category.version,
+      },
+      url: `/v1/categories/${category.id}`,
+    });
+
+    expect(staleDeleteCategoryResponse.statusCode).toBe(409);
+
     const deleteCategoryResponse = await app.inject({
       headers: authHeaders,
       method: 'DELETE',
+      payload: {
+        version: patchedCategory.version,
+      },
       url: `/v1/categories/${category.id}`,
     });
 
@@ -559,6 +574,9 @@ describe('domain routes', () => {
     const deleteCategoryResponse = await app.inject({
       headers: authHeaders,
       method: 'DELETE',
+      payload: {
+        version: category.version,
+      },
       url: `/v1/categories/${category.id}`,
     });
 
@@ -594,6 +612,9 @@ describe('domain routes', () => {
     const deleteMerchantResponse = await app.inject({
       headers: authHeaders,
       method: 'DELETE',
+      payload: {
+        version: patchedMerchant.version,
+      },
       url: `/v1/merchants/${merchant.id}`,
     });
 
@@ -628,9 +649,21 @@ describe('domain routes', () => {
       total: 1,
     });
 
+    const afterItemDeleteTransactionDetail = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: `/v1/transactions/${transaction.id}`,
+    });
+
+    expect(afterItemDeleteTransactionDetail.statusCode).toBe(200);
+    const deletedItemTransaction = afterItemDeleteTransactionDetail.json();
+
     const deleteTransactionResponse = await app.inject({
       headers: authHeaders,
       method: 'DELETE',
+      payload: {
+        version: deletedItemTransaction.transaction.version,
+      },
       url: `/v1/transactions/${transaction.id}`,
     });
 

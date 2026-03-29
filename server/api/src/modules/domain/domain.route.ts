@@ -731,21 +731,28 @@ export function registerDomainRoutes(app: FastifyInstance, service: DomainServic
   app.delete('/v1/transactions/:transactionId', async (request, reply) => {
     const accessToken = parseBearerToken(request.headers.authorization);
     const transactionId = parseString((request.params as Record<string, unknown>).transactionId);
+    const body = parseVersionedDeleteRequest(request.body);
 
     if (!accessToken) {
       return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
     }
 
-    if (!transactionId) {
-      return reply.status(400).send(badRequest('Expected a transactionId path parameter.'));
+    if (!transactionId || !body) {
+      return reply.status(400).send(badRequest('Expected valid transaction delete values.'));
     }
 
     try {
-      service.deleteTransaction(accessToken, transactionId);
+      service.deleteTransaction(accessToken, transactionId, body);
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof SessionUnauthorizedError) {
         return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainBadRequestError) {
+        return reply.status(400).send(badRequest(error.message, error.fieldErrors));
+      }
+      if (error instanceof DomainConflictError) {
+        return reply.status(409).send(conflict(error.message));
       }
       if (error instanceof DomainNotFoundError) {
         return reply.status(404).send(notFound(error.message));
@@ -1087,21 +1094,28 @@ export function registerDomainRoutes(app: FastifyInstance, service: DomainServic
   app.delete('/v1/merchants/:merchantId', async (request, reply) => {
     const accessToken = parseBearerToken(request.headers.authorization);
     const merchantId = parseString((request.params as Record<string, unknown>).merchantId);
+    const body = parseVersionedDeleteRequest(request.body);
 
     if (!accessToken) {
       return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
     }
 
-    if (!merchantId) {
-      return reply.status(400).send(badRequest('Expected a merchantId path parameter.'));
+    if (!merchantId || !body) {
+      return reply.status(400).send(badRequest('Expected valid merchant delete values.'));
     }
 
     try {
-      service.deleteMerchant(accessToken, merchantId);
+      service.deleteMerchant(accessToken, merchantId, body);
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof SessionUnauthorizedError) {
         return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainBadRequestError) {
+        return reply.status(400).send(badRequest(error.message, error.fieldErrors));
+      }
+      if (error instanceof DomainConflictError) {
+        return reply.status(409).send(conflict(error.message));
       }
       if (error instanceof DomainNotFoundError) {
         return reply.status(404).send(notFound(error.message));
@@ -1145,21 +1159,28 @@ export function registerDomainRoutes(app: FastifyInstance, service: DomainServic
   app.delete('/v1/categories/:categoryId', async (request, reply) => {
     const accessToken = parseBearerToken(request.headers.authorization);
     const categoryId = parseString((request.params as Record<string, unknown>).categoryId);
+    const body = parseVersionedDeleteRequest(request.body);
 
     if (!accessToken) {
       return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
     }
 
-    if (!categoryId) {
-      return reply.status(400).send(badRequest('Expected a categoryId path parameter.'));
+    if (!categoryId || !body) {
+      return reply.status(400).send(badRequest('Expected valid category delete values.'));
     }
 
     try {
-      service.deleteCategory(accessToken, categoryId);
+      service.deleteCategory(accessToken, categoryId, body);
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof SessionUnauthorizedError) {
         return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainBadRequestError) {
+        return reply.status(400).send(badRequest(error.message, error.fieldErrors));
+      }
+      if (error instanceof DomainConflictError) {
+        return reply.status(409).send(conflict(error.message));
       }
       if (error instanceof DomainNotFoundError) {
         return reply.status(404).send(notFound(error.message));
@@ -1250,21 +1271,28 @@ export function registerDomainRoutes(app: FastifyInstance, service: DomainServic
   app.delete('/v1/rules/:ruleId', async (request, reply) => {
     const accessToken = parseBearerToken(request.headers.authorization);
     const ruleId = parseString((request.params as Record<string, unknown>).ruleId);
+    const body = parseVersionedDeleteRequest(request.body);
 
     if (!accessToken) {
       return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
     }
 
-    if (!ruleId) {
-      return reply.status(400).send(badRequest('Expected a ruleId path parameter.'));
+    if (!ruleId || !body) {
+      return reply.status(400).send(badRequest('Expected valid rule delete values.'));
     }
 
     try {
-      service.deleteRule(accessToken, ruleId);
+      service.deleteRule(accessToken, ruleId, body);
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof SessionUnauthorizedError) {
         return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainBadRequestError) {
+        return reply.status(400).send(badRequest(error.message, error.fieldErrors));
+      }
+      if (error instanceof DomainConflictError) {
+        return reply.status(409).send(conflict(error.message));
       }
       if (error instanceof DomainNotFoundError) {
         return reply.status(404).send(notFound(error.message));
@@ -1380,21 +1408,28 @@ export function registerDomainRoutes(app: FastifyInstance, service: DomainServic
   app.delete('/v1/budgets/:budgetId', async (request, reply) => {
     const accessToken = parseBearerToken(request.headers.authorization);
     const budgetId = parseString((request.params as Record<string, unknown>).budgetId);
+    const body = parseVersionedDeleteRequest(request.body);
 
     if (!accessToken) {
       return reply.status(401).send(unauthorized('Missing or invalid bearer token.'));
     }
 
-    if (!budgetId) {
-      return reply.status(400).send(badRequest('Expected a budgetId path parameter.'));
+    if (!budgetId || !body) {
+      return reply.status(400).send(badRequest('Expected valid budget delete values.'));
     }
 
     try {
-      service.deleteBudget(accessToken, budgetId);
+      service.deleteBudget(accessToken, budgetId, body);
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof SessionUnauthorizedError) {
         return reply.status(401).send(unauthorized(error.message));
+      }
+      if (error instanceof DomainBadRequestError) {
+        return reply.status(400).send(badRequest(error.message, error.fieldErrors));
+      }
+      if (error instanceof DomainConflictError) {
+        return reply.status(409).send(conflict(error.message));
       }
       if (error instanceof DomainNotFoundError) {
         return reply.status(404).send(notFound(error.message));
