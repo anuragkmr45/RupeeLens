@@ -127,7 +127,7 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `API-003 — Implement sync push/pull APIs with idempotency and cursor-based deltas` as a continuation/closeout pass.
+- `SYNC-001 — Implement local-first outbox, retry policy, and conflict queue on mobile` as a continuation/closeout pass.
 
 Reason:
 
@@ -137,4 +137,5 @@ Reason:
 - `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-004`, `API-005`, `API-007`, and `QA-004` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, manual QA spreadsheet verification, staging evidence, remote Expo project wiring, non-production OTA/rollback dry-run evidence, engineering approval, or undefined latency targets rather than missing repo-side implementation.
 - `QA-001` is not yet actionable because it depends on blocked `SET-002`.
 - `QA-002`, `QA-003`, `QA-005`, `REL-001`, and `REL-002` still have blocked dependencies.
-- `SYNC-001` now has its repo-side mobile outbox/conflict implementation, which means `API-003` is the earliest active canonical ticket whose remaining closeout gap can be addressed by adding mobile integration evidence in-repo.
+- `API-003` is now closed by paired mobile-style integration evidence over the real session, pairing, and sync routes.
+- `SYNC-001` is therefore the earliest active canonical ticket with a remaining repo-side implementation gap: the client still needs pairing/session credential provisioning on top of the existing outbox, retry, and conflict foundation before the ticket can move beyond an external beta-stability closeout.

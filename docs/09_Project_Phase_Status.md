@@ -84,7 +84,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 
 - Local SQLite transaction tables on mobile plus a modular backend skeleton with explicit API and worker module factories, tested runtime config loaders, and repository/service seams across health, bootstrap, sessions, sync, domain, reports, and worker jobs
 - First guest-session and device-pairing APIs with token refresh rotation, device registration, one-time pairing-code creation/consumption, replay/expiry protection, and durable on-disk persistence across API restarts, all covered by typed contracts and route/service integration tests
-- First authenticated sync push/pull APIs with idempotency-key replay handling, optimistic-concurrency conflict responses, cursor-based delta pulls, and durable on-disk sync persistence, covered by contract, repository, service, and route tests
+- First authenticated sync push/pull APIs with idempotency-key replay handling, optimistic-concurrency conflict responses, cursor-based delta pulls, durable on-disk sync persistence, and paired mobile-style integration coverage over the real session, pairing, and sync routes
 - Weighted local history-based suggestion ranker with explainable merchant, amount-bucket, hour-bucket, weekday, recency, and frequency scoring reused across classify and manual-entry flows
 - Canonical local budget engine with overall, category, merchant, and item scopes across monthly, weekly, rolling, and custom cycles, including projected spend and threshold state now wired into Home
 - Local budget-management flow with list/create/edit UX, quiet-mode-aware 50/80/100 threshold alerts, persisted alert review state, and Home review cards backed by the canonical budget engine

@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### API-003 — Implement Sync Push/Pull APIs With Idempotency And Cursor-Based Deltas
+
+- **Status:** completed
+- **Ticket:** API-003
+- **Goal:** Close the remaining backend sync ticket gap by adding true mobile-style integration evidence against the existing session, pairing, and sync routes without widening into staging rollout, client pairing UI, or new domain API scope.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `server/api/src/modules/sync/*.test.ts`, and repo-truth docs (`README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`) only if the validation evidence changes ticket status or the default-next note.
+- **Rationale:** The re-audit on 2026-03-30 still leaves `SET-002` blocked because `gh` is unavailable, and `CAP-003` plus `CAP-004` remain blocked because `adb devices` is empty. `CAP-005`, `UX-005`, `INT-005`, `INT-008`, `API-004`, `API-005`, `API-007`, and `QA-004` still only have external closeout gaps. `SYNC-001` now supplies the missing mobile outbox/conflict foundation, so `API-003` becomes the earliest active canonical ticket whose remaining gap is closeable in-repo through mobile integration evidence.
+- **Risks:** This can sprawl into client pairing UX, staging deployment, or broader server-domain changes. Keep the scope inside mobile-style HTTP integration tests over the existing session/pairing/sync routes and only fix server behavior if the new evidence exposes a real defect.
+- **API / schema impact:** No contract or schema change expected. Prefer validation-only closeout unless the new integration tests expose a concrete sync bug.
+- **Rollout / flag plan:** Reuse the current session, pairing, and sync APIs exactly as shipped. Do not add hidden test-only endpoints or a second sync protocol.
+- **Validation commands:** `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check`. Run `pnpm lint:openapi` only if the contract changes.
+- **Done when:** Sync push/pull passes real mobile-style integration tests covering paired-device auth, idempotent replay, pull cursor deltas, and machine-readable conflicts, and tracking reflects whether the canonical backend ticket can now close.
+- **Outcome:** Added [`sync.mobile-integration.test.ts`](/Users/anuragkumar/Desktop/RupeeLens/server/api/src/modules/sync/sync.mobile-integration.test.ts), which drives the real session, device-pairing, and sync routes through Fastify injection using paired mobile-style request flows. The closeout evidence now covers guest-session issuance, pairing-code creation/consumption, idempotent replay, cursor-based delta pulls, and machine-readable stale-version conflicts; `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test -- --runInBand src/modules/sync`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` passed on 2026-03-30, so the canonical backlog ticket can now move to `done`.
+
 ### SYNC-001 — Implement Local-First Outbox, Retry Policy, And Conflict Queue On Mobile
 
 - **Status:** completed
