@@ -79,6 +79,16 @@ jest.mock('../src/features/sync/session', () => ({
   ensureFreshSyncCredentials: jest.fn(async ({ credentials }) => credentials),
 }));
 
+jest.mock('../src/features/telemetry/runtime', () => ({
+  enqueueTelemetryEvent: jest.fn().mockResolvedValue(1),
+  flushTelemetryEvents: jest.fn().mockResolvedValue({
+    acceptedCount: 0,
+    duplicateCount: 0,
+    remainingCount: 0,
+  }),
+  installGlobalTelemetryErrorHandler: jest.fn(() => jest.fn()),
+}));
+
 jest.mock('expo-file-system/legacy', () => ({
   EncodingType: {
     UTF8: 'utf8',
@@ -430,6 +440,14 @@ const mockedNativeCaptureModule = jest.requireMock(
 const mockedFileSystem = jest.requireMock('expo-file-system/legacy') as {
   writeAsStringAsync: jest.Mock<Promise<void>, [string, string, { encoding: string }]>;
 };
+const mockedTelemetryModule = jest.requireMock('../src/features/telemetry/runtime') as {
+  enqueueTelemetryEvent: jest.Mock<Promise<number>, [unknown]>;
+  flushTelemetryEvents: jest.Mock<
+    Promise<{ acceptedCount: number; duplicateCount: number; remainingCount: number }>,
+    [unknown]
+  >;
+  installGlobalTelemetryErrorHandler: jest.Mock<() => void, [(error: unknown, isFatal: boolean) => void]>;
+};
 
 function buildMockBootstrapState(
   overrides: Partial<BootstrapConfigState> = {},
@@ -719,6 +737,13 @@ describe('App', () => {
         source: 'network',
       }),
     );
+    mockedTelemetryModule.enqueueTelemetryEvent.mockResolvedValue(1);
+    mockedTelemetryModule.flushTelemetryEvents.mockResolvedValue({
+      acceptedCount: 0,
+      duplicateCount: 0,
+      remainingCount: 0,
+    });
+    mockedTelemetryModule.installGlobalTelemetryErrorHandler.mockReturnValue(jest.fn());
   });
 
   afterEach(() => {
@@ -738,6 +763,23 @@ describe('App', () => {
     expect(await screen.findByText('Source apps')).toBeTruthy();
     expect(screen.getByText('Budget cycle')).toBeTruthy();
     expect(await screen.findByText('Continue in local-only mode')).toBeTruthy();
+  });
+
+  it('records onboarding completion and local-only permission denial telemetry events', async () => {
+    const screen = render(<App />);
+
+    fireEvent.press(await screen.findByText('Continue in local-only mode'));
+
+    await waitFor(() => {
+      expect(mockedTelemetryModule.enqueueTelemetryEvent).toHaveBeenCalled();
+    });
+
+    const eventNames = mockedTelemetryModule.enqueueTelemetryEvent.mock.calls.map(
+      ([event]) => (event as { eventName: string }).eventName,
+    );
+
+    expect(eventNames).toContain('onboarding_completed');
+    expect(eventNames).toContain('notification_permission_denied');
   });
 
   it('hydrates a previously completed local session', async () => {

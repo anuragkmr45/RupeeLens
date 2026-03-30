@@ -5,6 +5,7 @@ const DEFAULT_API_PORT = 3000;
 const DEFAULT_DOMAIN_STORE_FILE = path.resolve(process.cwd(), '.local', 'domain-store.json');
 const DEFAULT_SESSION_STORE_FILE = path.resolve(process.cwd(), '.local', 'sessions-store.json');
 const DEFAULT_SYNC_STORE_FILE = path.resolve(process.cwd(), '.local', 'sync-store.json');
+const DEFAULT_TELEMETRY_STORE_FILE = path.resolve(process.cwd(), '.local', 'telemetry-store.json');
 
 export interface ApiRuntimeConfig {
   domainStoreFile: string;
@@ -12,6 +13,7 @@ export interface ApiRuntimeConfig {
   port: number;
   sessionStoreFile: string;
   syncStoreFile: string;
+  telemetryStoreFile: string;
 }
 
 function parsePort(value: string | undefined): number {
@@ -28,24 +30,25 @@ function parsePort(value: string | undefined): number {
   return parsed;
 }
 
-function parseSessionStoreFile(value: string | undefined): string {
+function parseStoreFile(value: string | undefined, fallbackValue: string): string {
   if (!value) {
-    return DEFAULT_SESSION_STORE_FILE;
+    return fallbackValue;
   }
 
   const trimmedValue = value.trim();
 
   return trimmedValue.length > 0
     ? path.resolve(trimmedValue)
-    : DEFAULT_SESSION_STORE_FILE;
+    : fallbackValue;
 }
 
 export function getApiRuntimeConfig(env: NodeJS.ProcessEnv = process.env): ApiRuntimeConfig {
   return {
-    domainStoreFile: parseSessionStoreFile(env.API_DOMAIN_STORE_FILE ?? DEFAULT_DOMAIN_STORE_FILE),
+    domainStoreFile: parseStoreFile(env.API_DOMAIN_STORE_FILE, DEFAULT_DOMAIN_STORE_FILE),
     host: env.HOST ?? DEFAULT_API_HOST,
     port: parsePort(env.PORT),
-    sessionStoreFile: parseSessionStoreFile(env.API_SESSION_STORE_FILE),
-    syncStoreFile: parseSessionStoreFile(env.API_SYNC_STORE_FILE ?? DEFAULT_SYNC_STORE_FILE),
+    sessionStoreFile: parseStoreFile(env.API_SESSION_STORE_FILE, DEFAULT_SESSION_STORE_FILE),
+    syncStoreFile: parseStoreFile(env.API_SYNC_STORE_FILE, DEFAULT_SYNC_STORE_FILE),
+    telemetryStoreFile: parseStoreFile(env.API_TELEMETRY_STORE_FILE, DEFAULT_TELEMETRY_STORE_FILE),
   };
 }

@@ -1,7 +1,14 @@
 import { StatusBar } from 'expo-status-bar';
 import * as FileSystem from 'expo-file-system/legacy';
 import { type ReactNode, useDeferredValue, useEffect, useRef, useState } from 'react';
-import type { DevicePairingCodeResponse } from '@upi-spend-tracker/contracts';
+import type {
+  DevicePairingCodeResponse,
+  TelemetryBudgetScope,
+  TelemetryClassifySource,
+  TelemetryEvent,
+  TelemetryRuntimeErrorDomain,
+  TelemetrySyncMode,
+} from '@upi-spend-tracker/contracts';
 import {
   AppState,
   Alert,
@@ -203,6 +210,23 @@ import {
   CSV_EXPORT_SCHEMAS,
   type CsvExportKind,
 } from '../features/export/local-export';
+import {
+  buildRuntimeErrorCode,
+  createBudgetAlertDeliveryTelemetryEvent,
+  createCaptureFailureTelemetryEvent,
+  createCaptureSuccessTelemetryEvent,
+  createClassifyCompletedTelemetryEvent,
+  createNotificationPermissionDeniedTelemetryEvent,
+  createOnboardingCompletedTelemetryEvent,
+  createParserFallbackTelemetryEvent,
+  createRuntimeErrorTelemetryEvent,
+  createSyncErrorTelemetryEvent,
+} from '../features/telemetry/events';
+import {
+  enqueueTelemetryEvent,
+  flushTelemetryEvents,
+  installGlobalTelemetryErrorHandler,
+} from '../features/telemetry/runtime';
 import { APP_COPY } from '../lib/app-info';
 import { colors } from '../theme/colors';
 import { DesignSystemShowcaseScreen } from './DesignSystemShowcaseScreen';
@@ -439,6 +463,8 @@ export function SpendTrackerApp() {
   const syncStateRef = useRef(syncState);
   const lastPersistedStateRef = useRef<PersistedSpendTrackerState | null>(null);
   const handledInitialCaptureUrlRef = useRef(false);
+  const classificationStartedAtRef = useRef<string | null>(null);
+  const knownBudgetAlertIdsRef = useRef<Set<string>>(new Set());
   const hasSyncCredentials = Boolean(
     syncCredentials?.accessToken && syncCredentials.refreshToken,
   );
@@ -558,6 +584,70 @@ export function SpendTrackerApp() {
     syncMode: onboardingPreferences.syncMode,
     syncState,
   });
+
+  function getCurrentTelemetrySyncMode(
+    credentialsOverride: StoredSyncCredentials | null = syncCredentialsRef.current,
+  ): TelemetrySyncMode {
+    return credentialsOverride ? 'cloud_sync' : onboardingPreferences.syncMode;
+  }
+
+  function getTelemetryBudgetScope(budgetId: string): TelemetryBudgetScope {
+    return budgets.find((budget) => budget.id === budgetId)?.scope ?? 'overall';
+  }
+
+  function getTelemetryClassifySource(
+    returnScreen: ScreenReturnTarget | null,
+  ): TelemetryClassifySource {
+    switch (returnScreen) {
+      case 'detail':
+        return 'detail';
+      case 'home':
+        return 'home';
+      case 'inbox':
+      default:
+        return 'inbox';
+    }
+  }
+
+  async function flushQueuedTelemetryEvents(
+    credentialsOverride: StoredSyncCredentials | null = syncCredentialsRef.current,
+  ) {
+    try {
+      await flushTelemetryEvents({
+        credentials: credentialsOverride
+          ? {
+              accessToken: credentialsOverride.accessToken,
+              ...(credentialsOverride.apiBaseUrl !== undefined
+                ? { apiBaseUrl: credentialsOverride.apiBaseUrl }
+                : {}),
+            }
+          : null,
+      });
+    } catch {
+      // Telemetry stays queued locally until a later successful flush.
+    }
+  }
+
+  function trackTelemetryEvent(event: TelemetryEvent) {
+    void enqueueTelemetryEvent(event)
+      .then(() => flushQueuedTelemetryEvents())
+      .catch(() => undefined);
+  }
+
+  function trackRuntimeError(
+    domain: TelemetryRuntimeErrorDomain,
+    error: unknown,
+    fatal = false,
+  ) {
+    trackTelemetryEvent(
+      createRuntimeErrorTelemetryEvent({
+        code: buildRuntimeErrorCode(error),
+        domain,
+        fatal,
+        rolloutChannel: bootstrapState.config.rolloutChannel,
+      }),
+    );
+  }
   transactionsRef.current = transactions;
   merchantsRef.current = merchants;
   merchantAliasesRef.current = merchantAliases;
@@ -601,6 +691,9 @@ export function SpendTrackerApp() {
         setCategories(storedState.categories);
         setBudgets(storedState.budgets ?? []);
         setBudgetAlerts(storedState.budgetAlerts ?? []);
+        knownBudgetAlertIdsRef.current = new Set(
+          (storedState.budgetAlerts ?? []).map((alert) => alert.id),
+        );
         setBudgetAlertSettings(
           storedState.budgetAlertSettings ?? DEFAULT_BUDGET_ALERT_SETTINGS,
         );
@@ -631,6 +724,7 @@ export function SpendTrackerApp() {
           transactions: merchantDirectory.transactions,
         };
       } else {
+        knownBudgetAlertIdsRef.current = new Set();
         lastPersistedStateRef.current = {
           budgetAlertSettings: DEFAULT_BUDGET_ALERT_SETTINGS,
           budgetAlerts: [],
@@ -850,6 +944,7 @@ export function SpendTrackerApp() {
           return;
         }
 
+        trackRuntimeError('bootstrap', error);
         setBootstrapState((currentState) =>
           buildBootstrapRefreshFailureState(currentState, error),
         );
@@ -862,6 +957,40 @@ export function SpendTrackerApp() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const removeErrorHandler = installGlobalTelemetryErrorHandler((error, isFatal) => {
+      trackRuntimeError('global', error, isFatal);
+    });
+
+    return () => {
+      removeErrorHandler();
+    };
+  }, [bootstrapState.config.rolloutChannel]);
+
+  useEffect(() => {
+    if (isHydrating) {
+      return;
+    }
+
+    const previousAlertIds = knownBudgetAlertIdsRef.current;
+    const nextAlertIds = new Set(budgetAlerts.map((alert) => alert.id));
+    const newAlerts = budgetAlerts.filter((alert) => !previousAlertIds.has(alert.id));
+
+    knownBudgetAlertIdsRef.current = nextAlertIds;
+
+    for (const alert of newAlerts) {
+      trackTelemetryEvent(
+        createBudgetAlertDeliveryTelemetryEvent({
+          quietMode: alert.status === 'quieted',
+          rolloutChannel: bootstrapState.config.rolloutChannel,
+          scope: getTelemetryBudgetScope(alert.budgetId),
+          status: alert.status,
+          thresholdPercent: alert.thresholdPercent,
+        }),
+      );
+    }
+  }, [bootstrapState.config.rolloutChannel, budgetAlerts, budgets, isHydrating]);
 
   useEffect(() => {
     if (isHydrating) {
@@ -1027,6 +1156,26 @@ export function SpendTrackerApp() {
       }
     }
 
+    trackTelemetryEvent(
+      createCaptureSuccessTelemetryEvent({
+        parserFallback: captureEvent.parserInfo?.parserId.startsWith('generic_') ?? false,
+        parserId: captureEvent.parserInfo?.parserId ?? null,
+        parserVersion: captureEvent.parserInfo?.parserVersion ?? null,
+        rolloutChannel: bootstrapState.config.rolloutChannel,
+        sourceAppId: captureEvent.sourceAppId,
+      }),
+    );
+
+    if (captureEvent.parserInfo?.parserId.startsWith('generic_')) {
+      trackTelemetryEvent(
+        createParserFallbackTelemetryEvent({
+          fallbackParserId: captureEvent.parserInfo.parserId,
+          rolloutChannel: bootstrapState.config.rolloutChannel,
+          sourceAppId: captureEvent.sourceAppId,
+        }),
+      );
+    }
+
     return linkedTransactionId;
   }
 
@@ -1058,6 +1207,14 @@ export function SpendTrackerApp() {
         }
       }
 
+      trackTelemetryEvent(
+        createCaptureFailureTelemetryEvent({
+          code: buildNativeCaptureImportErrorCode(error),
+          rolloutChannel: bootstrapState.config.rolloutChannel,
+          sourceAppId: captureEvent.sourceAppId,
+        }),
+      );
+
       return null;
     }
   }
@@ -1084,6 +1241,14 @@ export function SpendTrackerApp() {
           } catch {
             // Native failure markers are best-effort only.
           }
+
+          trackTelemetryEvent(
+            createCaptureFailureTelemetryEvent({
+              code: buildNativeCaptureImportErrorCode(error),
+              rolloutChannel: bootstrapState.config.rolloutChannel,
+              sourceAppId: captureEvent.sourceAppId,
+            }),
+          );
         }
       }
     } finally {
@@ -1132,7 +1297,8 @@ export function SpendTrackerApp() {
       }
 
       setNotificationAccessState('settings_opened');
-    } catch {
+    } catch (error) {
+      trackRuntimeError('settings', error);
       Alert.alert(
         'Unable to open settings',
         'Open the system settings manually and allow notification access for UPI Spend Tracker.',
@@ -1164,7 +1330,8 @@ export function SpendTrackerApp() {
         message: JSON.stringify(debugBundle, null, 2),
         title: 'UPI Spend Tracker diagnostics',
       });
-    } catch {
+    } catch (error) {
+      trackRuntimeError('settings', error);
       Alert.alert(
         'Unable to share diagnostics',
         'Try again after the current screen settles. The bundle stays redacted by default.',
@@ -1222,6 +1389,15 @@ export function SpendTrackerApp() {
 
           activeCredentials = refreshedCredentials;
         } catch (error) {
+          trackTelemetryEvent(
+            createSyncErrorTelemetryEvent({
+              code: 'session_refresh_failed',
+              phase: 'refresh',
+              rolloutChannel: bootstrapState.config.rolloutChannel,
+              syncMode: getCurrentTelemetrySyncMode(activeCredentials),
+            }),
+          );
+          trackRuntimeError('sync', error);
           applySyncCredentials(null);
           setGeneratedPairingCode(null);
 
@@ -1257,6 +1433,21 @@ export function SpendTrackerApp() {
       if (!areSyncStatesEqual(syncStateRef.current, nextSyncState)) {
         syncStateRef.current = nextSyncState;
         setSyncState(nextSyncState);
+      }
+
+      if (nextSyncState.lastStatus === 'retry_scheduled' && nextSyncState.lastErrorMessage) {
+        trackTelemetryEvent(
+          createSyncErrorTelemetryEvent({
+            code: 'sync_request_failed',
+            phase: 'cycle',
+            rolloutChannel: bootstrapState.config.rolloutChannel,
+            syncMode: getCurrentTelemetrySyncMode(activeCredentials),
+          }),
+        );
+      }
+
+      if (activeCredentials && nextNetworkState.status === 'online') {
+        await flushQueuedTelemetryEvents(activeCredentials);
       }
     } finally {
       syncPassInFlightRef.current = false;
@@ -1310,7 +1501,8 @@ export function SpendTrackerApp() {
         title: artifact.title,
         url: fileUri,
       });
-    } catch {
+    } catch (error) {
+      trackRuntimeError('export', error);
       Alert.alert(
         'Unable to export right now',
         `The app could not finish writing or sharing ${artifact.title.toLowerCase()}. Try again after the current screen settles.`,
@@ -1357,6 +1549,7 @@ export function SpendTrackerApp() {
 
     const nextDraft = buildClassificationDraft(transaction);
 
+    classificationStartedAtRef.current = new Date().toISOString();
     setActiveTransactionId(transaction.id);
     setClassifyReturnScreen(returnScreen);
     setDraft({
@@ -1376,6 +1569,7 @@ export function SpendTrackerApp() {
       return;
     }
 
+    const classificationStartedAt = classificationStartedAtRef.current;
     let nextRules = rules;
 
     if (draft.saveAsRule) {
@@ -1414,12 +1608,26 @@ export function SpendTrackerApp() {
     }
 
     const merchantDirectory = applyMerchantDirectoryState(nextTransactions);
+    const classifyDurationMs = classificationStartedAt
+      ? Math.max(0, Date.now() - Date.parse(classificationStartedAt))
+      : 0;
 
     setRules(nextRules);
     setActiveTransactionId(null);
     setClassifyReturnScreen(null);
     setDraft({ ...EMPTY_DRAFT });
     setSplitDraft(EMPTY_SPLIT_DRAFT);
+    classificationStartedAtRef.current = null;
+
+    trackTelemetryEvent(
+      createClassifyCompletedTelemetryEvent({
+        autoApplyRule: draft.autoApplyRule,
+        durationMs: classifyDurationMs,
+        rolloutChannel: bootstrapState.config.rolloutChannel,
+        saveAsRule: draft.saveAsRule,
+        source: getTelemetryClassifySource(classifyReturnScreen),
+      }),
+    );
 
     if (classifyReturnScreen) {
       setScreen(classifyReturnScreen);
@@ -1430,6 +1638,7 @@ export function SpendTrackerApp() {
   }
 
   function handleCancelClassification() {
+    classificationStartedAtRef.current = null;
     setActiveTransactionId(null);
     const nextScreen = classifyReturnScreen ?? 'inbox';
 
@@ -2315,6 +2524,34 @@ export function SpendTrackerApp() {
                 onboardingPreferences={onboardingPreferences}
                 notificationAccessState={notificationAccessState}
                 onContinue={() => {
+                  trackTelemetryEvent(
+                    createOnboardingCompletedTelemetryEvent({
+                      permissionGranted:
+                        captureDiagnostics.listenerPermissionGranted ||
+                        isRemoteCapturePaused(bootstrapState.config),
+                      rolloutChannel: bootstrapState.config.rolloutChannel,
+                      selectedSourceAppCount:
+                        onboardingPreferences.selectedSourceAppIds.length,
+                      syncMode: onboardingPreferences.syncMode,
+                    }),
+                  );
+
+                  if (
+                    onboardingPreferences.syncMode === 'local_only' &&
+                    !captureDiagnostics.listenerPermissionGranted &&
+                    !isRemoteCapturePaused(bootstrapState.config)
+                  ) {
+                    trackTelemetryEvent(
+                      createNotificationPermissionDeniedTelemetryEvent({
+                        rolloutChannel: bootstrapState.config.rolloutChannel,
+                        selectedSourceAppCount:
+                          onboardingPreferences.selectedSourceAppIds.length,
+                        source: 'onboarding',
+                        syncMode: onboardingPreferences.syncMode,
+                      }),
+                    );
+                  }
+
                   setOnboardingCompleted(true);
                   setScreen('home');
                 }}

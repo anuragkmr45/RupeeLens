@@ -10,6 +10,7 @@ async function start() {
     domainStoreFile: config.domainStoreFile,
     sessionStoreFile: config.sessionStoreFile,
     syncStoreFile: config.syncStoreFile,
+    telemetryStoreFile: config.telemetryStoreFile,
   });
 
   try {

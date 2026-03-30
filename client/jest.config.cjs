@@ -3,6 +3,7 @@ module.exports = {
     '^@upi-spend-tracker/contracts$': '<rootDir>/../packages/contracts/src/index.ts',
     '^@upi-spend-tracker/mobile-ui$': '<rootDir>/../packages/mobile-ui/src/index.ts',
     '^@upi-spend-tracker/shared-utils$': '<rootDir>/../packages/shared-utils/src/index.ts',
+    '^\\./telemetry\\.js$': '<rootDir>/../packages/contracts/src/telemetry.ts',
     '^\\./integrity\\.js$': '<rootDir>/../packages/shared-utils/src/integrity.ts',
     '^\\./time\\.js$': '<rootDir>/../packages/shared-utils/src/time.ts',
     '^\\./version\\.js$': '<rootDir>/../packages/shared-utils/src/version.ts',

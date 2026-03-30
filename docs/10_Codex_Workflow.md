@@ -125,19 +125,16 @@ Do not start a second ticket automatically in the same run.
 
 ## Current Default Next Ticket
 
-Unless repo truth changes first, the default next ticket is:
-
-- `QA-005 — Implement analytics, crash reporting, and operational dashboards` as a new execution pass.
+There is no unconditional repo-side default next ticket now.
 
 Reason:
 
+- `QA-005` now has its repo-side implementation pass in place: versioned privacy-safe telemetry contracts, local-first client event logging/flush, authenticated telemetry ingest/dashboard APIs, and deterministic alert-threshold evaluation are all present, but its done-when still requires operational telemetry to be available before beta.
 - `SET-002` remains blocked by remote GitHub verification.
 - `CAP-003` and `CAP-004` remain blocked on connected-Android validation because `adb devices` is empty in the current environment.
-- `CAP-005`, `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-004`, `API-005`, `API-007`, `QA-003`, `QA-004`, and `SYNC-001` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, direct device/network profiling evidence, manual QA spreadsheet verification, staging evidence, remote Expo project wiring, non-production OTA/rollback dry-run evidence, engineering approval, or beta-only validation rather than missing repo-side implementation.
+- `CAP-005`, `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-004`, `API-005`, `API-007`, `QA-003`, `QA-004`, and `SYNC-001` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, direct device/network profiling evidence, manual QA spreadsheet verification, staging evidence, remote Expo project wiring, non-production OTA/rollback dry-run evidence, engineering approval, beta-only validation, or operational rollout evidence rather than missing repo-side implementation.
 - `QA-001` is not yet actionable because it depends on blocked `SET-002`.
 - `QA-002` is not yet actionable because it depends on blocked `CAP-004`.
 - `REL-001` and `REL-002` still have blocked dependencies.
-- `API-003` is now closed by paired mobile-style integration evidence over the real session, pairing, and sync routes.
-- `SYNC-001` now has its remaining repo-side gap closed: the client can create or join a sync session from Settings, persist credentials locally, refresh tokens before sync, and feed real credentials into the existing outbox/runtime path.
-- `QA-003` now has its repo-side implementation pass in place: heavy screen-specific derivations are gated, current local query patterns are indexed, and sync batching now respects payload size as well as entry count, but its done-when still requires direct device/network profiling evidence.
-- `QA-005` is therefore the earliest remaining canonical `todo` whose dependencies are satisfied by repo truth and that still has a concrete repo-side implementation path.
+
+On the next run, re-audit first. If GitHub auth becomes available, prefer a `SET-002` closeout pass. If a connected Android target becomes available, prefer `CAP-003` and `CAP-004` closeout passes before any later work.

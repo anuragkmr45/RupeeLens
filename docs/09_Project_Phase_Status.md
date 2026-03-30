@@ -121,6 +121,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Baseline lint, typecheck, test, build, and CI documentation
 - Repo-side OTA configuration for `internal`, `beta`, and `production` EAS channels, Expo fingerprint runtime-version policy, bootstrap query alignment with OTA channel/runtime metadata, and a written rollback/change-type playbook
 - Repo-side `QA-003` performance pass: heavy client-side derived data now stays gated behind the active screen, current transaction and budget-alert query paths have additive local SQLite indexes, and sync batching now honors payload size as well as entry count for slower networks
+- Repo-side `QA-005` observability pass: versioned privacy-safe telemetry contracts, local-first client event queuing plus authenticated flush, global runtime-error capture, authenticated telemetry ingest/dashboard APIs, and deterministic operational alert thresholds for capture failures, sync failures, parser fallbacks, classify latency, and runtime errors
 
 **Remaining**
 
@@ -128,7 +129,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Engineering approval of the OTA process
 - Privacy/security baseline
 - Direct device/network profiling evidence and documented performance-budget signoff
-- Analytics, crash reporting, and operational dashboards
+- Operational telemetry rollout and before-beta dashboard evidence
 
 ## Sprint 7 — Beta And Release
 

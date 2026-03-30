@@ -16,11 +16,15 @@ import { createSessionsModule } from './modules/sessions/sessions.module.js';
 import { createSyncModule } from './modules/sync/sync.module.js';
 import { createSyncRepository } from './modules/sync/sync.repository.js';
 import { createSyncService } from './modules/sync/sync.service.js';
+import { createTelemetryModule } from './modules/telemetry/telemetry.module.js';
+import { createTelemetryRepository } from './modules/telemetry/telemetry.repository.js';
+import { createTelemetryService } from './modules/telemetry/telemetry.service.js';
 
 export interface BuildAppOptions {
   domainStoreFile?: string;
   sessionStoreFile?: string;
   syncStoreFile?: string;
+  telemetryStoreFile?: string;
 }
 
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
@@ -52,11 +56,19 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     repository: syncRepository,
     sessionService,
   });
+  const telemetryRepository = createTelemetryRepository({
+    telemetryStoreFile: options.telemetryStoreFile ?? runtimeConfig.telemetryStoreFile,
+  });
+  const telemetryService = createTelemetryService({
+    repository: telemetryRepository,
+    sessionService,
+  });
 
   app.addHook('onClose', async () => {
     domainRepository.close();
     sessionRepository.close();
     syncRepository.close();
+    telemetryRepository.close();
   });
 
   registerApiModules(app, [
@@ -66,6 +78,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     createDomainModule(domainService),
     createReportsModule(reportsService),
     createSyncModule(syncService),
+    createTelemetryModule(telemetryService),
   ]);
 
   return app;

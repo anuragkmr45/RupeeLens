@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   summary: Backend contract for Android-first UPI Spend Tracker v1
   description: Cloud APIs for guest sessions, multi-device pairing, bootstrap config,
-    sync, transactions, categories, rules, budgets, reports, and exports.
+    sync, transactions, categories, rules, budgets, reports, telemetry, and exports.
 servers:
 - url: https://api.example.com
   description: Production
@@ -22,6 +22,7 @@ tags:
 - name: Rules
 - name: Budgets
 - name: Reports
+- name: Telemetry
 - name: Exports
 security:
 - bearerAuth: []
@@ -193,6 +194,53 @@ paths:
                 $ref: '#/components/schemas/BootstrapConfigResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+  /v1/telemetry/events:
+    post:
+      tags:
+      - Telemetry
+      summary: Ingest privacy-safe client telemetry events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetryIngestRequest'
+      responses:
+        '202':
+          description: Telemetry batch accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryIngestResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/telemetry/dashboard:
+    get:
+      tags:
+      - Telemetry
+      summary: Get operational telemetry aggregates and alert states
+      parameters:
+      - in: query
+        name: lookbackHours
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 168
+          default: 24
+      responses:
+        '200':
+          description: Operational telemetry dashboard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryOperationalDashboardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/sync/push:
     post:
       tags:
@@ -1321,6 +1369,529 @@ components:
           type: string
         softUpgradeVersion:
           type: string
+    TelemetryEventBase:
+      type: object
+      required:
+      - appVersion
+      - clientEventId
+      - data
+      - eventName
+      - occurredAt
+      - platform
+      - rolloutChannel
+      - runtimeVersion
+      properties:
+        appVersion:
+          type: string
+        clientEventId:
+          type: string
+        data:
+          type: object
+        eventName:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        platform:
+          type: string
+          enum:
+          - android
+          - ios
+        rolloutChannel:
+          type: string
+          enum:
+          - internal
+          - beta
+          - production
+          - unknown
+        runtimeVersion:
+          type: string
+    OnboardingCompletedTelemetryEvent:
+      allOf:
+      - $ref: '#/components/schemas/TelemetryEventBase'
+      - type: object
+        properties:
+          eventName:
+            type: string
+            const: onboarding_completed
+          data:
+            type: object
+            required:
+            - permissionGranted
+            - selectedSourceAppCount
+            - syncMode
+            properties:
+              permissionGranted:
+                type: boolean
+              selectedSourceAppCount:
+                type: integer
+                minimum: 0
+              syncMode:
+                type: string
+                enum:
+                - local_only
+                - sync_later
+    NotificationPermissionDeniedTelemetryEvent:
+      allOf:
+      - $ref: '#/components/schemas/TelemetryEventBase'
+      - type: object
+        properties:
+          eventName:
+            type: string
+            const: notification_permission_denied
+          data:
+            type: object
+            required:
+            - selectedSourceAppCount
+            - source
+            - syncMode
+            properties:
+              selectedSourceAppCount:
+                type: integer
+                minimum: 0
+              source:
+                type: string
+                enum:
+                - onboarding
+                - settings
+              syncMode:
+                type: string
+                enum:
+                - local_only
+                - sync_later
+    CaptureSuccessTelemetryEvent:
+      allOf:
+      - $ref: '#/components/schemas/TelemetryEventBase'
+      - type: object
+        properties:
+          eventName:
+            type: string
+            const: capture_success
+          data:
+            type: object
+            required:
+            - parserFallback
+            - sourceAppId
+            properties:
+              parserFallback:
+                type: boolean
+              parserId:
+                type: string
+              parserVersion:
+                type: string
+              sourceAppId:
+                type: string
+                enum:
+                - bhim
+                - google_pay
+                - paytm
+                - phonepe
+    CaptureFailureTelemetryEvent:
+      allOf:
+      - $ref: '#/components/schemas/TelemetryEventBase'
+      - type: object
+        properties:
+          eventName:
+            type: string
+            const: capture_failure
+          data:
+            type: object
+            required:
+            - code
+            - sourceAppId
+            properties:
+              code:
+                type: string
+              sourceAppId:
+                type: string
+                enum:
+                - bhim
+                - google_pay
+                - paytm
+                - phonepe
+    ParserFallbackTelemetryEvent:
+      allOf:
+      - $ref: '#/components/schemas/TelemetryEventBase'
+      - type: object
+        properties:
+          eventName:
+            type: string
+            const: parser_fallback
+          data:
+            type: object
+            required:
+            - fallbackParserId
+            - sourceAppId
+            properties:
+              fallbackParserId:
+                type: string
+              sourceAppId:
+                type: string
+                enum:
+                - bhim
+                - google_pay
+                - paytm
+                - phonepe
+    ClassifyCompletedTelemetryEvent:
+      allOf:
+      - $ref: '#/components/schemas/TelemetryEventBase'
+      - type: object
+        properties:
+          eventName:
+            type: string
+            const: classify_completed
+          data:
+            type: object
+            required:
+            - autoApplyRule
+            - durationMs
+            - saveAsRule
+            - source
+            properties:
+              autoApplyRule:
+                type: boolean
+              durationMs:
+                type: integer
+                minimum: 0
+              saveAsRule:
+                type: boolean
+              source:
+                type: string
+                enum:
+                - detail
+                - home
+                - inbox
+                - native_capture
+    SyncErrorTelemetryEvent:
+      allOf:
+      - $ref: '#/components/schemas/TelemetryEventBase'
+      - type: object
+        properties:
+          eventName:
+            type: string
+            const: sync_error
+          data:
+            type: object
+            required:
+            - code
+            - phase
+            - syncMode
+            properties:
+              code:
+                type: string
+              phase:
+                type: string
+                enum:
+                - cycle
+                - refresh
+              syncMode:
+                type: string
+                enum:
+                - cloud_sync
+                - local_only
+                - sync_later
+    BudgetAlertDeliveryTelemetryEvent:
+      allOf:
+      - $ref: '#/components/schemas/TelemetryEventBase'
+      - type: object
+        properties:
+          eventName:
+            type: string
+            const: budget_alert_delivery
+          data:
+            type: object
+            required:
+            - quietMode
+            - scope
+            - status
+            - thresholdPercent
+            properties:
+              quietMode:
+                type: boolean
+              scope:
+                type: string
+                enum:
+                - category
+                - item
+                - merchant
+                - overall
+              status:
+                type: string
+                enum:
+                - active
+                - quieted
+                - reviewed
+              thresholdPercent:
+                type: integer
+                enum:
+                - 50
+                - 80
+                - 100
+    AppRuntimeErrorTelemetryEvent:
+      allOf:
+      - $ref: '#/components/schemas/TelemetryEventBase'
+      - type: object
+        properties:
+          eventName:
+            type: string
+            const: app_runtime_error
+          data:
+            type: object
+            required:
+            - code
+            - domain
+            - fatal
+            properties:
+              code:
+                type: string
+              domain:
+                type: string
+                enum:
+                - bootstrap
+                - capture_import
+                - export
+                - global
+                - settings
+                - sync
+              fatal:
+                type: boolean
+    TelemetryEvent:
+      oneOf:
+      - $ref: '#/components/schemas/OnboardingCompletedTelemetryEvent'
+      - $ref: '#/components/schemas/NotificationPermissionDeniedTelemetryEvent'
+      - $ref: '#/components/schemas/CaptureSuccessTelemetryEvent'
+      - $ref: '#/components/schemas/CaptureFailureTelemetryEvent'
+      - $ref: '#/components/schemas/ParserFallbackTelemetryEvent'
+      - $ref: '#/components/schemas/ClassifyCompletedTelemetryEvent'
+      - $ref: '#/components/schemas/SyncErrorTelemetryEvent'
+      - $ref: '#/components/schemas/BudgetAlertDeliveryTelemetryEvent'
+      - $ref: '#/components/schemas/AppRuntimeErrorTelemetryEvent'
+      discriminator:
+        propertyName: eventName
+        mapping:
+          onboarding_completed: '#/components/schemas/OnboardingCompletedTelemetryEvent'
+          notification_permission_denied: '#/components/schemas/NotificationPermissionDeniedTelemetryEvent'
+          capture_success: '#/components/schemas/CaptureSuccessTelemetryEvent'
+          capture_failure: '#/components/schemas/CaptureFailureTelemetryEvent'
+          parser_fallback: '#/components/schemas/ParserFallbackTelemetryEvent'
+          classify_completed: '#/components/schemas/ClassifyCompletedTelemetryEvent'
+          sync_error: '#/components/schemas/SyncErrorTelemetryEvent'
+          budget_alert_delivery: '#/components/schemas/BudgetAlertDeliveryTelemetryEvent'
+          app_runtime_error: '#/components/schemas/AppRuntimeErrorTelemetryEvent'
+    TelemetryIngestRequest:
+      type: object
+      required:
+      - events
+      - schemaVersion
+      properties:
+        events:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/TelemetryEvent'
+        schemaVersion:
+          type: integer
+          enum:
+          - 1
+    TelemetryIngestResponse:
+      type: object
+      required:
+      - acceptedCount
+      - duplicateCount
+      - receivedAt
+      - schemaVersion
+      properties:
+        acceptedCount:
+          type: integer
+          minimum: 0
+        duplicateCount:
+          type: integer
+          minimum: 0
+        receivedAt:
+          type: string
+          format: date-time
+        schemaVersion:
+          type: integer
+          enum:
+          - 1
+    TelemetryOperationalAlert:
+      type: object
+      required:
+      - description
+      - key
+      - observed
+      - status
+      - threshold
+      - unit
+      properties:
+        description:
+          type: string
+        key:
+          type: string
+          enum:
+          - capture_failure_spike
+          - sync_error_spike
+          - parser_fallback_spike
+          - classify_latency_spike
+          - runtime_error_spike
+        observed:
+          type: number
+        status:
+          type: string
+          enum:
+          - firing
+          - ok
+        threshold:
+          type: number
+        unit:
+          type: string
+          enum:
+          - count
+          - milliseconds
+          - ratio
+    TelemetryOperationalDashboardResponse:
+      type: object
+      required:
+      - alerts
+      - budgetAlertDelivery
+      - capture
+      - classification
+      - funnels
+      - generatedAt
+      - lookbackHours
+      - runtimeErrors
+      - schemaVersion
+      - sync
+      - totals
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelemetryOperationalAlert'
+        budgetAlertDelivery:
+          type: object
+          required:
+          - deliveryCount
+          - quietedCount
+          - reviewedCount
+          properties:
+            deliveryCount:
+              type: integer
+              minimum: 0
+            quietedCount:
+              type: integer
+              minimum: 0
+            reviewedCount:
+              type: integer
+              minimum: 0
+        capture:
+          type: object
+          required:
+          - failureCount
+          - failureRate
+          - parserFallbackCount
+          - parserFallbackRate
+          - successCount
+          properties:
+            failureCount:
+              type: integer
+              minimum: 0
+            failureRate:
+              type:
+              - number
+              - 'null'
+            parserFallbackCount:
+              type: integer
+              minimum: 0
+            parserFallbackRate:
+              type:
+              - number
+              - 'null'
+            successCount:
+              type: integer
+              minimum: 0
+        classification:
+          type: object
+          required:
+          - completedCount
+          - latencyP50Ms
+          - latencyP95Ms
+          properties:
+            completedCount:
+              type: integer
+              minimum: 0
+            latencyP50Ms:
+              type:
+              - integer
+              - 'null'
+            latencyP95Ms:
+              type:
+              - integer
+              - 'null'
+        funnels:
+          type: object
+          required:
+          - onboardingCompletedCount
+          - permissionDeniedCount
+          properties:
+            onboardingCompletedCount:
+              type: integer
+              minimum: 0
+            permissionDeniedCount:
+              type: integer
+              minimum: 0
+        generatedAt:
+          type: string
+          format: date-time
+        lookbackHours:
+          type: integer
+          minimum: 1
+          maximum: 168
+        runtimeErrors:
+          type: object
+          required:
+          - count
+          - fatalCount
+          properties:
+            count:
+              type: integer
+              minimum: 0
+            fatalCount:
+              type: integer
+              minimum: 0
+        schemaVersion:
+          type: integer
+          enum:
+          - 1
+        sync:
+          type: object
+          required:
+          - affectedDeviceCount
+          - errorCount
+          properties:
+            affectedDeviceCount:
+              type: integer
+              minimum: 0
+            errorCount:
+              type: integer
+              minimum: 0
+        totals:
+          type: object
+          required:
+          - deviceCount
+          - eventCount
+          - userCount
+          properties:
+            deviceCount:
+              type: integer
+              minimum: 0
+            eventCount:
+              type: integer
+              minimum: 0
+            userCount:
+              type: integer
+              minimum: 0
     SyncPushRequest:
       type: object
       required:

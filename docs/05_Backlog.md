@@ -1120,7 +1120,7 @@ OTA process approved by engineering leads.
 - **Story points:** 5
 - **Goal:** Know when capture, sync, or classification quality regresses in the field.
 - **Dependencies:** CAP-002, SYNC-001, API-007
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-30 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo truth on 2026-03-30: QA-005 now has versioned privacy-safe telemetry contracts, local-first client event logging plus authenticated flush, global runtime-error capture, authenticated telemetry ingest/dashboard APIs, deterministic alert thresholds, and updated OpenAPI/repo-truth docs. `pnpm --filter @upi-spend-tracker/contracts typecheck`, `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/client typecheck`, focused telemetry tests, `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because the backlog done-when still requires operational telemetry to be available before beta, which is external rollout evidence rather than a missing repo-side implementation.
 
 **Description**  
 Add privacy-safe event tracking for onboarding completion, permission denial, capture success/failure, parser fallbacks, classify latency, sync errors, and budget alert delivery. Build dashboards and alert thresholds.
