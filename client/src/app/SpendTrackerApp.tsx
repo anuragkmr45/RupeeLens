@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import * as FileSystem from 'expo-file-system/legacy';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
+import type { DevicePairingCodeResponse } from '@upi-spend-tracker/contracts';
 import {
   AppState,
   Alert,
@@ -143,14 +144,25 @@ import {
   type SyncQueueSummary,
 } from '../features/sync/domain';
 import {
+  clearStoredSyncCredentials,
+  loadStoredSyncCredentials,
   clearStoredSyncState,
   loadStoredSyncState,
+  saveStoredSyncCredentials,
   saveStoredSyncState,
 } from '../features/sync/persistence';
 import {
   probeSyncReachability,
   runSyncCycle,
 } from '../features/sync/runtime';
+import {
+  buildDefaultSyncDeviceName,
+  consumeSyncPairingCode,
+  createGuestSyncSession,
+  createSyncPairingCode,
+  ensureFreshSyncCredentials,
+  type StoredSyncCredentials,
+} from '../features/sync/session';
 import {
   getCaptureClassificationSeed,
   getImportedCaptureTransactionId,
@@ -409,16 +421,27 @@ export function SpendTrackerApp() {
   const [syncNetworkState, setSyncNetworkState] = useState<SyncNetworkState>(
     createInitialSyncNetworkState(),
   );
+  const [syncCredentials, setSyncCredentials] = useState<StoredSyncCredentials | null>(null);
+  const [syncDeviceNameDraft, setSyncDeviceNameDraft] = useState(() =>
+    buildDefaultSyncDeviceName(),
+  );
+  const [syncPairingCodeDraft, setSyncPairingCodeDraft] = useState('');
+  const [generatedPairingCode, setGeneratedPairingCode] =
+    useState<DevicePairingCodeResponse | null>(null);
+  const [isSyncSessionActionInFlight, setIsSyncSessionActionInFlight] = useState(false);
   const [isSyncRefreshInFlight, setIsSyncRefreshInFlight] = useState(false);
   const transactionsRef = useRef(transactions);
   const merchantsRef = useRef(merchants);
   const merchantAliasesRef = useRef(merchantAliases);
   const nativeCaptureImportInFlightRef = useRef(false);
   const syncPassInFlightRef = useRef(false);
+  const syncCredentialsRef = useRef(syncCredentials);
   const syncStateRef = useRef(syncState);
   const lastPersistedStateRef = useRef<PersistedSpendTrackerState | null>(null);
   const handledInitialCaptureUrlRef = useRef(false);
-  const hasSyncCredentials = false;
+  const hasSyncCredentials = Boolean(
+    syncCredentials?.accessToken && syncCredentials.refreshToken,
+  );
 
   const pendingTransactions = getPendingTransactions(transactions);
   const allReviewTransactions = getInboxReviewTransactions(transactions, {
@@ -510,23 +533,35 @@ export function SpendTrackerApp() {
   transactionsRef.current = transactions;
   merchantsRef.current = merchants;
   merchantAliasesRef.current = merchantAliases;
+  syncCredentialsRef.current = syncCredentials;
   syncStateRef.current = syncState;
 
   useEffect(() => {
     let isMounted = true;
 
     async function hydrateLocalState() {
-      const [storedState, storedSyncState] = await Promise.all([
+      const [storedState, storedSyncState, storedSyncCredentials] = await Promise.all([
         loadStoredSpendTrackerState(),
         loadStoredSyncState(),
+        loadStoredSyncCredentials(),
       ]);
 
       if (!isMounted) {
         return;
       }
 
-      setSyncState(storedSyncState);
-      syncStateRef.current = storedSyncState;
+      const hydratedSyncState =
+        storedSyncCredentials && storedSyncState.deviceId !== storedSyncCredentials.deviceId
+          ? {
+              ...storedSyncState,
+              deviceId: storedSyncCredentials.deviceId,
+            }
+          : storedSyncState;
+
+      setSyncCredentials(storedSyncCredentials);
+      syncCredentialsRef.current = storedSyncCredentials;
+      setSyncState(hydratedSyncState);
+      syncStateRef.current = hydratedSyncState;
 
       if (storedState) {
         const merchantDirectory = reconcileMerchantState(
@@ -882,6 +917,14 @@ export function SpendTrackerApp() {
       return;
     }
 
+    void saveStoredSyncCredentials(syncCredentials);
+  }, [isHydrating, syncCredentials]);
+
+  useEffect(() => {
+    if (isHydrating) {
+      return;
+    }
+
     void performSyncCycle(false);
 
     if (onboardingPreferences.syncMode !== 'sync_later') {
@@ -1101,7 +1144,10 @@ export function SpendTrackerApp() {
     }
   }
 
-  async function performSyncCycle(forceRefresh: boolean) {
+  async function performSyncCycle(
+    forceRefresh: boolean,
+    credentialsOverride: StoredSyncCredentials | null = syncCredentialsRef.current,
+  ) {
     if (syncPassInFlightRef.current) {
       return;
     }
@@ -1134,8 +1180,48 @@ export function SpendTrackerApp() {
 
       setSyncNetworkState(nextNetworkState);
 
+      let activeCredentials = credentialsOverride;
+
+      if (activeCredentials && nextNetworkState.status === 'online') {
+        try {
+          const refreshedCredentials = await ensureFreshSyncCredentials({
+            credentials: activeCredentials,
+          });
+
+          if (!areStoredSyncCredentialsEqual(activeCredentials, refreshedCredentials)) {
+            applySyncCredentials(refreshedCredentials);
+          }
+
+          activeCredentials = refreshedCredentials;
+        } catch (error) {
+          applySyncCredentials(null);
+          setGeneratedPairingCode(null);
+
+          const nextSyncState: PersistedSyncState = {
+            ...syncStateRef.current,
+            lastErrorMessage:
+              error instanceof Error
+                ? error.message
+                : 'Stored sync session refresh failed for this device.',
+            lastStatus: 'waiting_for_pairing',
+          };
+
+          syncStateRef.current = nextSyncState;
+          setSyncState(nextSyncState);
+          return;
+        }
+      }
+
       const nextSyncState = await runSyncCycle({
-        credentials: null,
+        credentials: activeCredentials
+          ? {
+              accessToken: activeCredentials.accessToken,
+              deviceId: activeCredentials.deviceId,
+              ...(activeCredentials.apiBaseUrl !== undefined
+                ? { apiBaseUrl: activeCredentials.apiBaseUrl }
+                : {}),
+            }
+          : null,
         networkState: nextNetworkState,
         syncState: syncStateRef.current,
       });
@@ -1682,6 +1768,116 @@ export function SpendTrackerApp() {
       ...currentPreferences,
       syncMode,
     }));
+
+    if (syncMode === 'local_only') {
+      setGeneratedPairingCode(null);
+    }
+  }
+
+  function applySyncCredentials(nextCredentials: StoredSyncCredentials | null) {
+    syncCredentialsRef.current = nextCredentials;
+    setSyncCredentials(nextCredentials);
+
+    if (!nextCredentials || syncStateRef.current.deviceId === nextCredentials.deviceId) {
+      return;
+    }
+
+    const nextSyncState: PersistedSyncState = {
+      ...syncStateRef.current,
+      deviceId: nextCredentials.deviceId,
+    };
+
+    syncStateRef.current = nextSyncState;
+    setSyncState(nextSyncState);
+  }
+
+  async function handleCreateGuestSyncSession() {
+    const normalizedDeviceName = syncDeviceNameDraft.trim() || buildDefaultSyncDeviceName();
+
+    setIsSyncSessionActionInFlight(true);
+
+    try {
+      const nextCredentials = await createGuestSyncSession({
+        deviceName: normalizedDeviceName,
+      });
+
+      applySyncCredentials(nextCredentials);
+      setGeneratedPairingCode(null);
+      setSyncDeviceNameDraft(normalizedDeviceName);
+      setSyncPairingCodeDraft('');
+      await performSyncCycle(true, nextCredentials);
+    } catch (error) {
+      Alert.alert(
+        'Unable to create sync session',
+        error instanceof Error
+          ? error.message
+          : 'Try again after the API runtime is reachable for this device.',
+      );
+    } finally {
+      setIsSyncSessionActionInFlight(false);
+    }
+  }
+
+  async function handleConsumeSyncPairingCode() {
+    const normalizedDeviceName = syncDeviceNameDraft.trim() || buildDefaultSyncDeviceName();
+    const normalizedPairingCode = syncPairingCodeDraft.trim().toUpperCase();
+
+    if (!normalizedPairingCode) {
+      Alert.alert(
+        'Pairing code required',
+        'Enter the pairing code from your trusted device before joining cloud sync.',
+      );
+      return;
+    }
+
+    setIsSyncSessionActionInFlight(true);
+
+    try {
+      const nextCredentials = await consumeSyncPairingCode({
+        deviceName: normalizedDeviceName,
+        pairingCode: normalizedPairingCode,
+      });
+
+      applySyncCredentials(nextCredentials);
+      setGeneratedPairingCode(null);
+      setSyncDeviceNameDraft(normalizedDeviceName);
+      setSyncPairingCodeDraft('');
+      await performSyncCycle(true, nextCredentials);
+    } catch (error) {
+      Alert.alert(
+        'Unable to join with this pairing code',
+        error instanceof Error
+          ? error.message
+          : 'Check the code and try again before it expires.',
+      );
+    } finally {
+      setIsSyncSessionActionInFlight(false);
+    }
+  }
+
+  async function handleGenerateSyncPairingCode() {
+    if (!syncCredentialsRef.current) {
+      return;
+    }
+
+    setIsSyncSessionActionInFlight(true);
+
+    try {
+      const pairingCode = await createSyncPairingCode({
+        credentials: syncCredentialsRef.current,
+      });
+
+      setGeneratedPairingCode(pairingCode);
+    } catch (error) {
+      Alert.alert(
+        'Unable to create pairing code',
+        error instanceof Error
+          ? error.message
+          : 'Try again after the current sync session refreshes.',
+      );
+    } finally {
+      setIsSyncSessionActionInFlight(false);
+    }
   }
 
   async function handleSyncNow() {
@@ -1874,6 +2070,11 @@ export function SpendTrackerApp() {
     setTransactions(seededTransactions);
     syncStateRef.current = resetSyncState;
     setSyncState(resetSyncState);
+    syncCredentialsRef.current = null;
+    setSyncCredentials(null);
+    setGeneratedPairingCode(null);
+    setSyncDeviceNameDraft(buildDefaultSyncDeviceName());
+    setSyncPairingCodeDraft('');
     setSyncNetworkState(createInitialSyncNetworkState());
     lastPersistedStateRef.current = {
       budgetAlertSettings: DEFAULT_BUDGET_ALERT_SETTINGS,
@@ -1893,6 +2094,7 @@ export function SpendTrackerApp() {
 
     try {
       await clearStoredSpendTrackerState();
+      await clearStoredSyncCredentials();
       await clearStoredSyncState();
       setCaptureDiagnostics(await clearStoredCaptureSnapshots());
     } catch {
@@ -2140,11 +2342,20 @@ export function SpendTrackerApp() {
               <SettingsScreen
                 bootstrapState={bootstrapState}
                 captureDiagnostics={captureDiagnostics}
+                generatedPairingCode={generatedPairingCode}
+                isSyncSessionActionInFlight={isSyncSessionActionInFlight}
                 isSyncRefreshing={isSyncRefreshInFlight}
                 notificationAccessState={notificationAccessState}
                 onboardingPreferences={onboardingPreferences}
+                onChangeSyncDeviceName={setSyncDeviceNameDraft}
+                onChangeSyncPairingCode={(value) =>
+                  setSyncPairingCodeDraft(value.toUpperCase().replace(/\s+/g, ''))
+                }
+                onCreateGuestSyncSession={handleCreateGuestSyncSession}
+                onConsumeSyncPairingCode={handleConsumeSyncPairingCode}
                 onClearSourceApps={handleClearSourceApps}
                 onOpenDiagnostics={() => handleOpenDiagnostics('settings')}
+                onGenerateSyncPairingCode={handleGenerateSyncPairingCode}
                 onExportBackup={handleExportBackup}
                 onExportCsv={handleExportCsv}
                 onOpenNotificationAccess={handleOpenNotificationAccess}
@@ -2158,7 +2369,10 @@ export function SpendTrackerApp() {
                 onShareDiagnosticsBundle={handleShareDiagnosticsBundle}
                 onToggleSourceApp={handleToggleSourceAppSelection}
                 privacyModeEnabled={privacyModeEnabled}
+                syncCredentials={syncCredentials}
+                syncDeviceNameDraft={syncDeviceNameDraft}
                 syncNetworkState={syncNetworkState}
+                syncPairingCodeDraft={syncPairingCodeDraft}
                 syncState={syncState}
                 syncSummary={syncSummary}
               />
@@ -3023,12 +3237,19 @@ function DiagnosticsScreen({
 function SettingsScreen({
   bootstrapState,
   captureDiagnostics,
+  generatedPairingCode,
+  isSyncSessionActionInFlight,
   isSyncRefreshing,
   notificationAccessState,
   onboardingPreferences,
+  onChangeSyncDeviceName,
+  onChangeSyncPairingCode,
+  onCreateGuestSyncSession,
+  onConsumeSyncPairingCode,
   onClearSourceApps,
   onExportBackup,
   onExportCsv,
+  onGenerateSyncPairingCode,
   onOpenDiagnostics,
   onOpenNotificationAccess,
   onOpenRestorePlaceholder,
@@ -3041,18 +3262,28 @@ function SettingsScreen({
   onShareDiagnosticsBundle,
   onToggleSourceApp,
   privacyModeEnabled,
+  syncCredentials,
+  syncDeviceNameDraft,
   syncNetworkState,
+  syncPairingCodeDraft,
   syncState,
   syncSummary,
 }: {
   bootstrapState: BootstrapConfigState;
   captureDiagnostics: NativeCaptureDiagnostics;
+  generatedPairingCode: DevicePairingCodeResponse | null;
+  isSyncSessionActionInFlight: boolean;
   isSyncRefreshing: boolean;
   notificationAccessState: NotificationAccessState;
   onboardingPreferences: OnboardingPreferences;
+  onChangeSyncDeviceName: (value: string) => void;
+  onChangeSyncPairingCode: (value: string) => void;
+  onCreateGuestSyncSession: () => Promise<void>;
+  onConsumeSyncPairingCode: () => Promise<void>;
   onClearSourceApps: () => void;
   onExportBackup: () => Promise<void>;
   onExportCsv: (kind: CsvExportKind) => Promise<void>;
+  onGenerateSyncPairingCode: () => Promise<void>;
   onOpenDiagnostics: () => void;
   onOpenNotificationAccess: () => Promise<void>;
   onOpenRestorePlaceholder: () => void;
@@ -3065,7 +3296,10 @@ function SettingsScreen({
   onShareDiagnosticsBundle: () => Promise<void>;
   onToggleSourceApp: (sourceAppId: SupportedSourceAppId) => void;
   privacyModeEnabled: boolean;
+  syncCredentials: StoredSyncCredentials | null;
+  syncDeviceNameDraft: string;
   syncNetworkState: SyncNetworkState;
+  syncPairingCodeDraft: string;
   syncState: PersistedSyncState;
   syncSummary: SyncQueueSummary;
 }) {
@@ -3183,8 +3417,8 @@ function SettingsScreen({
         <Text style={styles.cardTitle}>Sync and budget defaults</Text>
         <Text style={styles.bodyCopy}>
           These defaults already drive the current local dashboard and onboarding resume flow. The
-          outbox now queues writes locally whenever sync mode is enabled, even if this device still
-          has to wait for pairing before cloud sync can actually run.
+          outbox queues writes locally whenever sync mode is enabled, and this screen now handles
+          the client-side session and pairing setup needed before cloud sync can actually run.
         </Text>
         <Text style={styles.fieldLabel}>Budget cycle</Text>
         <View style={styles.optionStack}>
@@ -3211,10 +3445,76 @@ function SettingsScreen({
           ))}
         </View>
         {onboardingPreferences.syncMode === 'sync_later' ? (
-          <Text style={styles.helperCopy}>
-            Pairing is still intentionally missing from this screen. Until that arrives, the local
-            outbox keeps writes safe on-device and shows exactly why cloud sync is blocked.
-          </Text>
+          <View style={styles.inputStack}>
+            <Text style={styles.fieldLabel}>Device pairing</Text>
+            <Text style={styles.helperCopy}>
+              Provision this device as a new cloud-sync primary, or join it to an existing account
+              with a trusted-device pairing code. The outbox stays local-first either way.
+            </Text>
+            <TextField
+              helperText="Give this device a label you can recognize when pairing another phone later."
+              label="This device name"
+              onChangeText={onChangeSyncDeviceName}
+              placeholder={buildDefaultSyncDeviceName()}
+              value={syncDeviceNameDraft}
+            />
+            {!syncCredentials ? (
+              <>
+                <TextField
+                  helperText="Leave this blank when creating the first sync device. Paste the code here when joining an existing account."
+                  label="Pairing code"
+                  onChangeText={onChangeSyncPairingCode}
+                  placeholder="ABCD1234"
+                  value={syncPairingCodeDraft}
+                />
+                <View style={styles.actionRow}>
+                  <ActionButton
+                    disabled={isSyncSessionActionInFlight}
+                    label="Create sync session"
+                    onPress={onCreateGuestSyncSession}
+                    tone="primary"
+                  />
+                  <ActionButton
+                    disabled={isSyncSessionActionInFlight}
+                    label="Join with pairing code"
+                    onPress={onConsumeSyncPairingCode}
+                    tone="secondary"
+                  />
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.helperStack}>
+                  <Text style={styles.helperCopy}>
+                    Cloud sync is provisioned for this device now.
+                  </Text>
+                  <Text style={styles.helperCopy}>Device ID: {syncCredentials.deviceId}</Text>
+                  <Text style={styles.helperCopy}>User ID: {syncCredentials.userId}</Text>
+                  <Text style={styles.helperCopy}>
+                    Access token refresh window: {formatCaptureMoment(syncCredentials.accessTokenExpiresAt)}
+                  </Text>
+                </View>
+                <View style={styles.actionRow}>
+                  <ActionButton
+                    disabled={isSyncSessionActionInFlight}
+                    label="Generate pairing code"
+                    onPress={onGenerateSyncPairingCode}
+                    tone="primary"
+                  />
+                </View>
+                {generatedPairingCode ? (
+                  <View style={styles.helperStack}>
+                    <Text style={styles.helperCopy}>
+                      Pairing code: {generatedPairingCode.pairingCode}
+                    </Text>
+                    <Text style={styles.helperCopy}>
+                      Expires: {formatCaptureMoment(generatedPairingCode.expiresAt)}
+                    </Text>
+                  </View>
+                ) : null}
+              </>
+            )}
+          </View>
         ) : null}
       </SectionCard>
 
@@ -3367,10 +3667,10 @@ function SyncQueueCard({
             Last sync error: {syncState.lastErrorMessage}
           </Text>
         ) : null}
-        {syncMode === 'sync_later' ? (
+        {syncMode === 'sync_later' && syncSummary.lastStatus === 'waiting_for_pairing' ? (
           <Text style={styles.helperCopy}>
-            Device pairing and token provisioning still land later. Until then, the outbox stays
-            local-first and truthful about why cloud sync is paused.
+            Pair this device or create a new sync session from Settings. Until then, the outbox
+            stays local-first and truthful about why cloud sync is paused.
           </Text>
         ) : null}
       </View>
@@ -6876,6 +7176,28 @@ function formatSyncNetworkLabel(syncNetworkState: SyncNetworkState): string {
     default:
       return 'Reachability not checked yet';
   }
+}
+
+function areStoredSyncCredentialsEqual(
+  currentCredentials: StoredSyncCredentials | null,
+  nextCredentials: StoredSyncCredentials | null,
+): boolean {
+  if (!currentCredentials && !nextCredentials) {
+    return true;
+  }
+
+  if (!currentCredentials || !nextCredentials) {
+    return false;
+  }
+
+  return (
+    currentCredentials.accessToken === nextCredentials.accessToken &&
+    currentCredentials.accessTokenExpiresAt === nextCredentials.accessTokenExpiresAt &&
+    currentCredentials.apiBaseUrl === nextCredentials.apiBaseUrl &&
+    currentCredentials.deviceId === nextCredentials.deviceId &&
+    currentCredentials.refreshToken === nextCredentials.refreshToken &&
+    currentCredentials.userId === nextCredentials.userId
+  );
 }
 
 function formatSyncConflictTitle(conflict: SyncConflictQueueEntry): string {

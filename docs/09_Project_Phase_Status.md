@@ -90,12 +90,12 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Local budget-management flow with list/create/edit UX, quiet-mode-aware 50/80/100 threshold alerts, persisted alert review state, and Home review cards backed by the canonical budget engine
 - Optimized local insights screen with current-cycle vs prior-cycle comparison and rollups for item, category, merchant, time-of-day, and day-of-week, validated on a generated 10k-transaction dataset
 - Working local CSV export from Settings for transactions, items, categories, and budgets, plus a local backup JSON export hook, stable documented schemas, and privacy-aware CSV redaction tied to the current privacy-mode setting
-- First mobile sync foundation with local outbox/entity-version/conflict persistence, deterministic outbox diffing from local writes, retry/backoff helpers, and visible sync queue/conflict hooks in Home, Timeline, and Settings
+- First mobile sync foundation with local outbox/entity-version/conflict persistence, deterministic outbox diffing from local writes, retry/backoff helpers, persisted guest-session/pairing credentials, pre-sync access-token refresh, and visible sync queue/conflict hooks in Home, Timeline, and Settings
 
 **Remaining**
 
 - Manual QA opening exported CSV files in spreadsheet tools, plus restore import beyond the current future-safe entrypoint
-- Client-side pairing/session credential provisioning and beta-stability evidence for multi-device sync
+- Beta-stability evidence for multi-device sync, plus secure token-storage hardening beyond the current local persistence layer
 - Worker jobs and export flows still need staging operation evidence
 
 ## Sprint 5 — APIs And Reports

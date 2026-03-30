@@ -8,8 +8,25 @@ import {
   type SyncEntityVersionRecord,
   type SyncOutboxEntry,
 } from './domain';
+import type { StoredSyncCredentials } from './session';
 
 const DATABASE_NAME = 'spend-tracker.db';
+const SYNC_STATE_SETTING_KEYS = [
+  'device_id',
+  'last_cursor',
+  'last_error_message',
+  'last_status',
+  'last_sync_attempt_at',
+  'last_sync_success_at',
+] as const;
+const SYNC_CREDENTIAL_SETTING_KEYS = [
+  'credential_access_token',
+  'credential_access_token_expires_at',
+  'credential_api_base_url',
+  'credential_device_id',
+  'credential_refresh_token',
+  'credential_user_id',
+] as const;
 
 interface SyncSettingRow {
   key: string;
@@ -163,7 +180,7 @@ export async function saveStoredSyncState(
     await database.runAsync('DELETE FROM sync_conflicts');
     await database.runAsync('DELETE FROM sync_outbox');
     await database.runAsync('DELETE FROM sync_entity_versions');
-    await database.runAsync('DELETE FROM sync_settings');
+    await deleteSyncSettings(database, SYNC_STATE_SETTING_KEYS);
 
     await writeSyncSetting(database, 'device_id', syncState.deviceId);
     await writeSyncSetting(database, 'last_cursor', syncState.lastCursor);
@@ -255,6 +272,69 @@ export async function saveStoredSyncState(
   });
 }
 
+export async function loadStoredSyncCredentials(): Promise<StoredSyncCredentials | null> {
+  const database = await getDatabase();
+  const settingRows = await database.getAllAsync<SyncSettingRow>(
+    'SELECT key, value FROM sync_settings',
+  );
+  const syncSettings = new Map(settingRows.map((row) => [row.key, row.value]));
+  const accessToken = normalizeOptionalString(syncSettings.get('credential_access_token') ?? null);
+  const accessTokenExpiresAt = normalizeOptionalString(
+    syncSettings.get('credential_access_token_expires_at') ?? null,
+  );
+  const deviceId = normalizeOptionalString(syncSettings.get('credential_device_id') ?? null);
+  const refreshToken = normalizeOptionalString(
+    syncSettings.get('credential_refresh_token') ?? null,
+  );
+  const userId = normalizeOptionalString(syncSettings.get('credential_user_id') ?? null);
+
+  if (!accessToken || !accessTokenExpiresAt || !deviceId || !refreshToken || !userId) {
+    return null;
+  }
+
+  return {
+    accessToken,
+    accessTokenExpiresAt,
+    apiBaseUrl: normalizeOptionalString(syncSettings.get('credential_api_base_url') ?? null),
+    deviceId,
+    refreshToken,
+    userId,
+  };
+}
+
+export async function saveStoredSyncCredentials(
+  credentials: StoredSyncCredentials | null,
+): Promise<void> {
+  const database = await getDatabase();
+
+  await database.withTransactionAsync(async () => {
+    await deleteSyncSettings(database, SYNC_CREDENTIAL_SETTING_KEYS);
+
+    if (!credentials) {
+      return;
+    }
+
+    await writeSyncSetting(database, 'credential_access_token', credentials.accessToken);
+    await writeSyncSetting(
+      database,
+      'credential_access_token_expires_at',
+      credentials.accessTokenExpiresAt,
+    );
+    await writeSyncSetting(database, 'credential_api_base_url', credentials.apiBaseUrl ?? null);
+    await writeSyncSetting(database, 'credential_device_id', credentials.deviceId);
+    await writeSyncSetting(database, 'credential_refresh_token', credentials.refreshToken);
+    await writeSyncSetting(database, 'credential_user_id', credentials.userId);
+  });
+}
+
+export async function clearStoredSyncCredentials(): Promise<void> {
+  const database = await getDatabase();
+
+  await database.withTransactionAsync(async () => {
+    await deleteSyncSettings(database, SYNC_CREDENTIAL_SETTING_KEYS);
+  });
+}
+
 export async function clearStoredSyncState(): Promise<void> {
   const database = await getDatabase();
 
@@ -262,8 +342,17 @@ export async function clearStoredSyncState(): Promise<void> {
     await database.runAsync('DELETE FROM sync_conflicts');
     await database.runAsync('DELETE FROM sync_outbox');
     await database.runAsync('DELETE FROM sync_entity_versions');
-    await database.runAsync('DELETE FROM sync_settings');
+    await deleteSyncSettings(database, SYNC_STATE_SETTING_KEYS);
   });
+}
+
+async function deleteSyncSettings(
+  database: SQLiteDatabase,
+  keys: readonly string[],
+) {
+  for (const key of keys) {
+    await database.runAsync('DELETE FROM sync_settings WHERE key = ?', key);
+  }
 }
 
 async function writeSyncSetting(

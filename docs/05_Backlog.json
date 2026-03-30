@@ -617,7 +617,7 @@
       "done": "Rule engine integrated into classify flows.",
       "status": "done",
       "owner": "codex",
-      "started_at": "2026-03-28",
+      "started_at": "2026-03-30",
       "completed_at": "2026-03-28",
       "commit_ref": "pending-local-commit",
       "tracking_notes": "Repo truth: the client now persists explicit local classification rules in SQLite with additive migrations, evaluates saved rules before history and merchant-keyword heuristics using merchant, amount bucket, hour bucket, and weekday factors, returns explanation metadata with deterministic priority, and auto-applies only explicit user-approved rules. Quick classify and manual add both create reusable rules through real toggles, and category/merchant merge handlers keep saved rules aligned. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28."
@@ -642,7 +642,7 @@
       "done": "History-based suggestions meet acceptance benchmark.",
       "status": "done",
       "owner": "codex",
-      "started_at": "2026-03-28",
+      "started_at": "2026-03-30",
       "completed_at": "2026-03-28",
       "commit_ref": "pending-local-commit",
       "tracking_notes": "Repo truth: classify and manual-entry suggestions now use a weighted local history ranker that aggregates repeated confirmed classifications per item/category, scores merchant, amount bucket, hour bucket, weekday, recency, and frequency factors with deterministic ordering beneath explicit saved rules, and exposes human-readable explanation metadata for top factors. Added backtest-style domain coverage proving repeated confirmations outrank one-off matches and recency breaks ties between equally repeated candidates. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand domain.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28."
@@ -667,7 +667,7 @@
       "done": "Budget engine accepted by product and QA.",
       "status": "in_progress",
       "owner": "codex",
-      "started_at": "2026-03-28",
+      "started_at": "2026-03-30",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
       "tracking_notes": "Repo truth: the client now has a canonical local budget engine supporting overall, category, merchant, and item scopes across monthly, weekly, rolling, and custom cycles, with deterministic spent/remaining/projected/threshold calculations and dashboard integration through the same shared engine. Home no longer uses demo-target math; it now shows projected spend and threshold state from the canonical engine, and domain tests cover monthly, weekly, rolling, and custom cycle boundaries plus immediate updates after classification changes. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28. Status remains `in_progress` because the backlog done-when still requires product and QA acceptance, which was not available in this environment."
@@ -946,10 +946,10 @@
       "done": "Multi-device sync stable in beta.",
       "status": "in_progress",
       "owner": "codex",
-      "started_at": "2026-03-28",
+      "started_at": "2026-03-30",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: the client now has a first mobile sync foundation with additive SQLite tables for sync settings, entity versions, outbox entries, and conflict records; deterministic outbox diffing from local writes unless sync mode stays `local_only`; reachability-aware chunked sync runtime helpers against the existing `API-003` endpoints; exponential backoff with deterministic jitter; restart-safe persistence resume; and honest sync queue/conflict cards in Home, Timeline, and Settings. Focused client validation covered outbox diffing, retry/conflict behavior, sync persistence, migration adoption, and app-level sync queue rendering; `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because pairing/session credentials are still not provisioned on the client and the backlog done-when still requires multi-device sync to be stable in beta."
+      "tracking_notes": "Continuation implementation pass on 2026-03-30 confirmed `SET-002` remains blocked because `gh` is unavailable, and `CAP-003` plus `CAP-004` remain blocked because `adb devices` is empty. This pass closed the remaining repo-side `SYNC-001` gap by adding client-side guest-session and pairing-code helpers over the existing API, persisting sync credentials in scoped `sync_settings` keys, refreshing access tokens before sync, and wiring Settings so a device can create or join a sync session and feed real credentials into the existing outbox/runtime flow. Focused client sync tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because the backlog done-when still requires multi-device sync to be stable in beta."
     },
     {
       "id": "QA-001",

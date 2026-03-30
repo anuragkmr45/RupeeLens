@@ -25,9 +25,12 @@ import {
   type PersistedSyncState,
 } from '../src/features/sync/domain';
 import {
+  loadStoredSyncCredentials,
+  saveStoredSyncCredentials,
   loadStoredSyncState,
   saveStoredSyncState,
 } from '../src/features/sync/persistence';
+import type { StoredSyncCredentials } from '../src/features/sync/session';
 
 jest.mock('../src/features/spend-tracker/persistence', () => ({
   DEFAULT_ONBOARDING_PREFERENCES: {
@@ -41,7 +44,9 @@ jest.mock('../src/features/spend-tracker/persistence', () => ({
 }));
 
 jest.mock('../src/features/sync/persistence', () => ({
+  clearStoredSyncCredentials: jest.fn().mockResolvedValue(undefined),
   clearStoredSyncState: jest.fn().mockResolvedValue(undefined),
+  loadStoredSyncCredentials: jest.fn().mockResolvedValue(null),
   loadStoredSyncState: jest.fn().mockResolvedValue({
     conflicts: [],
     deviceId: 'device_local_test',
@@ -53,6 +58,7 @@ jest.mock('../src/features/sync/persistence', () => ({
     lastSyncSuccessAt: null,
     outbox: [],
   }),
+  saveStoredSyncCredentials: jest.fn().mockResolvedValue(undefined),
   saveStoredSyncState: jest.fn().mockResolvedValue(undefined),
 }));
 
@@ -63,6 +69,14 @@ jest.mock('../src/features/sync/runtime', () => ({
     status: 'online',
   }),
   runSyncCycle: jest.fn(async ({ syncState }) => syncState),
+}));
+
+jest.mock('../src/features/sync/session', () => ({
+  buildDefaultSyncDeviceName: jest.fn(() => 'Android device'),
+  consumeSyncPairingCode: jest.fn(),
+  createGuestSyncSession: jest.fn(),
+  createSyncPairingCode: jest.fn(),
+  ensureFreshSyncCredentials: jest.fn(async ({ credentials }) => credentials),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -370,8 +384,27 @@ const mockedSaveStoredSpendTrackerState =
   saveStoredSpendTrackerState as jest.MockedFunction<typeof saveStoredSpendTrackerState>;
 const mockedLoadStoredSyncState =
   loadStoredSyncState as jest.MockedFunction<typeof loadStoredSyncState>;
+const mockedLoadStoredSyncCredentials =
+  loadStoredSyncCredentials as jest.MockedFunction<typeof loadStoredSyncCredentials>;
+const mockedSaveStoredSyncCredentials =
+  saveStoredSyncCredentials as jest.MockedFunction<typeof saveStoredSyncCredentials>;
 const mockedSaveStoredSyncState =
   saveStoredSyncState as jest.MockedFunction<typeof saveStoredSyncState>;
+const mockedSyncSessionModule = jest.requireMock('../src/features/sync/session') as {
+  consumeSyncPairingCode: jest.Mock<Promise<StoredSyncCredentials>, [unknown]>;
+  createGuestSyncSession: jest.Mock<Promise<StoredSyncCredentials>, [unknown]>;
+  createSyncPairingCode: jest.Mock<Promise<{ expiresAt: string; pairingCode: string }>, [unknown]>;
+  ensureFreshSyncCredentials: jest.Mock<
+    Promise<StoredSyncCredentials>,
+    [
+      {
+        credentials: StoredSyncCredentials;
+        fetchImplementation?: typeof globalThis.fetch;
+        now?: string;
+      },
+    ]
+  >;
+};
 const mockedBootstrapConfigModule = jest.requireMock(
   '../src/features/bootstrap-config/runtime-config'
 ) as {
@@ -580,6 +613,24 @@ function buildStoredSyncState(
   };
 }
 
+function buildStoredSyncCredentials(
+  overrides: Partial<StoredSyncCredentials> = {},
+): StoredSyncCredentials {
+  return {
+    accessToken: 'access-token-1',
+    accessTokenExpiresAt: '2026-03-30T11:00:00.000Z',
+    apiBaseUrl: 'http://localhost:3000',
+    deviceId: 'device_remote_1',
+    refreshToken: 'refresh-token-1',
+    userId: 'user_remote_1',
+    ...overrides,
+  };
+}
+
+type EnsureFreshSyncCredentialsArgs = Parameters<
+  typeof mockedSyncSessionModule.ensureFreshSyncCredentials
+>[0];
+
 describe('App', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -592,8 +643,25 @@ describe('App', () => {
     );
     mockedLoadStoredSpendTrackerState.mockResolvedValue(null);
     mockedSaveStoredSpendTrackerState.mockResolvedValue(undefined);
+    mockedLoadStoredSyncCredentials.mockResolvedValue(null);
+    mockedSaveStoredSyncCredentials.mockResolvedValue(undefined);
     mockedLoadStoredSyncState.mockResolvedValue(buildStoredSyncState());
     mockedSaveStoredSyncState.mockResolvedValue(undefined);
+    mockedSyncSessionModule.consumeSyncPairingCode.mockResolvedValue(
+      buildStoredSyncCredentials({
+        deviceId: 'device_remote_2',
+      }),
+    );
+    mockedSyncSessionModule.createGuestSyncSession.mockResolvedValue(
+      buildStoredSyncCredentials(),
+    );
+    mockedSyncSessionModule.createSyncPairingCode.mockResolvedValue({
+      expiresAt: '2026-03-30T12:00:00.000Z',
+      pairingCode: 'ABCD1234',
+    });
+    mockedSyncSessionModule.ensureFreshSyncCredentials.mockImplementation(
+      async ({ credentials }: EnsureFreshSyncCredentialsArgs) => credentials,
+    );
     mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(
       buildMockCaptureDiagnostics(),
     );
@@ -768,6 +836,92 @@ describe('App', () => {
         }),
       ),
     );
+  });
+
+  it('creates a client sync session from Settings and persists the credentials locally', async () => {
+    mockedLoadStoredSpendTrackerState.mockResolvedValue(
+      buildStoredState({
+        onboardingPreferences: {
+          budgetCycleId: 'calendar_month',
+          selectedSourceAppIds: ['google_pay', 'phonepe'],
+          syncMode: 'sync_later',
+        },
+      }),
+    );
+    mockedLoadStoredSyncState.mockResolvedValue(
+      buildStoredSyncState({
+        outbox: [
+          {
+            attemptCount: 0,
+            createdAt: '2026-03-30T10:00:00.000Z',
+            entityId: 'txn_local_1',
+            entityType: 'transaction',
+            entityVersion: 1,
+            lastAttemptAt: null,
+            lastErrorCode: null,
+            lastErrorMessage: null,
+            nextRetryAt: null,
+            occurredAt: '2026-03-30T10:00:00.000Z',
+            opId: 'transaction_txn_local_1_v1',
+            opType: 'upsert',
+            payload: {
+              amountMinor: 18900,
+              merchant: 'Native Chai Stall',
+              status: 'uncategorized',
+            },
+            status: 'pending',
+          },
+        ],
+      }),
+    );
+
+    const screen = await renderApp();
+
+    fireEvent.press(await screen.findByRole('button', { name: 'Open settings' }));
+    fireEvent.press(await screen.findByRole('button', { name: 'Create sync session' }));
+
+    await waitFor(() =>
+      expect(mockedSyncSessionModule.createGuestSyncSession).toHaveBeenCalledWith({
+        deviceName: 'Android device',
+      }),
+    );
+    await waitFor(() =>
+      expect(mockedSaveStoredSyncCredentials).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accessToken: 'access-token-1',
+          deviceId: 'device_remote_1',
+          refreshToken: 'refresh-token-1',
+        }),
+      ),
+    );
+
+    expect(await screen.findByText('Status: Queued locally')).toBeTruthy();
+  });
+
+  it('shows a pairing code from Settings when sync credentials already exist', async () => {
+    mockedLoadStoredSpendTrackerState.mockResolvedValue(
+      buildStoredState({
+        onboardingPreferences: {
+          budgetCycleId: 'calendar_month',
+          selectedSourceAppIds: ['google_pay', 'phonepe'],
+          syncMode: 'sync_later',
+        },
+      }),
+    );
+    mockedLoadStoredSyncCredentials.mockResolvedValue(buildStoredSyncCredentials());
+
+    const screen = await renderApp();
+
+    fireEvent.press(await screen.findByRole('button', { name: 'Open settings' }));
+    fireEvent.press(await screen.findByRole('button', { name: 'Generate pairing code' }));
+
+    await waitFor(() =>
+      expect(mockedSyncSessionModule.createSyncPairingCode).toHaveBeenCalledWith({
+        credentials: buildStoredSyncCredentials(),
+      }),
+    );
+
+    expect(await screen.findByText('Pairing code: ABCD1234')).toBeTruthy();
   });
 
   it('opens the design system showcase from Home', async () => {
