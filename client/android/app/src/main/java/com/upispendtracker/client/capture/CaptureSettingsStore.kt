@@ -63,7 +63,7 @@ class CaptureSettingsStore(context: Context) {
   }
 
   fun getPrivacyModeEnabled(): Boolean {
-    return sharedPreferences.getBoolean(KEY_PRIVACY_MODE_ENABLED, false)
+    return sharedPreferences.getBoolean(KEY_PRIVACY_MODE_ENABLED, true)
   }
 
   fun setPrivacyModeEnabled(enabled: Boolean) {

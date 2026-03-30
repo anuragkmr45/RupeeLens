@@ -995,12 +995,12 @@
       ],
       "tests": "Security checklist, retention tests, and negative tests for unauthorized access.",
       "done": "Security sign-off obtained for beta.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-30",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo-side QA-002 hardening landed on 2026-03-30: sync access/refresh tokens and expiry now move from SQLite settings into Expo SecureStore with legacy-key cleanup, sync/session/telemetry reject insecure non-local HTTP, privacy mode defaults to enabled in the client and native capture settings, local backup privacy metadata now falls back to the secure default, and the current retention/redaction plus Play Data Safety review baseline is documented in `docs/13_Privacy_Security_Baseline.md`. Focused client privacy/security tests plus `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed. Status remains `in_progress` because the backlog done-when still requires beta security sign-off and final Play Data Safety review evidence outside this environment."
     },
     {
       "id": "QA-003",

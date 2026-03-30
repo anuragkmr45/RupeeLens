@@ -14,6 +14,12 @@ jest.mock('expo-sqlite', () => ({
   openDatabaseAsync: jest.fn(),
 }));
 
+jest.mock('expo-secure-store', () => ({
+  deleteItemAsync: jest.fn().mockResolvedValue(undefined),
+  getItemAsync: jest.fn(),
+  setItemAsync: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('../src/features/spend-tracker/db/migration-runner', () => ({
   applyMobileMigrations: jest.fn().mockResolvedValue(undefined),
 }));
@@ -40,6 +46,14 @@ function getExpoSqliteMock() {
   };
 }
 
+function getExpoSecureStoreMock() {
+  return jest.requireMock('expo-secure-store') as {
+    deleteItemAsync: jest.Mock<Promise<void>, [string]>;
+    getItemAsync: jest.Mock<Promise<string | null>, [string]>;
+    setItemAsync: jest.Mock<Promise<void>, [string, string]>;
+  };
+}
+
 function loadSyncPersistenceModule(): SyncPersistenceModule {
   let loadedModule: SyncPersistenceModule | null = null;
 
@@ -59,6 +73,10 @@ function loadSyncPersistenceModule(): SyncPersistenceModule {
 describe('sync persistence', () => {
   beforeEach(() => {
     jest.resetModules();
+    const secureStoreMock = getExpoSecureStoreMock();
+    secureStoreMock.deleteItemAsync.mockClear();
+    secureStoreMock.getItemAsync.mockReset();
+    secureStoreMock.setItemAsync.mockClear();
   });
 
   it('loads the persisted sync queue from normalized SQLite tables', async () => {
@@ -189,16 +207,18 @@ describe('sync persistence', () => {
   it('loads stored sync credentials from scoped sync settings keys', async () => {
     const database = createDatabaseMock();
     const { openDatabaseAsync } = getExpoSqliteMock();
+    const secureStore = getExpoSecureStoreMock();
 
     openDatabaseAsync.mockResolvedValue(database);
+    secureStore.getItemAsync
+      .mockResolvedValueOnce('access-token-1')
+      .mockResolvedValueOnce('2026-03-30T11:00:00.000Z')
+      .mockResolvedValueOnce('refresh-token-1');
     database.getAllAsync.mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT key, value FROM sync_settings')) {
         return [
-          { key: 'credential_access_token', value: 'access-token-1' },
-          { key: 'credential_access_token_expires_at', value: '2026-03-30T11:00:00.000Z' },
           { key: 'credential_api_base_url', value: 'http://localhost:3000' },
           { key: 'credential_device_id', value: 'device_remote_1' },
-          { key: 'credential_refresh_token', value: 'refresh-token-1' },
           { key: 'credential_user_id', value: 'user_remote_1' },
         ];
       }
@@ -216,6 +236,53 @@ describe('sync persistence', () => {
       refreshToken: 'refresh-token-1',
       userId: 'user_remote_1',
     });
+  });
+
+  it('migrates legacy sync tokens from SQLite into secure storage', async () => {
+    const database = createDatabaseMock();
+    const { openDatabaseAsync } = getExpoSqliteMock();
+    const secureStore = getExpoSecureStoreMock();
+
+    openDatabaseAsync.mockResolvedValue(database);
+    secureStore.getItemAsync.mockResolvedValue(null);
+    database.getAllAsync.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT key, value FROM sync_settings')) {
+        return [
+          { key: 'credential_access_token', value: 'access-token-legacy' },
+          { key: 'credential_access_token_expires_at', value: '2026-03-30T11:00:00.000Z' },
+          { key: 'credential_api_base_url', value: 'http://localhost:3000' },
+          { key: 'credential_device_id', value: 'device_remote_1' },
+          { key: 'credential_refresh_token', value: 'refresh-token-legacy' },
+          { key: 'credential_user_id', value: 'user_remote_1' },
+        ];
+      }
+
+      return [];
+    });
+
+    const { loadStoredSyncCredentials } = loadSyncPersistenceModule();
+
+    await expect(loadStoredSyncCredentials()).resolves.toEqual({
+      accessToken: 'access-token-legacy',
+      accessTokenExpiresAt: '2026-03-30T11:00:00.000Z',
+      apiBaseUrl: 'http://localhost:3000',
+      deviceId: 'device_remote_1',
+      refreshToken: 'refresh-token-legacy',
+      userId: 'user_remote_1',
+    });
+
+    expect(secureStore.setItemAsync).toHaveBeenCalledWith(
+      'sync_credentials_v1_access_token',
+      'access-token-legacy',
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      'DELETE FROM sync_settings WHERE key = ?',
+      'credential_access_token',
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      'DELETE FROM sync_settings WHERE key = ?',
+      'credential_refresh_token',
+    );
   });
 
   it('saves and clears the persisted sync queue in SQLite tables', async () => {
@@ -347,6 +414,7 @@ describe('sync persistence', () => {
   it('saves and clears stored sync credentials without deleting sync queue settings', async () => {
     const database = createDatabaseMock();
     const { openDatabaseAsync } = getExpoSqliteMock();
+    const secureStore = getExpoSecureStoreMock();
     const credentials: StoredSyncCredentials = {
       accessToken: 'access-token-1',
       accessTokenExpiresAt: '2026-03-30T11:00:00.000Z',
@@ -367,30 +435,40 @@ describe('sync persistence', () => {
 
     expect(database.runAsync).toHaveBeenCalledWith(
       'DELETE FROM sync_settings WHERE key = ?',
-      'credential_access_token',
+      'credential_api_base_url',
     );
     expect(database.runAsync).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO sync_settings (key, value) VALUES (?, ?)'),
-      'credential_access_token',
+      'credential_api_base_url',
+      'http://localhost:3000',
+    );
+    expect(secureStore.setItemAsync).toHaveBeenCalledWith(
+      'sync_credentials_v1_access_token',
       'access-token-1',
     );
     expect(database.runAsync).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO sync_settings (key, value) VALUES (?, ?)'),
-      'credential_refresh_token',
-      'refresh-token-1',
+      'credential_device_id',
+      'device_remote_1',
     );
 
     database.runAsync.mockClear();
+    secureStore.deleteItemAsync.mockClear();
 
     await clearStoredSyncCredentials();
 
     expect(database.runAsync.mock.calls).toEqual([
-      ['DELETE FROM sync_settings WHERE key = ?', 'credential_access_token'],
-      ['DELETE FROM sync_settings WHERE key = ?', 'credential_access_token_expires_at'],
       ['DELETE FROM sync_settings WHERE key = ?', 'credential_api_base_url'],
       ['DELETE FROM sync_settings WHERE key = ?', 'credential_device_id'],
-      ['DELETE FROM sync_settings WHERE key = ?', 'credential_refresh_token'],
       ['DELETE FROM sync_settings WHERE key = ?', 'credential_user_id'],
+      ['DELETE FROM sync_settings WHERE key = ?', 'credential_access_token'],
+      ['DELETE FROM sync_settings WHERE key = ?', 'credential_access_token_expires_at'],
+      ['DELETE FROM sync_settings WHERE key = ?', 'credential_refresh_token'],
     ]);
+    expect(secureStore.deleteItemAsync).toHaveBeenCalledWith('sync_credentials_v1_access_token');
+    expect(secureStore.deleteItemAsync).toHaveBeenCalledWith(
+      'sync_credentials_v1_access_token_expires_at',
+    );
+    expect(secureStore.deleteItemAsync).toHaveBeenCalledWith('sync_credentials_v1_refresh_token');
   });
 });

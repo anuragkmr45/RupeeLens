@@ -8,6 +8,7 @@ import { Storage } from 'expo-sqlite/kv-store';
 
 import { resolveBootstrapBaseUrl } from '../bootstrap-config/runtime-config';
 import type { StoredSyncCredentials } from '../sync/session';
+import { normalizeTrustedApiBaseUrl } from '../sync/transport-policy';
 
 const TELEMETRY_STORAGE_KEY = 'telemetry_event_queue_v1';
 const MAX_QUEUED_TELEMETRY_EVENTS = 200;
@@ -92,7 +93,9 @@ export async function flushTelemetryEvents({
     const response = await fetchImplementation(
       new URL(
         '/v1/telemetry/events',
-        credentials.apiBaseUrl?.trim() || resolveBootstrapBaseUrl('android'),
+        normalizeTrustedApiBaseUrl(
+          credentials.apiBaseUrl?.trim() || resolveBootstrapBaseUrl('android'),
+        ),
       ).toString(),
       {
         body: JSON.stringify(requestBody),

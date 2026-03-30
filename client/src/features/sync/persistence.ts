@@ -8,7 +8,13 @@ import {
   type SyncEntityVersionRecord,
   type SyncOutboxEntry,
 } from './domain';
+import {
+  clearStoredSyncSecrets,
+  loadStoredSyncSecrets,
+  saveStoredSyncSecrets,
+} from './secure-storage';
 import type { StoredSyncCredentials } from './session';
+import { sanitizeTrustedApiBaseUrl } from './transport-policy';
 
 const DATABASE_NAME = 'spend-tracker.db';
 const SYNC_STATE_SETTING_KEYS = [
@@ -19,12 +25,14 @@ const SYNC_STATE_SETTING_KEYS = [
   'last_sync_attempt_at',
   'last_sync_success_at',
 ] as const;
-const SYNC_CREDENTIAL_SETTING_KEYS = [
+const SYNC_CREDENTIAL_LEGACY_SECRET_SETTING_KEYS = [
   'credential_access_token',
   'credential_access_token_expires_at',
+  'credential_refresh_token',
+] as const;
+const SYNC_CREDENTIAL_METADATA_SETTING_KEYS = [
   'credential_api_base_url',
   'credential_device_id',
-  'credential_refresh_token',
   'credential_user_id',
 ] as const;
 
@@ -278,26 +286,44 @@ export async function loadStoredSyncCredentials(): Promise<StoredSyncCredentials
     'SELECT key, value FROM sync_settings',
   );
   const syncSettings = new Map(settingRows.map((row) => [row.key, row.value]));
-  const accessToken = normalizeOptionalString(syncSettings.get('credential_access_token') ?? null);
-  const accessTokenExpiresAt = normalizeOptionalString(
-    syncSettings.get('credential_access_token_expires_at') ?? null,
-  );
   const deviceId = normalizeOptionalString(syncSettings.get('credential_device_id') ?? null);
-  const refreshToken = normalizeOptionalString(
-    syncSettings.get('credential_refresh_token') ?? null,
-  );
   const userId = normalizeOptionalString(syncSettings.get('credential_user_id') ?? null);
+  let secureSecrets = await loadStoredSyncSecrets();
 
-  if (!accessToken || !accessTokenExpiresAt || !deviceId || !refreshToken || !userId) {
+  if (!secureSecrets) {
+    const legacyAccessToken = normalizeOptionalString(
+      syncSettings.get('credential_access_token') ?? null,
+    );
+    const legacyAccessTokenExpiresAt = normalizeOptionalString(
+      syncSettings.get('credential_access_token_expires_at') ?? null,
+    );
+    const legacyRefreshToken = normalizeOptionalString(
+      syncSettings.get('credential_refresh_token') ?? null,
+    );
+
+    if (legacyAccessToken && legacyAccessTokenExpiresAt && legacyRefreshToken) {
+      secureSecrets = {
+        accessToken: legacyAccessToken,
+        accessTokenExpiresAt: legacyAccessTokenExpiresAt,
+        refreshToken: legacyRefreshToken,
+      };
+      await saveStoredSyncSecrets(secureSecrets);
+      await deleteSyncSettings(database, SYNC_CREDENTIAL_LEGACY_SECRET_SETTING_KEYS);
+    }
+  }
+
+  if (!secureSecrets || !deviceId || !userId) {
     return null;
   }
 
   return {
-    accessToken,
-    accessTokenExpiresAt,
-    apiBaseUrl: normalizeOptionalString(syncSettings.get('credential_api_base_url') ?? null),
+    accessToken: secureSecrets.accessToken,
+    accessTokenExpiresAt: secureSecrets.accessTokenExpiresAt,
+    apiBaseUrl: sanitizeTrustedApiBaseUrl(
+      normalizeOptionalString(syncSettings.get('credential_api_base_url') ?? null),
+    ),
     deviceId,
-    refreshToken,
+    refreshToken: secureSecrets.refreshToken,
     userId,
   };
 }
@@ -305,33 +331,43 @@ export async function loadStoredSyncCredentials(): Promise<StoredSyncCredentials
 export async function saveStoredSyncCredentials(
   credentials: StoredSyncCredentials | null,
 ): Promise<void> {
+  await saveStoredSyncSecrets(
+    credentials
+      ? {
+          accessToken: credentials.accessToken,
+          accessTokenExpiresAt: credentials.accessTokenExpiresAt,
+          refreshToken: credentials.refreshToken,
+        }
+      : null,
+  );
+
   const database = await getDatabase();
 
   await database.withTransactionAsync(async () => {
-    await deleteSyncSettings(database, SYNC_CREDENTIAL_SETTING_KEYS);
+    await deleteSyncSettings(database, SYNC_CREDENTIAL_METADATA_SETTING_KEYS);
+    await deleteSyncSettings(database, SYNC_CREDENTIAL_LEGACY_SECRET_SETTING_KEYS);
 
     if (!credentials) {
       return;
     }
 
-    await writeSyncSetting(database, 'credential_access_token', credentials.accessToken);
     await writeSyncSetting(
       database,
-      'credential_access_token_expires_at',
-      credentials.accessTokenExpiresAt,
+      'credential_api_base_url',
+      sanitizeTrustedApiBaseUrl(credentials.apiBaseUrl ?? null),
     );
-    await writeSyncSetting(database, 'credential_api_base_url', credentials.apiBaseUrl ?? null);
     await writeSyncSetting(database, 'credential_device_id', credentials.deviceId);
-    await writeSyncSetting(database, 'credential_refresh_token', credentials.refreshToken);
     await writeSyncSetting(database, 'credential_user_id', credentials.userId);
   });
 }
 
 export async function clearStoredSyncCredentials(): Promise<void> {
+  await clearStoredSyncSecrets();
   const database = await getDatabase();
 
   await database.withTransactionAsync(async () => {
-    await deleteSyncSettings(database, SYNC_CREDENTIAL_SETTING_KEYS);
+    await deleteSyncSettings(database, SYNC_CREDENTIAL_METADATA_SETTING_KEYS);
+    await deleteSyncSettings(database, SYNC_CREDENTIAL_LEGACY_SECRET_SETTING_KEYS);
   });
 }
 

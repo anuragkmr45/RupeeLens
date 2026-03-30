@@ -175,7 +175,7 @@ export const DEFAULT_ONBOARDING_PREFERENCES: OnboardingPreferences = {
   selectedSourceAppIds: ['google_pay', 'phonepe', 'paytm'],
   syncMode: 'local_only',
 };
-export const DEFAULT_PRIVACY_MODE_ENABLED = false;
+export const DEFAULT_PRIVACY_MODE_ENABLED = true;
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
 let schemaPromise: Promise<void> | null = null;

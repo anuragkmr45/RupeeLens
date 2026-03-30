@@ -15,10 +15,11 @@ import type {
   BudgetAlertSettings,
   BudgetThresholdAlert,
 } from '../spend-tracker/domain';
-import type {
-  NotificationAccessState,
-  OnboardingPreferences,
-  PersistedSpendTrackerState,
+import {
+  DEFAULT_PRIVACY_MODE_ENABLED,
+  type NotificationAccessState,
+  type OnboardingPreferences,
+  type PersistedSpendTrackerState,
 } from '../spend-tracker/persistence';
 
 export type CsvExportKind = 'budgets' | 'categories' | 'items' | 'transactions';
@@ -219,7 +220,7 @@ function normalizeExportSnapshot(state: PersistedSpendTrackerState): ExportSnaps
       ...state.onboardingPreferences,
       selectedSourceAppIds: [...state.onboardingPreferences.selectedSourceAppIds].sort(),
     },
-    privacyModeEnabled: state.privacyModeEnabled ?? false,
+    privacyModeEnabled: state.privacyModeEnabled ?? DEFAULT_PRIVACY_MODE_ENABLED,
     rules: [...(state.rules ?? [])].sort(
       (left, right) =>
         left.updatedAt.localeCompare(right.updatedAt) || left.id.localeCompare(right.id),

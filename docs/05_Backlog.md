@@ -1040,7 +1040,7 @@ Test strategy approved and automated baseline running.
 - **Story points:** 8
 - **Goal:** Ship a trustworthy consumer product around financial behavior data.
 - **Dependencies:** API-002, UX-007, CAP-004
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-30 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo-side QA-002 hardening landed on 2026-03-30: sync access/refresh tokens and expiry now move from SQLite settings into Expo SecureStore with legacy-key cleanup, sync/session/telemetry reject insecure non-local HTTP, privacy mode defaults to enabled in the client and native capture settings, local backup privacy metadata now falls back to the secure default, and the current retention/redaction plus Play Data Safety review baseline is documented in `docs/13_Privacy_Security_Baseline.md`. Focused client privacy/security tests plus `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed. Status remains `in_progress` because the backlog done-when still requires beta security sign-off and final Play Data Safety review evidence outside this environment.
 
 **Description**  
 Add token storage hardening, HTTPS/TLS enforcement, redaction policies, raw notification retention limits, audit events for destructive edits, and privacy-mode defaults. Review Play Data Safety inputs.

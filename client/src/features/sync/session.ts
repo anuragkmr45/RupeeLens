@@ -11,6 +11,7 @@ import {
   resolveBootstrapBaseUrl,
 } from '../bootstrap-config/runtime-config';
 import type { SyncCredentials } from './runtime';
+import { normalizeTrustedApiBaseUrl } from './transport-policy';
 
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000;
 
@@ -175,7 +176,9 @@ function toStoredSyncCredentials(
     accessTokenExpiresAt: new Date(
       Date.now() + response.expiresInSeconds * 1000,
     ).toISOString(),
-    apiBaseUrl: apiBaseUrl ?? resolveBootstrapBaseUrl(responseDevicePlatform()),
+    apiBaseUrl: normalizeTrustedApiBaseUrl(
+      apiBaseUrl ?? resolveBootstrapBaseUrl(responseDevicePlatform()),
+    ),
     deviceId: response.deviceId,
     refreshToken: response.refreshToken,
     userId: response.userId,
@@ -194,8 +197,9 @@ async function requestJson<T>({
     throw new Error('Fetch API is unavailable in this runtime.');
   }
 
-  const resolvedBaseUrl =
-    normalizeOptionalString(baseUrl) ?? resolveBootstrapBaseUrl(responseDevicePlatform());
+  const resolvedBaseUrl = normalizeTrustedApiBaseUrl(
+    normalizeOptionalString(baseUrl) ?? resolveBootstrapBaseUrl(responseDevicePlatform()),
+  );
   const response = await fetchImplementation(
     new URL(path, resolvedBaseUrl).toString(),
     {

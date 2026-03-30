@@ -15,6 +15,7 @@ import {
   type SyncOutboxEntry,
   upsertConflictQueueEntry,
 } from './domain';
+import { normalizeTrustedApiBaseUrl } from './transport-policy';
 
 const DEFAULT_SYNC_BATCH_SIZE = 25;
 const DEFAULT_SYNC_PUSH_PAYLOAD_BYTES = 48 * 1024;
@@ -41,12 +42,15 @@ export async function probeSyncReachability(
   }
 
   try {
-    const response = await fetchImplementation(new URL('/health', baseUrl).toString(), {
+    const response = await fetchImplementation(
+      new URL('/health', normalizeTrustedApiBaseUrl(baseUrl)).toString(),
+      {
       headers: {
         accept: 'application/json',
       },
       method: 'GET',
-    });
+      },
+    );
 
     return {
       checkedAt,
@@ -135,7 +139,9 @@ export async function runSyncCycle({
     maxPayloadBytes: maxPushPayloadBytes,
     readyEntries,
   });
-  const baseUrl = credentials.apiBaseUrl?.trim() || resolveBootstrapBaseUrl('android');
+  const baseUrl = normalizeTrustedApiBaseUrl(
+    credentials.apiBaseUrl?.trim() || resolveBootstrapBaseUrl('android'),
+  );
 
   nextSyncState.lastErrorMessage = null;
   nextSyncState.lastStatus = 'syncing';

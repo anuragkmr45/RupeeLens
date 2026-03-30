@@ -3,7 +3,10 @@ import {
   type BudgetDefinition,
   type Transaction,
 } from '../src/features/spend-tracker/domain';
-import type { PersistedSpendTrackerState } from '../src/features/spend-tracker/persistence';
+import {
+  DEFAULT_PRIVACY_MODE_ENABLED,
+  type PersistedSpendTrackerState,
+} from '../src/features/spend-tracker/persistence';
 import {
   buildCsvExportArtifact,
   buildLocalBackupArtifact,
@@ -176,5 +179,22 @@ describe('local export helpers', () => {
     expect(artifact.contents).toContain('"schema_version": "local_backup_v1"');
     expect(artifact.contents).toContain('"privacy_mode_enabled": true');
     expect(artifact.contents).toContain('"note": "Met the design team."');
+  });
+
+  it('defaults backup privacy metadata to the secure app default when unset', () => {
+    const legacyState = {
+      ...buildState(),
+      privacyModeEnabled: undefined,
+    } as unknown as PersistedSpendTrackerState;
+    const artifact = buildLocalBackupArtifact(
+      legacyState,
+      {
+        now: '2026-03-30T10:15:00.000Z',
+      },
+    );
+
+    expect(artifact.contents).toContain(
+      `"privacy_mode_enabled": ${DEFAULT_PRIVACY_MODE_ENABLED}`,
+    );
   });
 });

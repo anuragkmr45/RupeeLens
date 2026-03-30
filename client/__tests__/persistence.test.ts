@@ -314,7 +314,7 @@ describe('spend-tracker persistence', () => {
       },
       notificationAccessState: 'not_started',
       onboardingCompleted: true,
-      privacyModeEnabled: false,
+      privacyModeEnabled: true,
       rules: [],
       transactions: seededTransactions,
     });
