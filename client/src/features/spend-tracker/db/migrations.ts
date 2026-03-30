@@ -127,6 +127,10 @@ export const BUDGET_THRESHOLD_ALERTS_TABLE_SQL = `
     message TEXT NOT NULL
   );
 `;
+export const BUDGET_THRESHOLD_ALERTS_STATUS_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_budget_threshold_alerts_status_delivered_at
+  ON budget_threshold_alerts(status, delivered_at DESC);
+`;
 export const SYNC_ENTITY_VERSIONS_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS sync_entity_versions (
     entity_type TEXT NOT NULL CHECK(entity_type IN ('transaction', 'transaction_item', 'category', 'merchant', 'merchant_alias', 'rule', 'budget', 'budget_scope')),
@@ -192,6 +196,14 @@ export const TRANSACTIONS_TABLE_SQL = `
     parser_version TEXT,
     parser_confidence_bps INTEGER
   );
+`;
+export const TRANSACTIONS_CAPTURED_AT_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_transactions_captured_at
+  ON transactions(captured_at DESC, id DESC);
+`;
+export const TRANSACTIONS_STATUS_SOURCE_APP_CAPTURED_AT_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_transactions_status_source_app_captured_at
+  ON transactions(status, source_app, captured_at DESC);
 `;
 export const TRANSACTIONS_V3_ADD_MERCHANT_RAW_SQL = `
   ALTER TABLE transactions
@@ -478,5 +490,17 @@ export const mobileMigrations: readonly MobileMigration[] = [
   {
     id: '025_create_sync_conflicts_entity_index',
     sql: SYNC_CONFLICTS_ENTITY_INDEX_SQL,
+  },
+  {
+    id: '026_create_budget_threshold_alerts_status_index',
+    sql: BUDGET_THRESHOLD_ALERTS_STATUS_INDEX_SQL,
+  },
+  {
+    id: '027_create_transactions_captured_at_index',
+    sql: TRANSACTIONS_CAPTURED_AT_INDEX_SQL,
+  },
+  {
+    id: '028_create_transactions_status_source_app_captured_at_index',
+    sql: TRANSACTIONS_STATUS_SOURCE_APP_CAPTURED_AT_INDEX_SQL,
   },
 ] as const;

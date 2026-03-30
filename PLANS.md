@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### QA-003 — Optimize Low-Internet Behavior, App Size, And Runtime Performance
+
+- **Status:** completed
+- **Ticket:** QA-003
+- **Goal:** Reduce avoidable client startup/navigation work, tighten local data/query performance, and improve low-network sync behavior without widening into security, analytics, staging-only profiling, or native Android closeout claims.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `client/src/app/SpendTrackerApp.tsx`, `client/src/features/spend-tracker/db/migrations.ts`, `client/src/features/sync/runtime.ts`, focused client tests, and repo-truth docs (`README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `client/src/lib/app-info.ts`) only if the resulting evidence changes ticket status or the default-next note.
+- **Rationale:** The re-audit on 2026-03-30 still leaves `SET-002` blocked because `gh` is unavailable, and `CAP-003` plus `CAP-004` remain blocked because `adb devices` is empty. `CAP-005`, `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-004`, `API-005`, `API-007`, `SYNC-001`, and `QA-004` now only have external closeout gaps. `QA-003` is the earliest remaining canonical `todo` whose dependencies are satisfied by repo truth, and the client still has concrete performance hotspots: heavy screen-specific derived data runs on every render, sync batching is entry-count based rather than payload-size aware, and local DB indexes do not yet cover the main transaction/order filters used during hydration and review.
+- **Risks:** This can sprawl into broad architecture refactors, premature micro-optimization, security/storage hardening, or device-only performance claims. Keep the scope inside measurable repo-side improvements: lazy screen computation, additive local indexes, low-network sync chunking, and truthful performance-oriented tests/documentation.
+- **API / schema impact:** No OpenAPI change expected. Additive mobile SQLite indexes are acceptable if they support current transaction/query patterns. Sync API shape should stay unchanged.
+- **Rollout / flag plan:** Keep all improvements local-first and additive. Do not claim cold-start, capture-to-prompt, or release-size budgets as fully met without direct device/build evidence from the current environment.
+- **Validation commands:** Focused client tests for sync runtime and affected app flows, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check`. Run `pnpm lint:openapi` only if contract docs change.
+- **Done when:** The repo has concrete client-side performance improvements for heavy render paths, local query/index support, and low-network sync batching, and tracking reflects any remaining device-profile or beta-only evidence gap truthfully.
+- **Outcome:** Completed the repo-side QA-003 implementation pass on 2026-03-30 by gating expensive screen-specific derived data behind the active screen in the client, adding additive mobile SQLite indexes for the current transaction and budget-alert query paths, and making sync batching honor payload size as well as entry count for slower networks. Focused client validation plus `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed. The canonical backlog ticket remains `in_progress` because its done-when still requires direct device/network profiling and documented performance-budget evidence.
+
 ### SYNC-001 — Implement Local-First Outbox, Retry Policy, And Conflict Queue On Mobile
 
 - **Status:** completed

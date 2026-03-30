@@ -127,16 +127,17 @@ Do not start a second ticket automatically in the same run.
 
 Unless repo truth changes first, the default next ticket is:
 
-- `QA-003 — Optimize low-internet behavior, app size, and runtime performance` as a new execution pass.
+- `QA-005 — Implement analytics, crash reporting, and operational dashboards` as a new execution pass.
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
 - `CAP-003` and `CAP-004` remain blocked on connected-Android validation because `adb devices` is empty in the current environment.
-- `CAP-005`, `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-004`, `API-005`, `API-007`, `QA-004`, and `SYNC-001` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, manual QA spreadsheet verification, staging evidence, remote Expo project wiring, non-production OTA/rollback dry-run evidence, engineering approval, or beta-only validation rather than missing repo-side implementation.
+- `CAP-005`, `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-004`, `API-005`, `API-007`, `QA-003`, `QA-004`, and `SYNC-001` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, direct device/network profiling evidence, manual QA spreadsheet verification, staging evidence, remote Expo project wiring, non-production OTA/rollback dry-run evidence, engineering approval, or beta-only validation rather than missing repo-side implementation.
 - `QA-001` is not yet actionable because it depends on blocked `SET-002`.
 - `QA-002` is not yet actionable because it depends on blocked `CAP-004`.
-- `QA-005`, `REL-001`, and `REL-002` still have blocked dependencies.
+- `REL-001` and `REL-002` still have blocked dependencies.
 - `API-003` is now closed by paired mobile-style integration evidence over the real session, pairing, and sync routes.
 - `SYNC-001` now has its remaining repo-side gap closed: the client can create or join a sync session from Settings, persist credentials locally, refresh tokens before sync, and feed real credentials into the existing outbox/runtime path.
-- `QA-003` is therefore the earliest remaining canonical `todo` whose dependencies are satisfied by repo truth and that still has a concrete repo-side implementation path.
+- `QA-003` now has its repo-side implementation pass in place: heavy screen-specific derivations are gated, current local query patterns are indexed, and sync batching now respects payload size as well as entry count, but its done-when still requires direct device/network profiling evidence.
+- `QA-005` is therefore the earliest remaining canonical `todo` whose dependencies are satisfied by repo truth and that still has a concrete repo-side implementation path.

@@ -1067,7 +1067,7 @@ Security sign-off obtained for beta.
 - **Story points:** 5
 - **Goal:** Make the product lightweight and usable across common Indian device/network conditions.
 - **Dependencies:** UX-002, SYNC-001, INT-007
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-03-30 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Implementation pass on 2026-03-30 confirmed `SET-002` remains blocked because `gh` is unavailable, and `CAP-003` plus `CAP-004` remain blocked because `adb devices` is empty. This pass landed the repo-side `QA-003` work by gating expensive screen-specific derived data behind the active screen, adding additive mobile SQLite indexes for current transaction and budget-alert query patterns, and making sync batching honor payload size as well as entry count for slower networks. Focused client validation plus `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because the backlog done-when still requires direct device/network profiling and documented performance-budget evidence.
 
 **Description**  
 Profile startup, navigation, capture-to-prompt latency, DB query latency, sync payload sizes, and JS bundle size. Implement caching, query indexes, lazy loading, and asset trimming as needed.

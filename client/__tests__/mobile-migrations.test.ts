@@ -56,8 +56,8 @@ describe('mobile migration runner', () => {
       now: () => '2026-03-26T00:00:00.000Z',
     });
 
-    expect(database.execAsync).toHaveBeenCalledTimes(26);
-    expect(database.runAsync).toHaveBeenCalledTimes(25);
+    expect(database.execAsync).toHaveBeenCalledTimes(29);
+    expect(database.runAsync).toHaveBeenCalledTimes(28);
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
       '001_create_settings_table',
@@ -70,7 +70,7 @@ describe('mobile migration runner', () => {
     );
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
-      '025_create_sync_conflicts_entity_index',
+      '028_create_transactions_status_source_app_captured_at_index',
       '2026-03-26T00:00:00.000Z',
     );
   });
@@ -127,6 +127,9 @@ describe('mobile migration runner', () => {
           { id: '023_create_sync_outbox_indexes' },
           { id: '024_create_sync_conflicts_table' },
           { id: '025_create_sync_conflicts_entity_index' },
+          { id: '026_create_budget_threshold_alerts_status_index' },
+          { id: '027_create_transactions_captured_at_index' },
+          { id: '028_create_transactions_status_source_app_captured_at_index' },
         ];
       }
 
@@ -170,6 +173,6 @@ describe('mobile migration runner', () => {
     expect(database.execAsync).toHaveBeenCalledWith(
       expect.stringContaining('ADD COLUMN merchant_raw TEXT NOT NULL DEFAULT'),
     );
-    expect(database.runAsync).toHaveBeenCalledTimes(25);
+    expect(database.runAsync).toHaveBeenCalledTimes(28);
   });
 });

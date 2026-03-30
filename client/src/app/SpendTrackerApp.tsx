@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import * as FileSystem from 'expo-file-system/legacy';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useDeferredValue, useEffect, useRef, useState } from 'react';
 import type { DevicePairingCodeResponse } from '@upi-spend-tracker/contracts';
 import {
   AppState,
@@ -442,87 +442,115 @@ export function SpendTrackerApp() {
   const hasSyncCredentials = Boolean(
     syncCredentials?.accessToken && syncCredentials.refreshToken,
   );
-
-  const pendingTransactions = getPendingTransactions(transactions);
-  const allReviewTransactions = getInboxReviewTransactions(transactions, {
-    ...DEFAULT_INBOX_FILTERS,
-    statusFilter: 'all',
-  });
-  const filteredReviewTransactions = getInboxReviewTransactions(transactions, inboxFilters);
-  const inboxSourceAppOptions = getInboxSourceAppOptions(transactions);
-  const timelineTransactions = getTimelineTransactions(
-    transactions,
-    timelineFilters,
-    undefined,
-    categories,
-  );
-  const timelineDayGroups = getTimelineDayGroups(
-    transactions,
-    timelineFilters,
-    undefined,
-    categories,
-  );
-  const timelineSourceAppOptions = getTimelineSourceAppOptions(transactions);
-  const merchantUsage = summarizeMerchantUsage(merchants, merchantAliases, transactions);
-  const merchantReviewCandidates = getMerchantReviewCandidates(merchants, transactions);
-  const budgetSummaries = summarizeBudgets(transactions, budgets);
-  const pendingBudgetAlerts = getPendingBudgetAlerts(budgetAlerts);
-  const summary = summarizeDashboard(
-    transactions,
-    {
-      budgets,
-      budgetTargetMinor: DASHBOARD_BUDGET_TARGET_MINOR,
-      cycleStartDay: getBudgetCycleStartDay(onboardingPreferences.budgetCycleId),
-    },
-    categories,
-  );
-  const insightsReport =
-    screen === 'insights'
-      ? summarizeInsights(
+  const deferredInboxFilters = useDeferredValue(inboxFilters);
+  const deferredTimelineFilters = useDeferredValue(timelineFilters);
+  const cycleStartDay = getBudgetCycleStartDay(onboardingPreferences.budgetCycleId);
+  const isHomeScreen = !isHydrating && screen === 'home';
+  const isInboxScreen = !isHydrating && screen === 'inbox';
+  const isTimelineScreen = !isHydrating && screen === 'timeline';
+  const isInsightsScreen = !isHydrating && screen === 'insights';
+  const isBudgetsScreen = !isHydrating && screen === 'budgets';
+  const isCategoriesScreen = !isHydrating && screen === 'categories';
+  const isMerchantsScreen = !isHydrating && screen === 'merchants';
+  const isClassifyScreen = !isHydrating && screen === 'classify';
+  const isSplitScreen = !isHydrating && screen === 'split';
+  const isManualScreen = !isHydrating && screen === 'manual';
+  const isDetailScreen = !isHydrating && screen === 'detail';
+  const needsMerchantReviewData = isHomeScreen || isMerchantsScreen;
+  const needsBudgetReviewData = isHomeScreen || isBudgetsScreen;
+  const pendingTransactions = isHomeScreen ? getPendingTransactions(transactions) : [];
+  const allReviewTransactions = isInboxScreen
+    ? getInboxReviewTransactions(transactions, {
+        ...DEFAULT_INBOX_FILTERS,
+        statusFilter: 'all',
+      })
+    : [];
+  const filteredReviewTransactions = isInboxScreen
+    ? getInboxReviewTransactions(transactions, deferredInboxFilters)
+    : [];
+  const inboxSourceAppOptions = isInboxScreen ? getInboxSourceAppOptions(transactions) : [];
+  const timelineTransactions = isTimelineScreen
+    ? getTimelineTransactions(transactions, deferredTimelineFilters, undefined, categories)
+    : [];
+  const timelineDayGroups = isTimelineScreen
+    ? getTimelineDayGroups(transactions, deferredTimelineFilters, undefined, categories)
+    : [];
+  const timelineSourceAppOptions = isTimelineScreen
+    ? getTimelineSourceAppOptions(transactions)
+    : [];
+  const merchantUsage = needsMerchantReviewData
+    ? summarizeMerchantUsage(merchants, merchantAliases, transactions)
+    : [];
+  const merchantReviewCandidates = needsMerchantReviewData
+    ? getMerchantReviewCandidates(merchants, transactions)
+    : [];
+  const budgetSummaries = needsBudgetReviewData ? summarizeBudgets(transactions, budgets) : [];
+  const pendingBudgetAlerts = needsBudgetReviewData
+    ? getPendingBudgetAlerts(budgetAlerts)
+    : [];
+  const summary = isHomeScreen
+    ? summarizeDashboard(
+        transactions,
+        {
+          budgets,
+          budgetTargetMinor: DASHBOARD_BUDGET_TARGET_MINOR,
+          cycleStartDay,
+        },
+        categories,
+      )
+    : null;
+  const insightsReport = isInsightsScreen
+    ? summarizeInsights(
+        transactions,
+        {
+          cycleStartDay,
+        },
+        categories,
+      )
+    : null;
+  const categoryUsage = isCategoriesScreen ? summarizeCategoryUsage(categories, transactions) : [];
+  const activeTransaction =
+    activeTransactionId && (isClassifyScreen || isSplitScreen)
+      ? getTransactionById(transactions, activeTransactionId)
+      : null;
+  const detailTransaction =
+    detailTransactionId && isDetailScreen
+      ? getTransactionById(transactions, detailTransactionId)
+      : null;
+  const activeTransactionSuggestions =
+    isClassifyScreen && activeTransaction
+      ? getClassificationSuggestions(
           transactions,
           {
-            cycleStartDay: getBudgetCycleStartDay(onboardingPreferences.budgetCycleId),
+            amountMinor: activeTransaction.amountMinor,
+            capturedAt: activeTransaction.capturedAt,
+            currentTransactionId: activeTransaction.id,
+            merchant: activeTransaction.merchantRaw ?? activeTransaction.merchant,
+            merchantId: activeTransaction.merchantId,
           },
-          categories,
+          rules,
+          merchants,
+          merchantAliases,
         )
+      : [];
+  const splitSummary =
+    isSplitScreen && activeTransaction
+      ? summarizeSplitDraft(activeTransaction.amountMinor, splitDraft)
       : null;
-  const categoryUsage = summarizeCategoryUsage(categories, transactions);
-  const activeTransaction = activeTransactionId
-    ? getTransactionById(transactions, activeTransactionId)
-    : null;
-  const detailTransaction = detailTransactionId
-    ? getTransactionById(transactions, detailTransactionId)
-    : null;
-  const activeTransactionSuggestions = activeTransaction
+  const manualAmountMinor = parseCurrencyInputToMinor(manualDraft.amountInput);
+  const manualEntrySuggestions = isManualScreen
     ? getClassificationSuggestions(
         transactions,
         {
-          amountMinor: activeTransaction.amountMinor,
-          capturedAt: activeTransaction.capturedAt,
-          currentTransactionId: activeTransaction.id,
-          merchant: activeTransaction.merchantRaw ?? activeTransaction.merchant,
-          merchantId: activeTransaction.merchantId,
+          amountMinor: manualAmountMinor,
+          capturedAt: manualDraft.capturedAt || undefined,
+          merchant: manualDraft.merchant,
         },
         rules,
         merchants,
         merchantAliases,
       )
     : [];
-  const splitSummary = activeTransaction
-    ? summarizeSplitDraft(activeTransaction.amountMinor, splitDraft)
-    : null;
-  const manualAmountMinor = parseCurrencyInputToMinor(manualDraft.amountInput);
-  const manualEntrySuggestions = getClassificationSuggestions(
-    transactions,
-    {
-      amountMinor: manualAmountMinor,
-      capturedAt: manualDraft.capturedAt || undefined,
-      merchant: manualDraft.merchant,
-    },
-    rules,
-    merchants,
-    merchantAliases,
-  );
   const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
   const syncSummary = buildSyncQueueSummary({
     hasSyncCredentials,
@@ -2126,7 +2154,7 @@ export function SpendTrackerApp() {
           <Text style={styles.subtitle}>{APP_COPY.subtitle}</Text>
         </View>
 
-        {!isHydrating && screen === 'inbox' ? (
+        {isInboxScreen ? (
           <InboxScreen
             allReviewCount={allReviewTransactions.length}
             filters={inboxFilters}
@@ -2144,7 +2172,7 @@ export function SpendTrackerApp() {
             onStartSplit={handleOpenSplitFromInbox}
             onUpdateFilters={handleUpdateInboxFilters}
           />
-        ) : !isHydrating && screen === 'timeline' ? (
+        ) : isTimelineScreen ? (
           <TimelineScreen
             allTransactionsCount={transactions.length}
             categories={categories}
@@ -2167,7 +2195,7 @@ export function SpendTrackerApp() {
             timelineDayGroups={timelineDayGroups}
             timelineSourceAppOptions={timelineSourceAppOptions}
           />
-        ) : !isHydrating && screen === 'insights' && insightsReport ? (
+        ) : isInsightsScreen && insightsReport ? (
           <InsightsScreen
             budgetCycleLabel={getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}
             onBack={() => setScreen('home')}
@@ -2175,7 +2203,7 @@ export function SpendTrackerApp() {
             onSelectTab={(nextScreen) => setScreen(nextScreen)}
             report={insightsReport}
           />
-        ) : !isHydrating && screen === 'categories' ? (
+        ) : isCategoriesScreen ? (
           <CategoryManagementScreen
             categories={categories}
             categoryUsage={categoryUsage}
@@ -2185,7 +2213,7 @@ export function SpendTrackerApp() {
             onMergeCategory={handleMergeCategory}
             onUpdateCategory={handleUpdateCategory}
           />
-        ) : !isHydrating && screen === 'budgets' ? (
+        ) : isBudgetsScreen ? (
           <BudgetManagementScreen
             budgetAlertSettings={budgetAlertSettings}
             budgetAlerts={budgetAlerts}
@@ -2216,7 +2244,7 @@ export function SpendTrackerApp() {
             }
             onUpdateBudgetAlertSettings={setBudgetAlertSettings}
           />
-        ) : !isHydrating && screen === 'merchants' ? (
+        ) : isMerchantsScreen ? (
           <MerchantManagementScreen
             merchantAliases={merchantAliases}
             merchantReviewCandidates={merchantReviewCandidates}
@@ -2225,7 +2253,7 @@ export function SpendTrackerApp() {
             onMergeMerchant={handleMergeMerchant}
             onSplitMerchantAlias={handleSplitMerchantAlias}
           />
-        ) : !isHydrating && screen === 'detail' && detailTransaction ? (
+        ) : isDetailScreen && detailTransaction ? (
           <TransactionDetailScreen
             categories={categories}
             noteDraft={detailNoteDraft}
@@ -2239,7 +2267,7 @@ export function SpendTrackerApp() {
             onSaveNote={handleSaveDetailNote}
             transaction={detailTransaction}
           />
-        ) : !isHydrating && screen === 'classify' && activeTransaction ? (
+        ) : isClassifyScreen && activeTransaction ? (
           <ClassifyScreen
             categories={categories}
             draft={draft}
@@ -2259,7 +2287,7 @@ export function SpendTrackerApp() {
             suggestions={activeTransactionSuggestions}
             transaction={activeTransaction}
           />
-        ) : !isHydrating && screen === 'split' && activeTransaction && splitSummary ? (
+        ) : isSplitScreen && activeTransaction && splitSummary ? (
           <SplitItemsScreen
             categories={categories}
             onAddRow={handleAddSplitRow}
@@ -2300,7 +2328,7 @@ export function SpendTrackerApp() {
               />
             ) : null}
 
-            {!isHydrating && screen === 'home' ? (
+            {isHomeScreen && summary ? (
               <HomeScreen
                 bootstrapState={bootstrapState}
                 budgetCount={budgets.length}
@@ -2391,7 +2419,7 @@ export function SpendTrackerApp() {
               />
             ) : null}
 
-            {!isHydrating && screen === 'manual' ? (
+            {isManualScreen ? (
               <ManualEntryScreen
                 amountMinor={manualAmountMinor}
                 categories={categories}

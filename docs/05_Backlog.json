@@ -1021,12 +1021,12 @@
       ],
       "tests": "Performance profiling on low/mid-tier Android devices and throttled networks.",
       "done": "Performance budget met and documented.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-03-30",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Implementation pass on 2026-03-30 confirmed `SET-002` remains blocked because `gh` is unavailable, and `CAP-003` plus `CAP-004` remain blocked because `adb devices` is empty. This pass landed the repo-side `QA-003` work by gating expensive screen-specific derived data behind the active screen, adding additive mobile SQLite indexes for current transaction and budget-alert query patterns, and making sync batching honor payload size as well as entry count for slower networks. Focused client validation plus `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because the backlog done-when still requires direct device/network profiling and documented performance-budget evidence."
     },
     {
       "id": "QA-004",

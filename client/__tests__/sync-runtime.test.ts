@@ -220,6 +220,82 @@ describe('sync runtime', () => {
     ]);
   });
 
+  it('limits sync batches by payload size as well as entry count on slow networks', async () => {
+    const secondEntry = createOutboxEntry({
+      entityId: 'txn_local_2',
+      entityVersion: 2,
+      opId: 'transaction_txn_local_2_v2',
+      payload: {
+        amountMinor: 61000,
+        merchant: 'Blue Tokai',
+        notes: 'x'.repeat(200),
+        status: 'classified',
+      },
+    });
+    const fetchImplementation = jest
+      .fn()
+      .mockResolvedValueOnce({
+        json: async () =>
+          ({
+            accepted: [
+              {
+                entityId: 'txn_local_1',
+                entityType: 'transaction',
+                opId: 'transaction_txn_local_1_v1',
+                serverVersion: 1,
+                status: 'accepted',
+              },
+            ],
+            conflicts: [],
+            newCursor: 'cursor_1',
+            rejected: [],
+          } satisfies SyncPushResponse),
+        ok: true,
+        status: 200,
+      })
+      .mockResolvedValueOnce({
+        json: async () =>
+          ({
+            changes: [],
+            cursor: 'cursor_2',
+            hasMore: false,
+          } satisfies SyncPullResponse),
+        ok: true,
+        status: 200,
+      });
+
+    const syncState = await runSyncCycle({
+      credentials: createCredentials(),
+      fetchImplementation: fetchImplementation as unknown as typeof globalThis.fetch,
+      maxPushPayloadBytes: 260,
+      networkState: {
+        checkedAt: '2026-03-30T10:01:00.000Z',
+        isExpensive: false,
+        status: 'online',
+      },
+      now: '2026-03-30T10:01:00.000Z',
+      syncState: createSyncState([createOutboxEntry(), secondEntry]),
+    });
+
+    const pushRequest = JSON.parse(
+      String((fetchImplementation.mock.calls[0]?.[1] as { body: string }).body),
+    ) as { operations: Array<{ opId: string }> };
+
+    expect(pushRequest.operations).toEqual([
+      expect.objectContaining({
+        opId: 'transaction_txn_local_1_v1',
+      }),
+    ]);
+    expect(syncState.lastStatus).toBe('pending');
+    expect(syncState.outbox).toEqual([
+      expect.objectContaining({
+        entityId: 'txn_local_2',
+        opId: 'transaction_txn_local_2_v2',
+        status: 'pending',
+      }),
+    ]);
+  });
+
   it('waits for pairing when credentials are unavailable', async () => {
     const syncState = await runSyncCycle({
       credentials: null,

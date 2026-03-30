@@ -17,6 +17,7 @@ import {
 } from './domain';
 
 const DEFAULT_SYNC_BATCH_SIZE = 25;
+const DEFAULT_SYNC_PUSH_PAYLOAD_BYTES = 48 * 1024;
 const MAX_PULL_LIMIT = 250;
 
 export interface SyncCredentials {
@@ -66,6 +67,7 @@ export async function runSyncCycle({
   batchSize = DEFAULT_SYNC_BATCH_SIZE,
   credentials,
   fetchImplementation = globalThis.fetch,
+  maxPushPayloadBytes = DEFAULT_SYNC_PUSH_PAYLOAD_BYTES,
   networkState,
   now = new Date().toISOString(),
   syncState,
@@ -74,6 +76,7 @@ export async function runSyncCycle({
   batchSize?: number;
   credentials: SyncCredentials | null;
   fetchImplementation?: typeof globalThis.fetch;
+  maxPushPayloadBytes?: number;
   networkState: SyncNetworkState;
   now?: string;
   syncState: PersistedSyncState;
@@ -125,7 +128,13 @@ export async function runSyncCycle({
     });
   }
 
-  const batchEntries = readyEntries.slice(0, batchSize);
+  const batchEntries = selectSyncBatchEntries({
+    batchSize,
+    currentCursor: nextSyncState.lastCursor,
+    deviceId: credentials.deviceId,
+    maxPayloadBytes: maxPushPayloadBytes,
+    readyEntries,
+  });
   const baseUrl = credentials.apiBaseUrl?.trim() || resolveBootstrapBaseUrl('android');
 
   nextSyncState.lastErrorMessage = null;
@@ -192,20 +201,11 @@ async function pushSyncBatch({
   currentCursor: string | null;
   fetchImplementation: typeof globalThis.fetch;
 }): Promise<SyncPushResponse> {
-  const requestBody: SyncPushRequest = {
+  const requestBody = buildSyncPushRequest({
+    batchEntries,
+    currentCursor,
     deviceId: credentials.deviceId,
-    operations: batchEntries.map((entry) => ({
-      entityId: entry.entityId,
-      entityType: entry.entityType,
-      entityVersion: entry.entityVersion,
-      occurredAt:
-        entry.occurredAt as NonNullable<SyncPushRequest['operations'][number]['occurredAt']>,
-      opId: entry.opId,
-      opType: entry.opType,
-      payload: { ...entry.payload },
-    })),
-    ...(currentCursor ? { baseCursor: currentCursor } : {}),
-  };
+  });
   const response = await fetchImplementation(new URL('/v1/sync/push', baseUrl).toString(), {
     body: JSON.stringify(requestBody),
     headers: {
@@ -465,6 +465,81 @@ function createBatchIdempotencyKey(batchEntries: SyncOutboxEntry[]): string {
   return `mobile_sync_${batchEntries
     .map((entry) => `${entry.opId}_${entry.entityVersion}`)
     .join('__')}`;
+}
+
+function selectSyncBatchEntries({
+  batchSize,
+  currentCursor,
+  deviceId,
+  maxPayloadBytes,
+  readyEntries,
+}: {
+  batchSize: number;
+  currentCursor: string | null;
+  deviceId: string;
+  maxPayloadBytes: number;
+  readyEntries: SyncOutboxEntry[];
+}): SyncOutboxEntry[] {
+  const limitedEntries = readyEntries.slice(0, batchSize);
+  const selectedEntries: SyncOutboxEntry[] = [];
+
+  for (const entry of limitedEntries) {
+    const candidateEntries = [...selectedEntries, entry];
+    const payloadBytes = measureSyncPushRequestBytes(
+      buildSyncPushRequest({
+        batchEntries: candidateEntries,
+        currentCursor,
+        deviceId,
+      }),
+    );
+
+    if (selectedEntries.length > 0 && payloadBytes > maxPayloadBytes) {
+      break;
+    }
+
+    selectedEntries.push(entry);
+
+    if (payloadBytes >= maxPayloadBytes) {
+      break;
+    }
+  }
+
+  return selectedEntries.length > 0 ? selectedEntries : limitedEntries.slice(0, 1);
+}
+
+function buildSyncPushRequest({
+  batchEntries,
+  currentCursor,
+  deviceId,
+}: {
+  batchEntries: SyncOutboxEntry[];
+  currentCursor: string | null;
+  deviceId: string;
+}): SyncPushRequest {
+  return {
+    deviceId,
+    operations: batchEntries.map((entry) => ({
+      entityId: entry.entityId,
+      entityType: entry.entityType,
+      entityVersion: entry.entityVersion,
+      occurredAt:
+        entry.occurredAt as NonNullable<SyncPushRequest['operations'][number]['occurredAt']>,
+      opId: entry.opId,
+      opType: entry.opType,
+      payload: { ...entry.payload },
+    })),
+    ...(currentCursor ? { baseCursor: currentCursor } : {}),
+  };
+}
+
+function measureSyncPushRequestBytes(requestBody: SyncPushRequest): number {
+  const serializedBody = JSON.stringify(requestBody);
+
+  if (typeof TextEncoder === 'function') {
+    return new TextEncoder().encode(serializedBody).length;
+  }
+
+  return serializedBody.length;
 }
 
 function addMillisecondsToIso(value: string, deltaMs: number): string {
