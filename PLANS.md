@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### QA-003 — Optimize Low-Internet Behavior, App Size, And Runtime Performance
+
+- **Status:** completed
+- **Ticket:** QA-003
+- **Goal:** Close the remaining repo-side `QA-003` gap by documenting an explicit local performance budget, wiring a named automated performance suite, and proving the current client stays inside those repo-side limits without pretending direct hardware/network profiling already exists.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, `docs/14_Quality_Matrix.md`, a new `docs/15_Performance_Budget.md`, root `package.json`, `scripts/qa/run-suite.mjs`, a new `scripts/qa/check-performance-budget.mjs`, and only the existing client tests/build outputs needed to validate the budget.
+- **Rationale:** The re-audit on 2026-04-01 confirms `SET-002` is still blocked because `gh` is unavailable and no GitHub token is present, while `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty. The other active tickets now only need external QA/design acceptance, staging evidence, spreadsheet/manual verification, security or test-strategy approval, OTA project wiring, engineering approval, or operational rollout evidence. `QA-003` is therefore the earliest active ticket with a real repo-side closeout path because its current tracking still calls out missing documented performance-budget evidence.
+- **Risks:** Performance budgets can become misleading if they claim more than the environment proves. Keep the scope inside repo-side repeatable evidence: local insights performance, payload-aware sync batching, Android bundle-size gating, and explicit documentation of what still needs real devices and throttled networks.
+- **API / schema impact:** None expected. This is a QA/documentation/harness pass over existing client behavior.
+- **Rollout / flag plan:** No rollout flag. Keep the new suite additive and documentation-backed.
+- **Validation commands:** `pnpm qa:performance`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `git diff --check`, and a backlog JSON parse check. Run `pnpm db:validate` only if schema or migration files change.
+- **Done when:** The repo-side performance budget is explicit, automated, and documented, and tracking truthfully reflects any remaining direct-device or throttled-network evidence gap.
+- **Outcome:** Completed the repo-side `QA-003` closeout pass on 2026-04-01 by adding the named `pnpm qa:performance` suite, an automated Android Hermes bundle-size gate in `scripts/qa/check-performance-budget.mjs`, and `docs/15_Performance_Budget.md` as the source of truth for current repo-side performance budgets. `pnpm qa:performance`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `git diff --check`, and a backlog JSON parse check all passed on 2026-04-01. The canonical backlog ticket remains `in_progress` because direct device/network profiling on baseline hardware is still outside this environment.
+
 ### API-005 — Implement Reports And Summary APIs With Precomputed Rollups
 
 - **Status:** completed

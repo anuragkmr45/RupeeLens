@@ -125,13 +125,13 @@ Do not start a second ticket automatically in the same run.
 
 ## Current Default Next Ticket
 
-The current default next ticket is `QA-003 — Optimize low-internet behavior, app size, and runtime performance`.
+There is no unconditional repo-side default next ticket now.
 
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
 - `CAP-003` and `CAP-004` remain blocked on connected-Android validation because `adb devices` is empty in the current environment.
-- `CAP-005`, `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-004`, `API-007`, `SYNC-001`, `QA-001`, `QA-002`, `QA-004`, and `QA-005` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, spreadsheet/manual verification, staging evidence, test-strategy or security approval, OTA project wiring, engineering approval, beta-only validation, or operational rollout evidence rather than missing repo-side implementation.
-- `QA-003` is the earliest active ticket that still has a credible repo-side closeout path: the implementation pass is already in place, but the backlog note still calls out missing documented performance-budget evidence in addition to external device/network profiling.
+- `CAP-005`, `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-004`, `API-007`, `SYNC-001`, `QA-001`, `QA-002`, `QA-003`, `QA-004`, and `QA-005` all remain active in backlog tracking, but their remaining gaps are now external QA/design acceptance, spreadsheet/manual verification, staging evidence, test-strategy or security approval, direct device/network profiling, OTA project wiring, engineering approval, beta-only validation, or operational rollout evidence rather than missing repo-side implementation.
+- `REL-001` and `REL-002` still have blocked dependencies.
 
-On the next run, re-audit first. If GitHub auth becomes available, prefer a `SET-002` closeout pass. If a connected Android target becomes available, prefer `CAP-003` and `CAP-004` closeout passes. Otherwise, continue `QA-003`.
+On the next run, re-audit first. If GitHub auth becomes available, prefer a `SET-002` closeout pass. If a connected Android target becomes available, prefer `CAP-003` and `CAP-004` closeout passes before any later work.

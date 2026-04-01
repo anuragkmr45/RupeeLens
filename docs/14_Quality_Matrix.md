@@ -11,6 +11,9 @@ This document defines the current repo-side QA baseline for v1. It names the ver
 - `pnpm qa:parser-fixtures`
   - Runs the Android parser catalog only.
   - Current source: `client/android/app/src/test/java/com/upispendtracker/client/capture/ParserFixtureCatalogV1.kt`
+- `pnpm qa:performance`
+  - Runs the repo-side `QA-003` performance budget suite.
+  - Current source of truth: `docs/15_Performance_Budget.md`
 - `pnpm qa:smoke`
   - Runs the parser-fixture catalog, the full client app-flow harness, the paired mobile sync integration test, and the worker rollup/cleanup/export smoke tests.
 - `pnpm qa:regression`
@@ -31,7 +34,7 @@ This document defines the current repo-side QA baseline for v1. It names the ver
 | --- | --- | --- | --- | --- |
 | Android native baseline | Android 13 or newer | Physical device with notification-listener support | `pnpm qa:smoke`, connected Android manual capture/action checklist, `:app:connectedDebugAndroidTest` | Manual/device evidence pending in this environment |
 | Android compatibility | Android 12 or newer | Emulator or secondary physical device | Connected Android instrumentation plus smoke checklist | Pending |
-| Low/mid-tier performance | Android 12 or newer | 4 GB RAM class device on throttled network | `pnpm qa:regression` plus QA-003 profiling checklist | Pending |
+| Low/mid-tier performance | Android 12 or newer | 4 GB RAM class device on throttled network | `pnpm qa:performance` plus QA-003 profiling checklist | Pending |
 | iOS shell-only | iOS simulator current Expo SDK support | iPhone simulator | `pnpm --filter @upi-spend-tracker/client run ios` plus shell smoke | Pending |
 
 ## Quality Matrix

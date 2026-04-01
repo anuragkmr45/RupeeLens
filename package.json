@@ -20,6 +20,7 @@
     "lint": "pnpm -r --if-present run lint",
     "lint:openapi": "spectral lint --ruleset .spectral.yaml --fail-severity=error docs/04_API_Contract.yaml",
     "qa:parser-fixtures": "node scripts/qa/run-suite.mjs parser-fixtures",
+    "qa:performance": "node scripts/qa/run-suite.mjs performance",
     "qa:regression": "node scripts/qa/run-suite.mjs regression",
     "qa:smoke": "node scripts/qa/run-suite.mjs smoke",
     "test": "pnpm -r --if-present run test",

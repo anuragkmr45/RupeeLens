@@ -122,7 +122,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Baseline lint, typecheck, test, build, and CI documentation
 - Repo-side OTA configuration for `internal`, `beta`, and `production` EAS channels, Expo fingerprint runtime-version policy, bootstrap query alignment with OTA channel/runtime metadata, and a written rollback/change-type playbook
 - Repo-side `QA-002` privacy/security baseline: sync secrets now live in Expo SecureStore instead of plain SQLite settings, sync/telemetry reject insecure non-local HTTP, privacy mode defaults to enabled in JS and native capture settings, raw capture payload retention stays capped on-device, and the current data-handling baseline plus Play Data Safety review inputs are documented
-- Repo-side `QA-003` performance pass: heavy client-side derived data now stays gated behind the active screen, current transaction and budget-alert query paths have additive local SQLite indexes, and sync batching now honors payload size as well as entry count for slower networks
+- Repo-side `QA-003` performance pass: heavy client-side derived data now stays gated behind the active screen, current transaction and budget-alert query paths have additive local SQLite indexes, sync batching now honors payload size as well as entry count for slower networks, and `pnpm qa:performance` plus `docs/15_Performance_Budget.md` now codify the current repo-side performance budget
 - Repo-side `QA-005` observability pass: versioned privacy-safe telemetry contracts, local-first client event queuing plus authenticated flush, global runtime-error capture, authenticated telemetry ingest/dashboard APIs, and deterministic operational alert thresholds for capture failures, sync failures, parser fallbacks, classify latency, and runtime errors
 
 **Remaining**
@@ -130,7 +130,7 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - Real Expo project/update URL wiring plus dry-run OTA/rollback evidence
 - Engineering approval of the OTA process
 - Beta security sign-off plus final Play Data Safety and privacy-policy review evidence
-- Direct device/network profiling evidence and documented performance-budget signoff
+- Direct device/network profiling evidence on baseline Android hardware and throttled networks
 - Operational telemetry rollout and before-beta dashboard evidence
 
 ## Sprint 7 — Beta And Release

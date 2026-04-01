@@ -67,6 +67,42 @@ const suites = {
       label: 'Full build',
     },
   ],
+  performance: [
+    {
+      command: [
+        'pnpm',
+        '--filter',
+        '@upi-spend-tracker/client',
+        'test',
+        '--',
+        '__tests__/domain.test.ts',
+        '--testNamePattern',
+        'renders optimized local insights for 10k transactions within the expected budget',
+      ],
+      label: 'Client local insights performance budget',
+    },
+    {
+      command: [
+        'pnpm',
+        '--filter',
+        '@upi-spend-tracker/client',
+        'test',
+        '--',
+        '__tests__/sync-runtime.test.ts',
+        '--testNamePattern',
+        'limits sync batches by payload size as well as entry count on slow networks',
+      ],
+      label: 'Client sync payload budget',
+    },
+    {
+      command: ['pnpm', '--filter', '@upi-spend-tracker/client', 'build'],
+      label: 'Client Android export build',
+    },
+    {
+      command: ['node', 'scripts/qa/check-performance-budget.mjs'],
+      label: 'Client Android bundle size budget',
+    },
+  ],
 };
 
 function runStep(step) {
@@ -87,7 +123,7 @@ function runStep(step) {
 const suiteName = process.argv[2];
 
 if (!suiteName || !(suiteName in suites)) {
-  console.error('Usage: node scripts/qa/run-suite.mjs <parser-fixtures|smoke|regression>');
+  console.error('Usage: node scripts/qa/run-suite.mjs <parser-fixtures|smoke|regression|performance>');
   process.exit(1);
 }
 
