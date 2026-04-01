@@ -36,14 +36,14 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - First signed remote bootstrap-config loop with API delivery, mobile cache/refresh handling, rollout channels, feature flags, parser templates, and stale-safe fallback observability
 - Android-native `NotificationListenerService` foundation with allowlist filtering, raw snapshot persistence, a React Native diagnostics bridge, UI permission-state reflection sourced from the native listener permission, and a connected-Android instrumentation harness for allowlist filtering plus snapshot persistence that now passes on a real Android 13 device
 - Native parser registry with package-specific launch-app parsers, generic fallback parsing, structured field provenance, reason-coded failures, parser-result persistence, a 30-plus-case fixture suite, and connected Android validation that exercises success and failure persistence
-- Repo-side native capture dedupe with exact/fuzzy suppression, bootstrap-delivered thresholds, duplicate counters, and diagnostics exposure
+- Native capture dedupe with exact/fuzzy suppression, bootstrap-delivered thresholds, duplicate counters, diagnostics exposure, and connected-Android validation that now passes on the attached Android 13 device
 - Repo-side actionable review-notification foundation with direct reply, open-app classify / split, skip persistence, and privacy-aware lockscreen redaction for successful unique captures
 - Native-to-JS capture bridge that exposes pending native captures plus reply metadata, imports them idempotently into the local transaction store, and routes classify / split action deep links into the existing review flows
 - Dedicated in-app diagnostics screen reachable from Home with supported parser inventory, recent parse failures, recent capture logs, and redacted debug-bundle sharing without developer mode
 
 **Remaining**
 
-- Connected-device closeout for dedupe, the Room-backed native capture repository, and the notification-action path is still blocked because this environment does not currently have a stable connected-Android validation path
+- Connected-device closeout for the Room-backed native capture repository and the notification-action path is still pending
 
 ## Sprint 2 — First Usable App
 

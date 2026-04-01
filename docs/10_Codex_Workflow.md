@@ -130,8 +130,9 @@ There is no unconditional repo-side default next ticket now.
 Reason:
 
 - `SET-002` remains blocked by remote GitHub verification.
-- `CAP-003` and `CAP-004` remain blocked on connected-Android validation because `adb devices` is empty in the current environment.
-- `CAP-005`, `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-004`, `API-007`, `SYNC-001`, `QA-001`, `QA-002`, `QA-003`, `QA-004`, and `QA-005` have been reconciled to `blocked` because their only remaining gaps are external QA/design acceptance, spreadsheet/manual verification, staging evidence, test-strategy or security approval, direct device/network profiling, OTA project wiring, engineering approval, beta-only validation, or operational rollout evidence rather than missing repo-side implementation.
+- `CAP-003` is now done after `./gradlew :app:connectedDebugAndroidTest` passed on the connected Android target `e342703` / `M2102J20SI - 13`.
+- `CAP-004` still needs its own connected-Android closeout pass, and `CAP-005` still needs connected-device manual action validation.
+- `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-004`, `API-007`, `SYNC-001`, `QA-001`, `QA-002`, `QA-003`, `QA-004`, and `QA-005` remain `blocked` because their only remaining gaps are external QA/design acceptance, spreadsheet/manual verification, staging evidence, test-strategy or security approval, direct device/network profiling, OTA project wiring, engineering approval, beta-only validation, or operational rollout evidence rather than missing repo-side implementation.
 - `REL-001` and `REL-002` still have blocked dependencies.
 
-On the next run, re-audit first. If GitHub auth becomes available, prefer a `SET-002` closeout pass. If a connected Android target becomes available, prefer `CAP-003` and `CAP-004` closeout passes before any later work.
+On the next run, re-audit first. If GitHub auth becomes available, prefer a `SET-002` closeout pass. If a connected Android target remains available, prefer `CAP-004` and then `CAP-005` closeout passes before any later work.

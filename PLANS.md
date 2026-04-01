@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### CAP-003 — Implement Capture Dedupe And Replay Protection
+
+- **Status:** completed
+- **Ticket:** CAP-003
+- **Goal:** Re-run the blocked `CAP-003` closeout path on the newly connected Android device and truthfully either close the ticket or refresh its blocker note based on real connected-test evidence.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, and repo-truth docs only if the ticket status changes. No product code changes are planned unless the closeout path exposes a narrow repo-side defect that must be fixed to complete this ticket.
+- **Rationale:** The re-audit on 2026-04-01 changed materially: `adb devices` now shows the physical Android target `e342703`. Per the workflow, blocked tickets must be re-checked before starting untouched work, and `CAP-003` is the earliest blocked ticket with a possible closeout path because its only recorded blocker was connected-Android install/test execution.
+- **Risks:** The device may still reject APK/test installation or require manual approval, leaving the ticket blocked. Keep the pass scoped to `CAP-003` evidence only; do not widen into `CAP-004` or `CAP-005` unless `CAP-003` actually closes and this run still has a single-ticket scope, which it should not.
+- **API / schema impact:** None expected.
+- **Rollout / flag plan:** No rollout change. This is a closeout-oriented validation pass over existing Android-native behavior.
+- **Validation commands:** `adb devices`, `cd client/android && ./gradlew :app:testDebugUnitTest`, `cd client/android && ./gradlew :app:connectedDebugAndroidTest`, and repo-wide `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` only if the closeout result requires tracking updates.
+- **Done when:** `CAP-003` is either moved to `done` with direct connected-Android evidence, or left `blocked` with an updated precise blocker note from the current environment.
+- **Outcome:** Closed `CAP-003` on 2026-04-01 after `adb devices` showed the physical Android target `e342703`, `./gradlew :app:testDebugUnitTest` passed, and `./gradlew :app:connectedDebugAndroidTest` completed successfully on `M2102J20SI - 13` with 8 connected tests. Repo-wide `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` also passed on 2026-04-01. The prior `INSTALL_FAILED_USER_RESTRICTED` blocker is cleared, so the canonical backlog ticket now moves from `blocked` to `done`.
+
 ### TRACK-003 — Reconcile Externally Blocked Active Tickets
 
 - **Status:** completed
