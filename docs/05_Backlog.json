@@ -311,12 +311,12 @@
       ],
       "tests": "Manual notification action tests on supported Android versions; instrumented receiver tests.",
       "done": "One-tap classification path works end to end.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
       "started_at": "2026-03-27",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "CAP-005 now has the full repo-side notification-action foundation plus CAP-006 native-to-JS import/routing in place: actionable review notifications post for successful unique captures, direct-reply / classify / split / skip actions persist through the Room-backed native capture repository, privacy-mode lockscreen redaction is enforced, and the React Native app now imports those native captures idempotently and honors classify / split deep links with reply-based prefill. `./gradlew :app:testDebugUnitTest`, focused client tests, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. The ticket remains in progress only because `adb devices` is empty again, so connected-Android manual action and receiver validation could not be completed in this environment."
+      "tracking_notes": "CAP-005 now has the full repo-side notification-action foundation plus CAP-006 native-to-JS import/routing in place: actionable review notifications post for successful unique captures, direct-reply / classify / split / skip actions persist through the Room-backed native capture repository, privacy-mode lockscreen redaction is enforced, and the React Native app now imports those native captures idempotently and honors classify / split deep links with reply-based prefill. `./gradlew :app:testDebugUnitTest`, focused client tests, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status moves to `blocked` because `adb devices` is empty in the current environment, so connected-Android manual action and receiver validation cannot be completed here."
     },
     {
       "id": "CAP-006",
@@ -489,12 +489,12 @@
       ],
       "tests": "Edge-case tests for rounding, zero remainder, and over-allocation.",
       "done": "Split-flow accepted by QA and design.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
       "started_at": "2026-03-27",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: the client now has a full-screen split-items flow with dynamic rows, local reorder/remove/add controls, running allocated-vs-remaining totals, explicit remainder handling, and Inbox visibility for partially classified transactions. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27. Status stays `in_progress` because the backlog done-when still requires external QA/design acceptance, which was not performed in this environment."
+      "tracking_notes": "Repo truth: the client now has a full-screen split-items flow with dynamic rows, local reorder/remove/add controls, running allocated-vs-remaining totals, explicit remainder handling, and Inbox visibility for partially classified transactions. `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-27. Status moves to `blocked` because the only remaining done-when is external QA/design acceptance outside this environment."
     },
     {
       "id": "UX-006",
@@ -539,12 +539,12 @@
       ],
       "tests": "Manual verification of setting toggles and persistence.",
       "done": "Settings screen approved by product and QA.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
-      "started_at": "2026-03-30",
+      "started_at": "2026-03-28",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Re-audit on 2026-03-30 confirmed `SET-002` remains blocked because `gh` is unavailable, and `CAP-003` plus `CAP-004` remain blocked because `adb devices` is empty in the current environment. `CAP-005`, `UX-005`, `INT-005`, `INT-008`, `API-003`, `API-004`, `API-005`, `API-007`, and `QA-004` still only have external closeout gaps. `SYNC-001` is now the earliest actionable canonical ticket because the client still lacks a persisted outbox, retry scheduler, network observation, sync chunking, and conflict UI hooks even though `API-003` and `CAP-006` are available."
+      "tracking_notes": "Repo truth: UX-007 now adds a first-class Settings screen reachable from the visible app tabs and Home, with locally persisted source-app, budget-cycle, sync-mode, and privacy-mode controls; an inactive-app privacy cover for app-preview and lockscreen masking; visible CSV export and backup/restore entrypoints; and direct diagnostics access and redacted bundle sharing without hidden gestures. `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/app.test.tsx __tests__/persistence.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status moves to `blocked` because the only remaining done-when is product and QA approval of the Settings surface outside this environment."
     },
     {
       "id": "INT-001",
@@ -665,12 +665,12 @@
       ],
       "tests": "Date-boundary tests for month-end, week rollovers, and custom ranges.",
       "done": "Budget engine accepted by product and QA.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
-      "started_at": "2026-03-30",
+      "started_at": "2026-03-28",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: the client now has a canonical local budget engine supporting overall, category, merchant, and item scopes across monthly, weekly, rolling, and custom cycles, with deterministic spent/remaining/projected/threshold calculations and dashboard integration through the same shared engine. Home no longer uses demo-target math; it now shows projected spend and threshold state from the canonical engine, and domain tests cover monthly, weekly, rolling, and custom cycle boundaries plus immediate updates after classification changes. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28. Status remains `in_progress` because the backlog done-when still requires product and QA acceptance, which was not available in this environment."
+      "tracking_notes": "Repo truth: the client now has a canonical local budget engine supporting overall, category, merchant, and item scopes across monthly, weekly, rolling, and custom cycles, with deterministic spent/remaining/projected/threshold calculations and dashboard integration through the same shared engine. Home no longer uses demo-target math; it now shows projected spend and threshold state from the canonical engine, and domain tests cover monthly, weekly, rolling, and custom cycle boundaries plus immediate updates after classification changes. `pnpm --filter @upi-spend-tracker/client typecheck`, focused client tests, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed on 2026-03-28. Status moves to `blocked` because the only remaining done-when is product and QA acceptance outside this environment."
     },
     {
       "id": "INT-006",
@@ -740,12 +740,12 @@
       ],
       "tests": "Open exported CSV in spreadsheet tools and verify schema.",
       "done": "Export works in QA and is documented.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
       "started_at": "2026-03-30",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: Settings now generates working local CSV exports for transactions, items, categories, and budgets through a pure export helper with stable documented schemas, writes/shares those files locally, redacts raw merchant text, notes, item labels, custom category labels/descriptions, and custom budget labels when privacy mode is on, and also exports a full-fidelity local backup JSON artifact while leaving restore as a future-safe guarded entrypoint. Focused client validation passed with `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/local-export.test.ts __tests__/app.test.tsx`, plus repo-wide `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` on 2026-03-30. Status remains `in_progress` because the backlog done-when still requires manual QA opening the exported CSV files in spreadsheet tools, which was not available in this environment."
+      "tracking_notes": "Repo truth: Settings now generates working local CSV exports for transactions, items, categories, and budgets through a pure export helper with stable documented schemas, writes/shares those files locally, redacts raw merchant text, notes, item labels, custom category labels/descriptions, and custom budget labels when privacy mode is on, and also exports a full-fidelity local backup JSON artifact while leaving restore as a future-safe guarded entrypoint. Focused client validation passed with `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/local-export.test.ts __tests__/app.test.tsx`, plus repo-wide `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` on 2026-03-30. Status moves to `blocked` because the only remaining done-when is manual QA opening the exported CSV files in spreadsheet tools outside this environment."
     },
     {
       "id": "API-001",
@@ -843,12 +843,12 @@
       ],
       "tests": "Contract tests against OpenAPI schemas; CRUD integration tests.",
       "done": "Domain API suite available in staging.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
       "started_at": "2026-03-28",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Workflow continuation on 2026-03-29 re-audited blocked and in-progress tickets first. `SET-002` remains blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` remain blocked because `adb` cannot currently start a usable daemon from this environment, while `UX-005`, `INT-005`, and `API-003` still depend on external QA/design or mobile-integration evidence. This pass closed the remaining repo-side acceptance gap for `API-004` by enforcing `VersionedDeleteRequest` bodies and conflict handling on the older transaction, merchant, category, rule, and budget delete routes, updating the OpenAPI contract, and extending route tests accordingly. `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-29 after also fixing a stale high-volume Inbox test fixture in the client harness. Status remains `in_progress` because the canonical done-when still requires the domain API suite to be available in staging."
+      "tracking_notes": "Workflow continuation on 2026-03-29 re-audited blocked and in-progress tickets first. `SET-002` remains blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` remain blocked because `adb` cannot currently start a usable daemon from this environment, while `UX-005`, `INT-005`, and `API-003` still depend on external QA/design or mobile-integration evidence. This pass closed the remaining repo-side acceptance gap for `API-004` by enforcing `VersionedDeleteRequest` bodies and conflict handling on the older transaction, merchant, category, rule, and budget delete routes, updating the OpenAPI contract, and extending route tests accordingly. `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test`, `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-29 after also fixing a stale high-volume Inbox test fixture in the client harness. Status moves to `blocked` because the only remaining done-when is staging availability outside this environment."
     },
     {
       "id": "API-005",
@@ -918,12 +918,12 @@
       ],
       "tests": "Job retry tests and rollback-safe reruns.",
       "done": "Worker runtime operational in staging.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
       "started_at": "2026-03-29",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Workflow continuation on 2026-03-29 re-audited blocked and in-progress tickets first. `SET-002` remains blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty in the current environment. `UX-005`, `INT-005`, `API-003`, `API-004`, and `API-005` are still active in backlog tracking, but their remaining gaps are external acceptance, mobile integration, staging evidence, or undefined latency targets rather than missing repo-side implementation. This pass added the first real worker-side rollup refresh, stale-session/export cleanup, and queued CSV export processing foundation with delayed retries, dead-letter visibility, and queue-depth/failure logging on top of the durable local stores. Focused worker tests plus `pnpm --filter @upi-spend-tracker/worker typecheck`, `pnpm --filter @upi-spend-tracker/worker test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-29. Status remains `in_progress` because the canonical done-when still requires the worker runtime to be operational in staging."
+      "tracking_notes": "Workflow continuation on 2026-03-29 re-audited blocked and in-progress tickets first. `SET-002` remains blocked because `gh` is not installed and no `GH_TOKEN` or `GITHUB_TOKEN` is available. `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty in the current environment. `UX-005`, `INT-005`, `API-003`, `API-004`, and `API-005` are still active in backlog tracking, but their remaining gaps are external acceptance, mobile integration, staging evidence, or undefined latency targets rather than missing repo-side implementation. This pass added the first real worker-side rollup refresh, stale-session/export cleanup, and queued CSV export processing foundation with delayed retries, dead-letter visibility, and queue-depth/failure logging on top of the durable local stores. Focused worker tests plus `pnpm --filter @upi-spend-tracker/worker typecheck`, `pnpm --filter @upi-spend-tracker/worker test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-29. Status moves to `blocked` because the only remaining done-when is an operational worker runtime in staging outside this environment."
     },
     {
       "id": "SYNC-001",
@@ -944,12 +944,12 @@
       ],
       "tests": "Offline/online toggle tests and repeated retry tests.",
       "done": "Multi-device sync stable in beta.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
       "started_at": "2026-03-30",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Continuation implementation pass on 2026-03-30 confirmed `SET-002` remains blocked because `gh` is unavailable, and `CAP-003` plus `CAP-004` remain blocked because `adb devices` is empty. This pass closed the remaining repo-side `SYNC-001` gap by adding client-side guest-session and pairing-code helpers over the existing API, persisting sync credentials in scoped `sync_settings` keys, refreshing access tokens before sync, and wiring Settings so a device can create or join a sync session and feed real credentials into the existing outbox/runtime flow. Focused client sync tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because the backlog done-when still requires multi-device sync to be stable in beta."
+      "tracking_notes": "Continuation implementation pass on 2026-03-30 confirmed `SET-002` remains blocked because `gh` is unavailable, and `CAP-003` plus `CAP-004` remain blocked because `adb devices` is empty. This pass closed the remaining repo-side `SYNC-001` gap by adding client-side guest-session and pairing-code helpers over the existing API, persisting sync credentials in scoped `sync_settings` keys, refreshing access tokens before sync, and wiring Settings so a device can create or join a sync session and feed real credentials into the existing outbox/runtime flow. Focused client sync tests, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status moves to `blocked` because the only remaining done-when is stable multi-device beta evidence outside this environment."
     },
     {
       "id": "QA-001",
@@ -969,12 +969,12 @@
       ],
       "tests": "Meta-ticket for adding tests and verifying suites in CI.",
       "done": "Test strategy approved and automated baseline running.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
       "started_at": "2026-04-01",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo-side QA-001 baseline completed on 2026-04-01: Android parser fixtures now live in the versioned `parser-fixtures.v1` catalog, named `pnpm qa:parser-fixtures`, `pnpm qa:smoke`, and `pnpm qa:regression` harnesses codify the current automated baseline, `docs/14_Quality_Matrix.md` now defines the supported-device matrix, quality matrix, and release checklist, and the full regression suite was stabilized by making the telemetry dashboard route test time-relative instead of date-sensitive. `pnpm qa:smoke`, `pnpm qa:regression`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed locally on 2026-04-01. Status remains `in_progress` because the backlog done-when still requires test-strategy approval and execution of the supported-device matrix outside this environment."
+      "tracking_notes": "Repo-side QA-001 baseline completed on 2026-04-01: Android parser fixtures now live in the versioned `parser-fixtures.v1` catalog, named `pnpm qa:parser-fixtures`, `pnpm qa:smoke`, and `pnpm qa:regression` harnesses codify the current automated baseline, `docs/14_Quality_Matrix.md` now defines the supported-device matrix, quality matrix, and release checklist, and the full regression suite was stabilized by making the telemetry dashboard route test time-relative instead of date-sensitive. `pnpm qa:smoke`, `pnpm qa:regression`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed locally on 2026-04-01. Status moves to `blocked` because the only remaining done-when is test-strategy approval and supported-device matrix execution outside this environment."
     },
     {
       "id": "QA-002",
@@ -995,12 +995,12 @@
       ],
       "tests": "Security checklist, retention tests, and negative tests for unauthorized access.",
       "done": "Security sign-off obtained for beta.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
       "started_at": "2026-03-30",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo-side QA-002 hardening landed on 2026-03-30: sync access/refresh tokens and expiry now move from SQLite settings into Expo SecureStore with legacy-key cleanup, sync/session/telemetry reject insecure non-local HTTP, privacy mode defaults to enabled in the client and native capture settings, local backup privacy metadata now falls back to the secure default, and the current retention/redaction plus Play Data Safety review baseline is documented in `docs/13_Privacy_Security_Baseline.md`. Focused client privacy/security tests plus `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed. Status remains `in_progress` because the backlog done-when still requires beta security sign-off and final Play Data Safety review evidence outside this environment."
+      "tracking_notes": "Repo-side QA-002 hardening landed on 2026-03-30: sync access/refresh tokens and expiry now move from SQLite settings into Expo SecureStore with legacy-key cleanup, sync/session/telemetry reject insecure non-local HTTP, privacy mode defaults to enabled in the client and native capture settings, local backup privacy metadata now falls back to the secure default, and the current retention/redaction plus Play Data Safety review baseline is documented in `docs/13_Privacy_Security_Baseline.md`. Focused client privacy/security tests plus `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed. Status moves to `blocked` because the only remaining done-when is beta security sign-off plus final Play Data Safety review evidence outside this environment."
     },
     {
       "id": "QA-003",
@@ -1021,12 +1021,12 @@
       ],
       "tests": "Performance profiling on low/mid-tier Android devices and throttled networks.",
       "done": "Performance budget met and documented.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
       "started_at": "2026-03-30",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Closeout pass on 2026-04-01 confirmed `SET-002` remains blocked because `gh` is unavailable and no GitHub token is present, while `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty. This pass closed the remaining repo-side `QA-003` gap by adding the named `pnpm qa:performance` suite, an automated Android Hermes bundle-size gate in `scripts/qa/check-performance-budget.mjs`, and `docs/15_Performance_Budget.md` as the source of truth for current repo-side budgets: local insights over a 10,000-transaction dataset in under 750 ms, payload-aware sync batching, and an Android Hermes bundle at or below 2,600,000 bytes. `pnpm qa:performance`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-04-01, with the current Android Hermes bundle at 2,361,231 bytes. Status remains `in_progress` because the backlog still calls for direct device/network profiling on baseline hardware and throttled networks outside this environment."
+      "tracking_notes": "Closeout pass on 2026-04-01 confirmed `SET-002` remains blocked because `gh` is unavailable and no GitHub token is present, while `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty. This pass closed the remaining repo-side `QA-003` gap by adding the named `pnpm qa:performance` suite, an automated Android Hermes bundle-size gate in `scripts/qa/check-performance-budget.mjs`, and `docs/15_Performance_Budget.md` as the source of truth for current repo-side budgets: local insights over a 10,000-transaction dataset in under 750 ms, payload-aware sync batching, and an Android Hermes bundle at or below 2,600,000 bytes. `pnpm qa:performance`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-04-01, with the current Android Hermes bundle at 2,361,231 bytes. Status moves to `blocked` because the only remaining done-when is direct device and throttled-network profiling on baseline hardware outside this environment."
     },
     {
       "id": "QA-004",
@@ -1046,12 +1046,12 @@
       ],
       "tests": "Dry-run rollout and rollback in non-production channels.",
       "done": "OTA process approved by engineering leads.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
       "started_at": "2026-03-29",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth: the Expo client now uses `client/app.config.ts` with fingerprint runtime-version policy, isolated `internal`/`beta`/`production` EAS channel profiles in `client/eas.json`, `expo-updates`-backed runtime/channel bootstrap query alignment, and `docs/12_OTA_Runtime_Rollback.md` as the OTA rollout/rollback and change-type playbook. `pnpm --filter @upi-spend-tracker/client exec expo config --type public`, `pnpm --filter @upi-spend-tracker/client lint`, `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/bootstrap-config.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-29. Status remains `in_progress` because real Expo project/update URL wiring, non-production OTA/rollback dry-run evidence, and engineering approval are still external closeout requirements."
+      "tracking_notes": "Repo truth: the Expo client now uses `client/app.config.ts` with fingerprint runtime-version policy, isolated `internal`/`beta`/`production` EAS channel profiles in `client/eas.json`, `expo-updates`-backed runtime/channel bootstrap query alignment, and `docs/12_OTA_Runtime_Rollback.md` as the OTA rollout/rollback and change-type playbook. `pnpm --filter @upi-spend-tracker/client exec expo config --type public`, `pnpm --filter @upi-spend-tracker/client lint`, `pnpm --filter @upi-spend-tracker/client typecheck`, `pnpm --filter @upi-spend-tracker/client test -- --runInBand __tests__/bootstrap-config.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all passed on 2026-03-29. Status moves to `blocked` because the remaining done-when is real Expo project/update URL wiring, non-production OTA/rollback dry-run evidence, and engineering approval outside this environment."
     },
     {
       "id": "QA-005",
@@ -1071,12 +1071,12 @@
       ],
       "tests": "Event contract tests and dashboard validation with seeded events.",
       "done": "Operational telemetry available before beta.",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "codex",
       "started_at": "2026-03-30",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "Repo truth on 2026-03-30: QA-005 now has versioned privacy-safe telemetry contracts, local-first client event logging plus authenticated flush, global runtime-error capture, authenticated telemetry ingest/dashboard APIs, deterministic alert thresholds, and updated OpenAPI/repo-truth docs. `pnpm --filter @upi-spend-tracker/contracts typecheck`, `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/client typecheck`, focused telemetry tests, `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status remains `in_progress` because the backlog done-when still requires operational telemetry to be available before beta, which is external rollout evidence rather than a missing repo-side implementation."
+      "tracking_notes": "Repo truth on 2026-03-30: QA-005 now has versioned privacy-safe telemetry contracts, local-first client event logging plus authenticated flush, global runtime-error capture, authenticated telemetry ingest/dashboard APIs, deterministic alert thresholds, and updated OpenAPI/repo-truth docs. `pnpm --filter @upi-spend-tracker/contracts typecheck`, `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/client typecheck`, focused telemetry tests, `pnpm lint:openapi`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-03-30. Status moves to `blocked` because the only remaining done-when is operational telemetry rollout evidence before beta outside this environment."
     },
     {
       "id": "REL-001",

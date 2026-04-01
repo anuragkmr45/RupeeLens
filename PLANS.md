@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### TRACK-003 — Reconcile Externally Blocked Active Tickets
+
+- **Status:** completed
+- **Ticket:** TRACK-003
+- **Goal:** Reconcile backlog truth by moving tickets that have finished their repo-side implementation work but are still waiting only on external environment, approval, or rollout evidence from `in_progress` to `blocked`.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, and `docs/10_Codex_Workflow.md` if the current default-next note still says those tickets are merely active rather than externally blocked.
+- **Rationale:** The re-audit on 2026-04-01 confirms `gh` is still unavailable with no `GH_TOKEN` or `GITHUB_TOKEN`, and `adb devices` is empty. The remaining canonical tickets marked `in_progress` no longer have missing repo-side implementation work; their open gaps are external QA/design approval, spreadsheet/manual verification, staging evidence, operational rollout, direct hardware/network profiling, OTA project wiring, or security/test-strategy sign-off. The most truthful next step is therefore a workflow-only tracking reconciliation pass rather than another product change.
+- **Risks:** Over-correcting statuses would be misleading if any selected ticket still had a real repo-side implementation gap. Only move tickets whose own tracking notes already say the remaining work is external to `blocked`, and preserve `started_at` while leaving `completed_at` empty.
+- **API / schema impact:** None. This is a tracking-only pass.
+- **Rollout / flag plan:** No rollout change. This pass only corrects project-state tracking.
+- **Validation commands:** `git diff --check` and a backlog JSON parse check. Do not rerun heavy repo gates unless non-tracking files change.
+- **Done when:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, and `docs/05_Backlog.json` all consistently reflect the remaining externally gated tickets as `blocked`, and the workflow default-next note no longer calls them merely active work.
+- **Outcome:** Completed the tracking-only reconciliation pass on 2026-04-01 by moving `CAP-005`, `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-004`, `API-007`, `SYNC-001`, `QA-001`, `QA-002`, `QA-003`, `QA-004`, and `QA-005` from `in_progress` to `blocked` across markdown, CSV, and JSON backlog tracking. Preserved the original `started_at` values, left `completed_at` empty, and updated each tracking note so the blocker is explicit: connected-Android validation, external QA/design approval, manual spreadsheet verification, staging availability, beta-only stability evidence, test-strategy/security approval, direct device/network profiling, OTA project wiring, engineering approval, or operational rollout evidence. Also updated `docs/10_Codex_Workflow.md` so the default-next note no longer describes those tickets as merely active work. `git diff --check` and a backlog JSON parse check will be used as the validation gate because this pass changed tracking only.
+
 ### QA-003 — Optimize Low-Internet Behavior, App Size, And Runtime Performance
 
 - **Status:** completed
