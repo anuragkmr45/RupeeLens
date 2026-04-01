@@ -1,6 +1,6 @@
 # Project Phase Status
 
-Date: 2026-03-30
+Date: 2026-04-01
 Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`, and live source under `client/`, `server/`, and `packages/`
 
 ## Summary
@@ -108,11 +108,12 @@ Source of truth: repo audit against `README.md`, `PLANS.md`, `docs/05_Backlog.*`
 - First authenticated reports module with `GET /v1/reports/summary` and `GET /v1/reports/breakdown`, deterministic period totals and comparison deltas, grouped rollups across category, merchant, item, hour-of-day, and day-of-week, plus top-N metadata on breakdown responses
 - Closed bootstrap API behavior with explicit cache headers, runtime-version compatibility checks, and mobile-client usage through the local bootstrap refresh path
 - Worker heartbeat plus the first rollup-refresh, stale-session/export-cleanup, and queued CSV export-processing jobs, all scheduled through the shared worker module/runtime skeleton with delayed-retry and queue-depth/failure logging
+- Repo-side QA baseline assets: versioned Android parser fixtures, named `pnpm qa:parser-fixtures` / `pnpm qa:smoke` / `pnpm qa:regression` harnesses, and a documented supported-device matrix plus release checklist in `docs/14_Quality_Matrix.md`
 
 **Remaining**
 
 - Staging deployment/evidence for the current domain API suite and worker job suite, reports latency-target evidence, and any heavier rollup persistence
-- Broader QA harnesses, parser fixtures, and release-quality matrix work
+- Test-strategy approval plus execution of the supported-device matrix and release checklist evidence
 
 ## Sprint 6 — Hardening
 

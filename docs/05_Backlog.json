@@ -969,12 +969,12 @@
       ],
       "tests": "Meta-ticket for adding tests and verifying suites in CI.",
       "done": "Test strategy approved and automated baseline running.",
-      "status": "todo",
-      "owner": "",
-      "started_at": "",
+      "status": "in_progress",
+      "owner": "codex",
+      "started_at": "2026-04-01",
       "completed_at": "",
-      "commit_ref": "",
-      "tracking_notes": ""
+      "commit_ref": "pending-local-commit",
+      "tracking_notes": "Repo-side QA-001 baseline completed on 2026-04-01: Android parser fixtures now live in the versioned `parser-fixtures.v1` catalog, named `pnpm qa:parser-fixtures`, `pnpm qa:smoke`, and `pnpm qa:regression` harnesses codify the current automated baseline, `docs/14_Quality_Matrix.md` now defines the supported-device matrix, quality matrix, and release checklist, and the full regression suite was stabilized by making the telemetry dashboard route test time-relative instead of date-sensitive. `pnpm qa:smoke`, `pnpm qa:regression`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed locally on 2026-04-01. Status remains `in_progress` because the backlog done-when still requires test-strategy approval and execution of the supported-device matrix outside this environment."
     },
     {
       "id": "QA-002",

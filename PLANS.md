@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### QA-001 — Create Test Harnesses, Fixtures, And Quality Matrix
+
+- **Status:** completed
+- **Ticket:** QA-001
+- **Goal:** Add a repo-side QA baseline by extracting the Android parser fixtures into a versioned catalog, defining named smoke/regression harnesses that codify the current automated baseline, and documenting the supported-device matrix, quality matrix, and release checklist without claiming external approval or device-only evidence that does not exist in this environment.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, root `package.json`, a new QA runner under `scripts/qa/`, Android parser-fixture test files under `client/android/app/src/test/java/com/upispendtracker/client/capture/`, a new QA doc under `docs/`, and repo-truth docs (`README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`) if the baseline meaningfully changes what is now true.
+- **Rationale:** The re-audit on 2026-04-01 confirms `SET-002` is still blocked only by remote GitHub verification because `gh` is unavailable and no GitHub token is present, while the repo-side PR workflow, PR template, and required local quality gates already exist. `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty and this machine has no Android emulator installed. Most other active tickets now only have external closeout gaps. `QA-001` is therefore the earliest actionable ticket because the remaining `SET-002` gap is process debt rather than a missing repo capability, and the repo still lacks a named quality matrix, release checklist, explicit smoke/regression harness commands, and a versioned parser-fixture catalog.
+- **Risks:** This can sprawl into beta-only signoff, broad CI redesign, or heavy device-E2E tooling. Keep the scope inside repo-side baseline assets: versioned parser fixtures, named smoke/regression commands, a truthful quality matrix and release checklist, and lightweight harness wiring over tests that already exist. Do not claim device-E2E, QA approval, or release readiness that cannot be proven here.
+- **API / schema impact:** No OpenAPI or schema changes are expected. Avoid changing runtime behavior outside test and documentation surfaces.
+- **Rollout / flag plan:** No rollout flag. This is a QA/meta ticket; keep all changes additive and documentation-backed.
+- **Validation commands:** `pnpm qa:smoke`, `pnpm qa:regression`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check`. Run `pnpm lint:openapi` only if contract or CI/OpenAPI wiring changes. Run `pnpm db:validate` only if schema or migration files change.
+- **Done when:** Parser fixtures are versioned and easier to extend, the repo has named automated smoke/regression harnesses plus a documented quality matrix and release checklist, and tracking truthfully reflects any remaining approval or device-matrix evidence gap.
+- **Outcome:** Completed the repo-side QA-001 baseline pass on 2026-04-01 by extracting Android parser fixtures into the versioned `parser-fixtures.v1` catalog, adding named `pnpm qa:parser-fixtures`, `pnpm qa:smoke`, and `pnpm qa:regression` harnesses, documenting the supported-device matrix / quality matrix / release checklist in `docs/14_Quality_Matrix.md`, and stabilizing the new regression baseline by making the telemetry dashboard route test time-relative instead of date-sensitive. `pnpm qa:smoke`, `pnpm qa:regression`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `git diff --check`, and a backlog JSON parse check all passed on 2026-04-01. The canonical backlog ticket remains `in_progress` because its done-when still requires test-strategy approval and execution of the supported-device matrix outside this environment.
+
 ### QA-002 — Implement Privacy, Security, And Sensitive-Data Handling Baseline
 
 - **Status:** completed

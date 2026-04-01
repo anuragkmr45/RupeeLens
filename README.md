@@ -50,6 +50,16 @@ pnpm build
 
 `pnpm ci:verify` runs the canonical non-OpenAPI quality gates, including `pnpm db:validate`, in the same order as the `Verify` GitHub Actions job.
 
+Named QA suites are also available:
+
+```bash
+pnpm qa:parser-fixtures
+pnpm qa:smoke
+pnpm qa:regression
+```
+
+Use `pnpm qa:smoke` for a faster cross-stack release-blocker pass, and `pnpm qa:regression` for the full repo-side baseline documented in `docs/14_Quality_Matrix.md`.
+
 ## Run The Runtimes
 
 ```bash
@@ -110,6 +120,7 @@ Branch-protection expectations and the exact required check names are documented
 - `docs/11_Database_Migrations.md`: migration commands, seed strategy, validation behavior, and rollback/forward-fix guidance
 - `docs/12_OTA_Runtime_Rollback.md`: OTA channel configuration, runtime-version policy, rollout steps, and rollback/change-type matrix
 - `docs/13_Privacy_Security_Baseline.md`: repo-side privacy controls, data-handling baseline, retention rules, and Play Data Safety review inputs
+- `docs/14_Quality_Matrix.md`: versioned parser fixtures, smoke/regression harnesses, supported-device matrix, and release checklist
 
 Within a continuing Codex thread for this repo, a user message of `next` means rerun the single-ticket workflow documented in `docs/10_Codex_Workflow.md`.
 
@@ -126,6 +137,7 @@ Within a continuing Codex thread for this repo, a user message of `next` means r
 - The client now records privacy-safe telemetry for onboarding completion, permission denial, capture success/failure, parser fallback, classify latency, sync errors, budget-alert delivery, and runtime errors into a local-first queue that can flush to the authenticated telemetry API once sync credentials exist. Repo-side contracts, tests, and dashboard aggregation are in place; real operational rollout before beta is still pending
 - Worker runtime now schedules heartbeat, reports-rollup refresh, stale-session/export cleanup, and queued CSV export processing with delayed retries plus queue-depth/failure logging; a user-facing export request/status API and staging worker operations are still pending
 - The client now has repo-side OTA build-channel config for `internal`, `beta`, and `production`, Expo fingerprint runtime-version policy, and a documented rollback/change-type playbook. Real EAS project wiring and engineering approval are still pending, so OTA remains intentionally disabled unless `EXPO_EAS_PROJECT_ID` or `EXPO_UPDATES_URL` is provided in the build environment
+- Repo-side QA-001 baseline work is now in place: Android parser fixtures live in a versioned catalog, named `pnpm qa:parser-fixtures`, `pnpm qa:smoke`, and `pnpm qa:regression` harnesses codify the current automated baseline, and `docs/14_Quality_Matrix.md` now defines the supported-device matrix, quality matrix, and release checklist. Final test-strategy approval and device-matrix execution still remain external
 - No deployment CI, analytics providers, or full native capture domain-import pipeline yet
 
 ## CSV Export Schemas

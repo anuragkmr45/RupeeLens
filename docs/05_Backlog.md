@@ -1014,7 +1014,7 @@ Harden the app for low internet, privacy, observability, and launch.
 - **Story points:** 8
 - **Goal:** Make v1 release quality measurable and repeatable.
 - **Dependencies:** SET-002, CAP-002
-- **Tracking:** Status: todo | Owner: | Started At: | Completed At: | Commit Ref: | Tracking Notes:
+- **Tracking:** Status: in_progress | Owner: codex | Started At: 2026-04-01 | Completed At: | Commit Ref: pending-local-commit | Tracking Notes: Repo-side QA-001 baseline completed on 2026-04-01: Android parser fixtures now live in the versioned `parser-fixtures.v1` catalog, named `pnpm qa:parser-fixtures`, `pnpm qa:smoke`, and `pnpm qa:regression` harnesses codify the current automated baseline, `docs/14_Quality_Matrix.md` now defines the supported-device matrix, quality matrix, and release checklist, and the full regression suite was stabilized by making the telemetry dashboard route test time-relative instead of date-sensitive. `pnpm qa:smoke`, `pnpm qa:regression`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed locally on 2026-04-01. Status remains `in_progress` because the backlog done-when still requires test-strategy approval and execution of the supported-device matrix outside this environment.
 
 **Description**  
 Set up unit, integration, end-to-end, parser-fixture, load, and performance suites. Define supported-device matrix, smoke suite, regression suite, and release checklist.

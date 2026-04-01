@@ -10,7 +10,7 @@
     "build": "pnpm -r --if-present --sort run build",
     "build:shared": "pnpm --filter @upi-spend-tracker/shared-types --filter @upi-spend-tracker/shared-utils --filter @upi-spend-tracker/contracts --filter @upi-spend-tracker/mobile-ui --sort run build",
     "ci:verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm db:validate",
-    "db:validate": "tsx scripts/db/validate.ts",
+    "db:validate": "node --import tsx scripts/db/validate.ts",
     "dev:api": "pnpm --filter @upi-spend-tracker/api dev",
     "dev:android": "pnpm run build:shared && pnpm --filter @upi-spend-tracker/client run android",
     "dev:client": "pnpm run build:shared && pnpm --filter @upi-spend-tracker/client start",
@@ -19,6 +19,9 @@
     "format": "prettier . --write",
     "lint": "pnpm -r --if-present run lint",
     "lint:openapi": "spectral lint --ruleset .spectral.yaml --fail-severity=error docs/04_API_Contract.yaml",
+    "qa:parser-fixtures": "node scripts/qa/run-suite.mjs parser-fixtures",
+    "qa:regression": "node scripts/qa/run-suite.mjs regression",
+    "qa:smoke": "node scripts/qa/run-suite.mjs smoke",
     "test": "pnpm -r --if-present run test",
     "typecheck": "pnpm -r --if-present --sort run typecheck"
   },

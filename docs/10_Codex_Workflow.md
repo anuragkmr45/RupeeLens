@@ -131,10 +131,10 @@ Reason:
 
 - `QA-005` now has its repo-side implementation pass in place: versioned privacy-safe telemetry contracts, local-first client event logging/flush, authenticated telemetry ingest/dashboard APIs, and deterministic alert-threshold evaluation are all present, but its done-when still requires operational telemetry to be available before beta.
 - `QA-002` now has its repo-side implementation pass in place: sync tokens moved into SecureStore, remote sync and telemetry reject insecure non-local HTTP, privacy mode defaults to enabled, and the current data-handling baseline is documented, but its done-when still requires beta security sign-off and final Play Data Safety review evidence.
+- `QA-001` now has its repo-side implementation baseline in place: versioned Android parser fixtures, named smoke/regression harnesses, and a documented quality matrix plus release checklist are present, but its done-when still requires test-strategy approval and execution of the supported-device matrix.
 - `SET-002` remains blocked by remote GitHub verification.
 - `CAP-003` and `CAP-004` remain blocked on connected-Android validation because `adb devices` is empty in the current environment.
 - `CAP-005`, `UX-005`, `UX-007`, `INT-005`, `INT-008`, `API-004`, `API-005`, `API-007`, `QA-003`, `QA-004`, and `SYNC-001` all remain active in backlog tracking, but their remaining gaps are external QA/design acceptance, direct device/network profiling evidence, manual QA spreadsheet verification, staging evidence, remote Expo project wiring, non-production OTA/rollback dry-run evidence, engineering approval, beta-only validation, or operational rollout evidence rather than missing repo-side implementation.
-- `QA-001` is not yet actionable because it depends on blocked `SET-002`.
 - `REL-001` and `REL-002` still have blocked dependencies.
 
 On the next run, re-audit first. If GitHub auth becomes available, prefer a `SET-002` closeout pass. If a connected Android target becomes available, prefer `CAP-003` and `CAP-004` closeout passes before any later work.

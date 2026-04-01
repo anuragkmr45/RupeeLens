@@ -54,6 +54,7 @@ describe('telemetry routes', () => {
     const app = buildApp(stores);
     apps.push(app);
     await app.ready();
+    const recentBaseTimeMs = Date.now() - 5 * 60 * 1000;
 
     const accessToken = await createGuestAccessToken(app);
     const authorization = `Bearer ${accessToken}`;
@@ -70,7 +71,7 @@ describe('telemetry routes', () => {
               syncMode: 'local_only',
             },
             id: 'onboarding_1',
-            occurredAt: '2026-03-30T10:00:00.000Z',
+            occurredAt: toIsoOffsetMinutes(recentBaseTimeMs, 0),
           }),
           createTelemetryEvent('notification_permission_denied', {
             data: {
@@ -79,7 +80,7 @@ describe('telemetry routes', () => {
               syncMode: 'local_only',
             },
             id: 'permission_1',
-            occurredAt: '2026-03-30T10:01:00.000Z',
+            occurredAt: toIsoOffsetMinutes(recentBaseTimeMs, 1),
           }),
           createTelemetryEvent('sync_error', {
             data: {
@@ -88,7 +89,7 @@ describe('telemetry routes', () => {
               syncMode: 'cloud_sync',
             },
             id: 'sync_1',
-            occurredAt: '2026-03-30T10:02:00.000Z',
+            occurredAt: toIsoOffsetMinutes(recentBaseTimeMs, 2),
           }),
         ],
         schemaVersion: TELEMETRY_SCHEMA_VERSION,
@@ -183,4 +184,8 @@ function createTelemetryEvent<TEventName extends TelemetryEventName>(
     rolloutChannel: 'beta',
     runtimeVersion: 'expo-sdk-55-dev-client',
   } as Extract<TelemetryEvent, { eventName: TEventName }>;
+}
+
+function toIsoOffsetMinutes(baseTimeMs: number, offsetMinutes: number): string {
+  return new Date(baseTimeMs + offsetMinutes * 60 * 1000).toISOString();
 }
