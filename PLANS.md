@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### TRACK-004 — Reconcile SET-002 Backlog Status Drift
+
+- **Status:** completed
+- **Ticket:** TRACK-004
+- **Goal:** Correct the canonical backlog drift where `SET-002` is still blocked by missing GitHub-side verification in markdown/CSV and in its own tracking note, but JSON incorrectly marks it as done.
+- **Touched files/modules:** `PLANS.md` and `docs/05_Backlog.json`. `docs/05_Backlog.md` and `docs/05_Backlog.csv` are being treated as the already-correct references for this reconciliation pass and should remain unchanged unless a second inconsistency is discovered.
+- **Rationale:** The re-audit on 2026-04-01 found no actionable product ticket in the current environment: `gh` is unavailable, `GH_TOKEN` and `GITHUB_TOKEN` are empty, `adb devices` is empty, and the only remaining `todo` tickets (`REL-001`, `REL-002`) still depend on blocked work. The one truthful action left is to fix canonical tracking drift, because `SET-002` is `blocked` in markdown/CSV and by direct evidence, while `docs/05_Backlog.json` incorrectly records it as `done` with a `completed_at` date.
+- **Risks:** Keep this pass strictly tracking-only. Do not rewrite unrelated backlog rows or reopen product work. Preserve the existing `started_at` and tracking note content for `SET-002`; only correct the inconsistent end-state fields.
+- **API / schema impact:** None.
+- **Rollout / flag plan:** No rollout change. This pass only restores backlog consistency.
+- **Validation commands:** `gh --version`, `printenv GH_TOKEN`, `printenv GITHUB_TOKEN`, `adb devices`, a CSV-vs-JSON status consistency check, a backlog JSON parse check, and `git diff --check`.
+- **Done when:** `SET-002` is `blocked` across markdown, CSV, and JSON, its `completed_at` is cleared in JSON, and the current environment evidence still supports that blocked state.
+- **Outcome:** Completed the tracking-only reconciliation pass on 2026-04-01. Re-audit confirmed there is still no actionable product ticket: `gh` is unavailable, `GH_TOKEN` and `GITHUB_TOKEN` are empty, `adb devices` is empty, and `REL-001` / `REL-002` remain dependency-blocked. The only drift was canonical backlog inconsistency for `SET-002`: markdown and CSV already showed it as `blocked`, but JSON incorrectly marked it `done` with a `completed_at` date despite the unchanged note that GitHub-side verification could not be completed. Corrected `docs/05_Backlog.json` so `SET-002` is again `blocked` with no completion date, matching the existing markdown/CSV tracking and the current environment evidence.
+
 ### CAP-004 — Create Native Capture Database And Repository Layer
 
 - **Status:** completed

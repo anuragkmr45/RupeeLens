@@ -78,10 +78,10 @@
       ],
       "tests": "Open a test PR and verify required checks block merge on failure.",
       "done": "CI required for main branch; docs updated.",
-      "status": "done",
+      "status": "blocked",
       "owner": "codex",
       "started_at": "2026-03-13",
-      "completed_at": "2026-04-01",
+      "completed_at": "",
       "commit_ref": "pending-local-commit",
       "tracking_notes": "Closeout verification found local `.git` and `origin`, but `main` has no commits, `git ls-remote origin` returns no refs, GitHub web access to the repo returns 404 unauthenticated, and this environment has neither `gh` nor `GH_TOKEN`/`GITHUB_TOKEN`. PR workflow runs and `main` branch protection therefore could not be verified."
     },
