@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### API-005 — Implement Reports And Summary APIs With Precomputed Rollups
+
+- **Status:** completed
+- **Ticket:** API-005
+- **Goal:** Close the remaining repo-side `API-005` gap by adding explicit latency-target evidence for the existing reports summary and breakdown APIs without widening scope into staging, worker rollups, or unrelated backend work.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, `README.md`, `docs/09_Project_Phase_Status.md`, `docs/10_Codex_Workflow.md`, and the backend reports module/tests under `server/api/src/modules/reports/`.
+- **Rationale:** The re-audit on 2026-04-01 confirms `SET-002` is still blocked because `gh` is unavailable and no GitHub token is present, while `CAP-003` and `CAP-004` remain blocked because `adb devices` is empty. The other active tickets now only need external QA/design acceptance, spreadsheet/manual export checks, staging availability, device/network profiling, OTA project wiring, engineering approval, or rollout evidence. `API-005` is therefore the earliest active ticket with a real repo-side closeout path because its current tracking explicitly says the remaining gap is undefined latency-target evidence.
+- **Risks:** Benchmark work can get flaky if the dataset is too large or the timing gate is too tight. Keep the benchmark deterministic, service-focused, and generous enough for CI variance while still proving the current implementation is not pathologically slow. Do not widen into worker precomputation, staging deployment, or API redesign.
+- **API / schema impact:** OpenAPI changes are only justified if a report-behavior contract changes. The expected scope is test and documentation evidence, not route-shape changes.
+- **Rollout / flag plan:** No rollout flag. This is a closeout-oriented backend validation pass over an existing API surface.
+- **Validation commands:** Focused backend reports tests, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `git diff --check`, and `pnpm lint:openapi` only if contract docs change. Run `pnpm db:validate` only if schema or migration files change.
+- **Done when:** Reports summary/breakdown correctness still holds, repo-side latency targets are explicit and validated, and tracking can move `API-005` to a truthful final state.
+- **Outcome:** Completed the `API-005` closeout pass on 2026-04-01 by adding deterministic reports benchmark coverage in `server/api/src/modules/reports/reports.performance.test.ts`, validating that the current reports implementation meets a repo-side latency baseline over a seeded 1,500-transaction / 1,500-item dataset: summary p95 <= 80 ms and item-breakdown p95 <= 100 ms. Focused reports tests plus `pnpm --filter @upi-spend-tracker/api typecheck`, `pnpm --filter @upi-spend-tracker/api test -- --runInBand src/modules/reports`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` all passed on 2026-04-01. The canonical backlog ticket can now close as `done` because its correctness and latency done-when bar is satisfied in repo truth.
+
 ### QA-001 — Create Test Harnesses, Fixtures, And Quality Matrix
 
 - **Status:** completed
