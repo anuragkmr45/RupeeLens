@@ -290,7 +290,7 @@
       "started_at": "2026-03-27",
       "completed_at": "",
       "commit_ref": "pending-local-commit",
-      "tracking_notes": "CAP-004 now has a Room-backed native capture repository, schema migrations from legacy snapshot storage, repository methods for insert/state updates/pending fetch/reply and sync-marker persistence, retention-safe raw payload pruning, and a connected-Android repository instrumentation suite. `./gradlew :app:testDebugUnitTest`, `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed, but `./gradlew :app:connectedDebugAndroidTest` could not execute on 2026-03-27 because `adb devices` returned no connected devices."
+      "tracking_notes": "CAP-004 now has a Room-backed native capture repository, schema migrations from legacy snapshot storage, repository methods for insert/state updates/pending fetch/reply and sync-marker persistence, retention-safe raw payload pruning, and a connected-Android repository instrumentation suite. On 2026-04-01 `adb devices` showed the physical Android target `e342703` and `./gradlew :app:testDebugUnitTest` passed, but `./gradlew :app:connectedDebugAndroidTest` failed before instrumentation could run because the device canceled installation of `app-debug.apk` with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`. The ticket remains `blocked` on connected-device install-policy validation rather than missing repo-side implementation."
     },
     {
       "id": "CAP-005",

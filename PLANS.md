@@ -10,6 +10,20 @@ Protocol notes:
 
 ## Active Plan
 
+### CAP-004 — Create Native Capture Database And Repository Layer
+
+- **Status:** completed
+- **Ticket:** CAP-004
+- **Goal:** Re-run the blocked `CAP-004` closeout path on the connected Android device and truthfully either close the ticket or refresh its blocker note with current connected-test evidence.
+- **Touched files/modules:** `PLANS.md`, `docs/05_Backlog.md`, `docs/05_Backlog.csv`, `docs/05_Backlog.json`, and repo-truth docs only if the ticket status changes. No product code changes are planned unless the validation path exposes a narrow CAP-004 defect that must be fixed to complete this ticket.
+- **Rationale:** On 2026-04-01 `adb devices` still shows the physical Android target `e342703`. `CAP-003` is now done, so per the workflow the next earliest blocked ticket with a possible closeout path is `CAP-004`, whose only recorded blocker is missing connected-Android execution of the Room-backed repository instrumentation path.
+- **Risks:** The connected device may still fail the repository instrumentation suite or surface a real CAP-004 defect. Keep the pass scoped to `CAP-004`; do not widen into `CAP-005` even if the device remains available.
+- **API / schema impact:** None expected.
+- **Rollout / flag plan:** No rollout change. This is a closeout-oriented Android validation pass over the existing native capture repository.
+- **Validation commands:** `adb devices`, `cd client/android && ./gradlew :app:testDebugUnitTest`, `cd client/android && ./gradlew :app:connectedDebugAndroidTest`, and repo-wide `pnpm db:validate`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` only if the closeout result requires tracking updates.
+- **Done when:** `CAP-004` is either moved to `done` with direct connected-Android evidence, or left `blocked` with an updated precise blocker note from the current environment.
+- **Outcome:** Re-ran the `CAP-004` closeout path on 2026-04-01 with the connected Android target `e342703`. `adb devices` confirmed the device was attached and `./gradlew :app:testDebugUnitTest` passed, but `./gradlew :app:connectedDebugAndroidTest` failed before running instrumentation because the device canceled installation of `app-debug.apk` with `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`. No product code changes were made. The canonical backlog ticket remains `blocked`, with its blocker note refreshed from “no device connected” to the current install-policy failure on the attached phone.
+
 ### CAP-003 — Implement Capture Dedupe And Replay Protection
 
 - **Status:** completed
