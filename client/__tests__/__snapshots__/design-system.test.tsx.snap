@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`mobile-ui primitives matches the dark theme sheet snapshot 1`] = `
-<View
+<RCTSafeAreaView
   style={
     [
       {
@@ -55,7 +55,7 @@ exports[`mobile-ui primitives matches the dark theme sheet snapshot 1`] = `
         {
           "paddingBottom": 40,
           "paddingHorizontal": 20,
-          "paddingTop": 72,
+          "paddingTop": 32,
         },
         undefined,
       ]
@@ -1442,11 +1442,11 @@ exports[`mobile-ui primitives matches the dark theme sheet snapshot 1`] = `
       </View>
     </View>
   </RCTScrollView>
-</View>
+</RCTSafeAreaView>
 `;
 
 exports[`mobile-ui primitives matches the light theme snapshot 1`] = `
-<View
+<RCTSafeAreaView
   style={
     [
       {
@@ -1500,7 +1500,7 @@ exports[`mobile-ui primitives matches the light theme snapshot 1`] = `
         {
           "paddingBottom": 40,
           "paddingHorizontal": 20,
-          "paddingTop": 72,
+          "paddingTop": 32,
         },
         undefined,
       ]
@@ -2666,5 +2666,5 @@ exports[`mobile-ui primitives matches the light theme snapshot 1`] = `
       </View>
     </View>
   </RCTScrollView>
-</View>
+</RCTSafeAreaView>
 `;

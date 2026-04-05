@@ -44,8 +44,16 @@ function PrimitiveHarness({
       </Card>
 
       <View style={styles.kpiGrid}>
-        <KPIBlock caption="Shared semantic metrics." label="Tokens" value="Live" />
-        <KPIBlock caption="Shared components." label="Primitives" value="Ready" />
+        <KPIBlock
+          caption="Shared semantic metrics."
+          label="Tokens"
+          value="Live"
+        />
+        <KPIBlock
+          caption="Shared components."
+          label="Primitives"
+          value="Ready"
+        />
       </View>
 
       <Card tone="warm">
@@ -66,7 +74,11 @@ function PrimitiveHarness({
       <ListItem
         subtitle="Google Pay · 26 Mar · 09:12"
         title="Blue Tokai Roasters"
-        trailing={<Text style={[styles.amountLabel, { color: theme.colors.ink }]}>Rs 430</Text>}
+        trailing={
+          <Text style={[styles.amountLabel, { color: theme.colors.ink }]}>
+            Rs 430
+          </Text>
+        }
       >
         <View style={styles.row}>
           <Button label="Classify" onPress={() => undefined} />
@@ -79,7 +91,11 @@ function PrimitiveHarness({
         title="Nothing left to review"
         actions={
           <View style={styles.row}>
-            <Button label="Back to home" onPress={() => undefined} variant="secondary" />
+            <Button
+              label="Back to home"
+              onPress={() => undefined}
+              variant="secondary"
+            />
             <Button label="Add spend" onPress={() => undefined} />
           </View>
         }
@@ -105,11 +121,33 @@ function PrimitiveHarness({
 }
 
 describe('mobile-ui primitives', () => {
+  let originalConsoleWarn: typeof console.warn;
+
+  beforeEach(() => {
+    originalConsoleWarn = console.warn;
+    jest.spyOn(console, 'warn').mockImplementation((message, ...args) => {
+      if (
+        typeof message === 'string' &&
+        message.includes('SafeAreaView has been deprecated')
+      ) {
+        return;
+      }
+
+      originalConsoleWarn(message, ...args);
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('matches the light theme snapshot', () => {
     let root: renderer.ReactTestRenderer;
 
     renderer.act(() => {
-      root = renderer.create(<PrimitiveHarness sheetVisible={false} themeName="light" />);
+      root = renderer.create(
+        <PrimitiveHarness sheetVisible={false} themeName="light" />,
+      );
     });
 
     expect(root!.toJSON()).toMatchSnapshot();
@@ -123,7 +161,9 @@ describe('mobile-ui primitives', () => {
     let root: renderer.ReactTestRenderer;
 
     renderer.act(() => {
-      root = renderer.create(<PrimitiveHarness sheetVisible={true} themeName="dark" />);
+      root = renderer.create(
+        <PrimitiveHarness sheetVisible={true} themeName="dark" />,
+      );
     });
 
     expect(root!.toJSON()).toMatchSnapshot();

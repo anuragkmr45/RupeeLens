@@ -1,6 +1,12 @@
 import { StatusBar } from 'expo-status-bar';
 import * as FileSystem from 'expo-file-system/legacy';
-import { type ReactNode, useDeferredValue, useEffect, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useDeferredValue,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import type {
   DevicePairingCodeResponse,
   TelemetryBudgetScope,
@@ -16,11 +22,14 @@ import {
   Linking,
   Platform,
   Pressable,
+  SafeAreaView,
   ScrollView,
   Share,
   StyleSheet,
   Text,
+  useColorScheme,
   View,
+  type ColorValue,
 } from 'react-native';
 import {
   BottomSheet,
@@ -158,10 +167,7 @@ import {
   saveStoredSyncCredentials,
   saveStoredSyncState,
 } from '../features/sync/persistence';
-import {
-  probeSyncReachability,
-  runSyncCycle,
-} from '../features/sync/runtime';
+import { probeSyncReachability, runSyncCycle } from '../features/sync/runtime';
 import {
   buildDefaultSyncDeviceName,
   consumeSyncPairingCode,
@@ -228,6 +234,7 @@ import {
   installGlobalTelemetryErrorHandler,
 } from '../features/telemetry/runtime';
 import { APP_COPY } from '../lib/app-info';
+import { getPlatformCapabilities } from '../lib/platform-capabilities';
 import { colors } from '../theme/colors';
 import { DesignSystemShowcaseScreen } from './DesignSystemShowcaseScreen';
 
@@ -252,6 +259,19 @@ type DiagnosticsReturnScreen = 'home' | 'onboarding' | 'settings';
 type ScreenReturnTarget = 'detail' | PrimaryScreen;
 type SplitReturnScreen = 'classify' | 'detail' | 'inbox';
 type BudgetScreenIntent = 'browse' | 'create';
+
+const PRIMARY_SCREENS: PrimaryScreen[] = [
+  'home',
+  'inbox',
+  'timeline',
+  'settings',
+];
+
+function getActivePrimaryScreen(screen: Screen): PrimaryScreen | null {
+  return PRIMARY_SCREENS.includes(screen as PrimaryScreen)
+    ? (screen as PrimaryScreen)
+    : null;
+}
 
 const EMPTY_DRAFT: ClassificationDraft = {
   autoApplyRule: false,
@@ -360,12 +380,14 @@ const BUDGET_CYCLE_OPTIONS: PreferenceOption<BudgetCycleId>[] = [
 
 const SYNC_MODE_OPTIONS: PreferenceOption<SyncMode>[] = [
   {
-    description: 'Keep everything on this device. No account or pairing required.',
+    description:
+      'Keep everything on this device. No account or pairing required.',
     id: 'local_only',
     label: 'Local-only for now',
   },
   {
-    description: 'Save the preference now. The app still runs local-first until sync ships.',
+    description:
+      'Save the preference now. The app still runs local-first until sync ships.',
     id: 'sync_later',
     label: 'Prepare for sync later',
   },
@@ -395,64 +417,83 @@ const WEEKDAY_OPTIONS: Array<{ id: number; label: string }> = [
 ];
 
 export function SpendTrackerApp() {
+  const colorScheme = useColorScheme();
   const [isHydrating, setIsHydrating] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [screen, setScreen] = useState<Screen>('onboarding');
-  const [onboardingPreferences, setOnboardingPreferences] = useState<OnboardingPreferences>(
-    DEFAULT_ONBOARDING_PREFERENCES,
+  const [onboardingPreferences, setOnboardingPreferences] =
+    useState<OnboardingPreferences>(DEFAULT_ONBOARDING_PREFERENCES);
+  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(
+    DEFAULT_PRIVACY_MODE_ENABLED,
   );
-  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(DEFAULT_PRIVACY_MODE_ENABLED);
   const [budgets, setBudgets] = useState<BudgetDefinition[]>([]);
   const [budgetAlerts, setBudgetAlerts] = useState<BudgetThresholdAlert[]>([]);
-  const [budgetAlertSettings, setBudgetAlertSettings] = useState<BudgetAlertSettings>(
-    DEFAULT_BUDGET_ALERT_SETTINGS,
+  const [budgetAlertSettings, setBudgetAlertSettings] =
+    useState<BudgetAlertSettings>(DEFAULT_BUDGET_ALERT_SETTINGS);
+  const [budgetScreenIntent, setBudgetScreenIntent] =
+    useState<BudgetScreenIntent>('browse');
+  const [categories, setCategories] = useState<CategoryOption[]>(
+    getDefaultCategories(),
   );
-  const [budgetScreenIntent, setBudgetScreenIntent] = useState<BudgetScreenIntent>('browse');
-  const [categories, setCategories] = useState<CategoryOption[]>(getDefaultCategories());
   const [merchants, setMerchants] = useState<MerchantRecord[]>(seededMerchants);
-  const [merchantAliases, setMerchantAliases] =
-    useState<MerchantAliasRecord[]>(seededMerchantAliases);
+  const [merchantAliases, setMerchantAliases] = useState<MerchantAliasRecord[]>(
+    seededMerchantAliases,
+  );
   const [rules, setRules] = useState<SpendRule[]>([]);
   const [notificationAccessState, setNotificationAccessState] =
     useState<NotificationAccessState>('not_started');
-  const [transactions, setTransactions] = useState<Transaction[]>(seededTransactions);
-  const [activeTransactionId, setActiveTransactionId] = useState<string | null>(null);
+  const [transactions, setTransactions] =
+    useState<Transaction[]>(seededTransactions);
+  const [activeTransactionId, setActiveTransactionId] = useState<string | null>(
+    null,
+  );
   const [draft, setDraft] = useState<ClassificationDraft>(EMPTY_DRAFT);
   const [splitDraft, setSplitDraft] = useState<SplitDraft>(EMPTY_SPLIT_DRAFT);
-  const [manualDraft, setManualDraft] =
-    useState<ManualEntryDraft>(EMPTY_MANUAL_ENTRY_DRAFT);
-  const [inboxFilters, setInboxFilters] = useState<InboxFilters>(DEFAULT_INBOX_FILTERS);
-  const [timelineFilters, setTimelineFilters] =
-    useState<TimelineFilters>(DEFAULT_TIMELINE_FILTERS);
-  const [detailTransactionId, setDetailTransactionId] = useState<string | null>(null);
-  const [detailReturnScreen, setDetailReturnScreen] = useState<PrimaryScreen>('timeline');
+  const [manualDraft, setManualDraft] = useState<ManualEntryDraft>(
+    EMPTY_MANUAL_ENTRY_DRAFT,
+  );
+  const [inboxFilters, setInboxFilters] = useState<InboxFilters>(
+    DEFAULT_INBOX_FILTERS,
+  );
+  const [timelineFilters, setTimelineFilters] = useState<TimelineFilters>(
+    DEFAULT_TIMELINE_FILTERS,
+  );
+  const [detailTransactionId, setDetailTransactionId] = useState<string | null>(
+    null,
+  );
+  const [detailReturnScreen, setDetailReturnScreen] =
+    useState<PrimaryScreen>('timeline');
   const [diagnosticsReturnScreen, setDiagnosticsReturnScreen] =
     useState<DiagnosticsReturnScreen>('home');
   const [detailNoteDraft, setDetailNoteDraft] = useState('');
   const [classifyReturnScreen, setClassifyReturnScreen] =
     useState<ScreenReturnTarget | null>(null);
-  const [manualReturnScreen, setManualReturnScreen] = useState<PrimaryScreen>('home');
+  const [manualReturnScreen, setManualReturnScreen] =
+    useState<PrimaryScreen>('home');
   const [splitReturnScreen, setSplitReturnScreen] =
     useState<SplitReturnScreen>('inbox');
-  const [captureDiagnostics, setCaptureDiagnostics] = useState<NativeCaptureDiagnostics>(
-    DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS,
-  );
+  const [captureDiagnostics, setCaptureDiagnostics] =
+    useState<NativeCaptureDiagnostics>(DEFAULT_NATIVE_CAPTURE_DIAGNOSTICS);
   const [bootstrapState, setBootstrapState] = useState<BootstrapConfigState>(
     createInitialBootstrapConfigState(),
   );
   const [appStateStatus, setAppStateStatus] = useState(AppState.currentState);
-  const [syncState, setSyncState] = useState<PersistedSyncState>(createInitialSyncState());
+  const [syncState, setSyncState] = useState<PersistedSyncState>(
+    createInitialSyncState(),
+  );
   const [syncNetworkState, setSyncNetworkState] = useState<SyncNetworkState>(
     createInitialSyncNetworkState(),
   );
-  const [syncCredentials, setSyncCredentials] = useState<StoredSyncCredentials | null>(null);
+  const [syncCredentials, setSyncCredentials] =
+    useState<StoredSyncCredentials | null>(null);
   const [syncDeviceNameDraft, setSyncDeviceNameDraft] = useState(() =>
     buildDefaultSyncDeviceName(),
   );
   const [syncPairingCodeDraft, setSyncPairingCodeDraft] = useState('');
   const [generatedPairingCode, setGeneratedPairingCode] =
     useState<DevicePairingCodeResponse | null>(null);
-  const [isSyncSessionActionInFlight, setIsSyncSessionActionInFlight] = useState(false);
+  const [isSyncSessionActionInFlight, setIsSyncSessionActionInFlight] =
+    useState(false);
   const [isSyncRefreshInFlight, setIsSyncRefreshInFlight] = useState(false);
   const transactionsRef = useRef(transactions);
   const merchantsRef = useRef(merchants);
@@ -468,9 +509,14 @@ export function SpendTrackerApp() {
   const hasSyncCredentials = Boolean(
     syncCredentials?.accessToken && syncCredentials.refreshToken,
   );
+  const currentPrimaryScreen = getActivePrimaryScreen(screen);
+  const showPrimaryTabBar = !isHydrating && currentPrimaryScreen !== null;
+  const isDarkMode = colorScheme === 'dark';
   const deferredInboxFilters = useDeferredValue(inboxFilters);
   const deferredTimelineFilters = useDeferredValue(timelineFilters);
-  const cycleStartDay = getBudgetCycleStartDay(onboardingPreferences.budgetCycleId);
+  const cycleStartDay = getBudgetCycleStartDay(
+    onboardingPreferences.budgetCycleId,
+  );
   const isHomeScreen = !isHydrating && screen === 'home';
   const isInboxScreen = !isHydrating && screen === 'inbox';
   const isTimelineScreen = !isHydrating && screen === 'timeline';
@@ -484,7 +530,9 @@ export function SpendTrackerApp() {
   const isDetailScreen = !isHydrating && screen === 'detail';
   const needsMerchantReviewData = isHomeScreen || isMerchantsScreen;
   const needsBudgetReviewData = isHomeScreen || isBudgetsScreen;
-  const pendingTransactions = isHomeScreen ? getPendingTransactions(transactions) : [];
+  const pendingTransactions = isHomeScreen
+    ? getPendingTransactions(transactions)
+    : [];
   const allReviewTransactions = isInboxScreen
     ? getInboxReviewTransactions(transactions, {
         ...DEFAULT_INBOX_FILTERS,
@@ -494,12 +542,24 @@ export function SpendTrackerApp() {
   const filteredReviewTransactions = isInboxScreen
     ? getInboxReviewTransactions(transactions, deferredInboxFilters)
     : [];
-  const inboxSourceAppOptions = isInboxScreen ? getInboxSourceAppOptions(transactions) : [];
+  const inboxSourceAppOptions = isInboxScreen
+    ? getInboxSourceAppOptions(transactions)
+    : [];
   const timelineTransactions = isTimelineScreen
-    ? getTimelineTransactions(transactions, deferredTimelineFilters, undefined, categories)
+    ? getTimelineTransactions(
+        transactions,
+        deferredTimelineFilters,
+        undefined,
+        categories,
+      )
     : [];
   const timelineDayGroups = isTimelineScreen
-    ? getTimelineDayGroups(transactions, deferredTimelineFilters, undefined, categories)
+    ? getTimelineDayGroups(
+        transactions,
+        deferredTimelineFilters,
+        undefined,
+        categories,
+      )
     : [];
   const timelineSourceAppOptions = isTimelineScreen
     ? getTimelineSourceAppOptions(transactions)
@@ -510,7 +570,9 @@ export function SpendTrackerApp() {
   const merchantReviewCandidates = needsMerchantReviewData
     ? getMerchantReviewCandidates(merchants, transactions)
     : [];
-  const budgetSummaries = needsBudgetReviewData ? summarizeBudgets(transactions, budgets) : [];
+  const budgetSummaries = needsBudgetReviewData
+    ? summarizeBudgets(transactions, budgets)
+    : [];
   const pendingBudgetAlerts = needsBudgetReviewData
     ? getPendingBudgetAlerts(budgetAlerts)
     : [];
@@ -534,7 +596,9 @@ export function SpendTrackerApp() {
         categories,
       )
     : null;
-  const categoryUsage = isCategoriesScreen ? summarizeCategoryUsage(categories, transactions) : [];
+  const categoryUsage = isCategoriesScreen
+    ? summarizeCategoryUsage(categories, transactions)
+    : [];
   const activeTransaction =
     activeTransactionId && (isClassifyScreen || isSplitScreen)
       ? getTransactionById(transactions, activeTransactionId)
@@ -551,7 +615,8 @@ export function SpendTrackerApp() {
             amountMinor: activeTransaction.amountMinor,
             capturedAt: activeTransaction.capturedAt,
             currentTransactionId: activeTransaction.id,
-            merchant: activeTransaction.merchantRaw ?? activeTransaction.merchant,
+            merchant:
+              activeTransaction.merchantRaw ?? activeTransaction.merchant,
             merchantId: activeTransaction.merchantId,
           },
           rules,
@@ -658,18 +723,20 @@ export function SpendTrackerApp() {
     let isMounted = true;
 
     async function hydrateLocalState() {
-      const [storedState, storedSyncState, storedSyncCredentials] = await Promise.all([
-        loadStoredSpendTrackerState(),
-        loadStoredSyncState(),
-        loadStoredSyncCredentials(),
-      ]);
+      const [storedState, storedSyncState, storedSyncCredentials] =
+        await Promise.all([
+          loadStoredSpendTrackerState(),
+          loadStoredSyncState(),
+          loadStoredSyncCredentials(),
+        ]);
 
       if (!isMounted) {
         return;
       }
 
       const hydratedSyncState =
-        storedSyncCredentials && storedSyncState.deviceId !== storedSyncCredentials.deviceId
+        storedSyncCredentials &&
+        storedSyncState.deviceId !== storedSyncCredentials.deviceId
           ? {
               ...storedSyncState,
               deviceId: storedSyncCredentials.deviceId,
@@ -709,7 +776,8 @@ export function SpendTrackerApp() {
         setTransactions(merchantDirectory.transactions);
         setScreen(storedState.onboardingCompleted ? 'home' : 'onboarding');
         lastPersistedStateRef.current = {
-          budgetAlertSettings: storedState.budgetAlertSettings ?? DEFAULT_BUDGET_ALERT_SETTINGS,
+          budgetAlertSettings:
+            storedState.budgetAlertSettings ?? DEFAULT_BUDGET_ALERT_SETTINGS,
           budgetAlerts: storedState.budgetAlerts ?? [],
           budgets: storedState.budgets ?? [],
           categories: storedState.categories,
@@ -766,13 +834,16 @@ export function SpendTrackerApp() {
 
     void refreshDiagnostics();
 
-    const appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
-      setAppStateStatus(nextAppState);
-      if (nextAppState === 'active') {
-        void refreshDiagnostics();
-        void importPendingNativeCaptures();
-      }
-    });
+    const appStateSubscription = AppState.addEventListener(
+      'change',
+      (nextAppState) => {
+        setAppStateStatus(nextAppState);
+        if (nextAppState === 'active') {
+          void refreshDiagnostics();
+          void importPendingNativeCaptures();
+        }
+      },
+    );
 
     return () => {
       isMounted = false;
@@ -876,7 +947,8 @@ export function SpendTrackerApp() {
     let isMounted = true;
 
     async function syncNativePrivacyMode() {
-      const diagnostics = await setNativeCapturePrivacyModeEnabled(privacyModeEnabled);
+      const diagnostics =
+        await setNativeCapturePrivacyModeEnabled(privacyModeEnabled);
 
       if (!isMounted) {
         return;
@@ -896,7 +968,9 @@ export function SpendTrackerApp() {
     let isMounted = true;
 
     async function syncNativeDedupeConfig() {
-      const diagnostics = await setNativeCaptureDedupeConfig(bootstrapState.config.dedupeConfig);
+      const diagnostics = await setNativeCaptureDedupeConfig(
+        bootstrapState.config.dedupeConfig,
+      );
 
       if (!isMounted) {
         return;
@@ -959,9 +1033,11 @@ export function SpendTrackerApp() {
   }, []);
 
   useEffect(() => {
-    const removeErrorHandler = installGlobalTelemetryErrorHandler((error, isFatal) => {
-      trackRuntimeError('global', error, isFatal);
-    });
+    const removeErrorHandler = installGlobalTelemetryErrorHandler(
+      (error, isFatal) => {
+        trackRuntimeError('global', error, isFatal);
+      },
+    );
 
     return () => {
       removeErrorHandler();
@@ -975,7 +1051,9 @@ export function SpendTrackerApp() {
 
     const previousAlertIds = knownBudgetAlertIdsRef.current;
     const nextAlertIds = new Set(budgetAlerts.map((alert) => alert.id));
-    const newAlerts = budgetAlerts.filter((alert) => !previousAlertIds.has(alert.id));
+    const newAlerts = budgetAlerts.filter(
+      (alert) => !previousAlertIds.has(alert.id),
+    );
 
     knownBudgetAlertIdsRef.current = nextAlertIds;
 
@@ -990,7 +1068,12 @@ export function SpendTrackerApp() {
         }),
       );
     }
-  }, [bootstrapState.config.rolloutChannel, budgetAlerts, budgets, isHydrating]);
+  }, [
+    bootstrapState.config.rolloutChannel,
+    budgetAlerts,
+    budgets,
+    isHydrating,
+  ]);
 
   useEffect(() => {
     if (isHydrating) {
@@ -1030,7 +1113,8 @@ export function SpendTrackerApp() {
       rules,
       transactions,
     };
-    const previousPersistedState = lastPersistedStateRef.current ?? nextPersistedState;
+    const previousPersistedState =
+      lastPersistedStateRef.current ?? nextPersistedState;
     const nextSyncState = queueSyncOperationsFromStateDiff({
       currentSyncState: syncStateRef.current,
       nextState: nextPersistedState,
@@ -1150,7 +1234,10 @@ export function SpendTrackerApp() {
 
     if (captureEvent.syncState === 'pending_import') {
       try {
-        await markNativeCaptureImported(captureEvent.captureEventId, linkedTransactionId);
+        await markNativeCaptureImported(
+          captureEvent.captureEventId,
+          linkedTransactionId,
+        );
       } catch {
         // Native import state can be retried later; the JS transaction already exists locally.
       }
@@ -1158,7 +1245,8 @@ export function SpendTrackerApp() {
 
     trackTelemetryEvent(
       createCaptureSuccessTelemetryEvent({
-        parserFallback: captureEvent.parserInfo?.parserId.startsWith('generic_') ?? false,
+        parserFallback:
+          captureEvent.parserInfo?.parserId.startsWith('generic_') ?? false,
         parserId: captureEvent.parserInfo?.parserId ?? null,
         parserVersion: captureEvent.parserInfo?.parserVersion ?? null,
         rolloutChannel: bootstrapState.config.rolloutChannel,
@@ -1179,9 +1267,10 @@ export function SpendTrackerApp() {
     return linkedTransactionId;
   }
 
-  async function syncSingleNativeCapture(
-    captureEventId: number,
-  ): Promise<{ captureEvent: NativeCaptureEventRecord; transactionId: string } | null> {
+  async function syncSingleNativeCapture(captureEventId: number): Promise<{
+    captureEvent: NativeCaptureEventRecord;
+    transactionId: string;
+  } | null> {
     const captureEvent = await getNativeCaptureEvent(captureEventId);
 
     if (!captureEvent) {
@@ -1263,23 +1352,37 @@ export function SpendTrackerApp() {
       return;
     }
 
-    const syncedCapture = await syncSingleNativeCapture(parsedCaptureAction.captureEventId);
+    const syncedCapture = await syncSingleNativeCapture(
+      parsedCaptureAction.captureEventId,
+    );
 
     if (!syncedCapture) {
       return;
     }
 
-    const classificationSeed = getCaptureClassificationSeed(syncedCapture.captureEvent.replies);
+    const classificationSeed = getCaptureClassificationSeed(
+      syncedCapture.captureEvent.replies,
+    );
 
     if (parsedCaptureAction.route === 'split') {
-      handleStartSplit(syncedCapture.transactionId, 'inbox', classificationSeed);
+      handleStartSplit(
+        syncedCapture.transactionId,
+        'inbox',
+        classificationSeed,
+      );
       return;
     }
 
-    handleStartClassification(syncedCapture.transactionId, 'inbox', classificationSeed);
+    handleStartClassification(
+      syncedCapture.transactionId,
+      'inbox',
+      classificationSeed,
+    );
   }
 
   async function handleOpenNotificationAccess() {
+    const platformCapabilities = getPlatformCapabilities();
+
     if (capturePausedRemotely) {
       Alert.alert(
         'Capture paused by remote config',
@@ -1291,7 +1394,9 @@ export function SpendTrackerApp() {
 
     try {
       if (Platform.OS === 'android') {
-        await Linking.sendIntent('android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS');
+        await Linking.sendIntent(
+          'android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS',
+        );
       } else {
         await Linking.openSettings();
       }
@@ -1301,7 +1406,9 @@ export function SpendTrackerApp() {
       trackRuntimeError('settings', error);
       Alert.alert(
         'Unable to open settings',
-        'Open the system settings manually and allow notification access for UPI Spend Tracker.',
+        platformCapabilities.supportsNativeNotificationCapture
+          ? 'Open the system settings manually and allow notification access for UPI Spend Tracker.'
+          : 'Open the iPhone app settings manually, then return to the app when you are ready.',
       );
     }
   }
@@ -1310,7 +1417,9 @@ export function SpendTrackerApp() {
     setCaptureDiagnostics(await getNativeCaptureDiagnostics());
   }
 
-  function handleOpenDiagnostics(returnScreen: DiagnosticsReturnScreen = 'home') {
+  function handleOpenDiagnostics(
+    returnScreen: DiagnosticsReturnScreen = 'home',
+  ) {
     setDiagnosticsReturnScreen(returnScreen);
     setScreen('diagnostics');
   }
@@ -1318,7 +1427,8 @@ export function SpendTrackerApp() {
   async function handleShareDiagnosticsBundle() {
     const debugBundle = buildRedactedCaptureDebugBundle({
       captureDiagnostics,
-      enabledParserTemplates: buildEnabledParserTemplateSummaries(bootstrapState),
+      enabledParserTemplates:
+        buildEnabledParserTemplateSummaries(bootstrapState),
       notificationAccessState,
       rolloutChannel: bootstrapState.config.rolloutChannel,
       runtimeCompatibility: bootstrapState.config.runtimeCompatibility ?? null,
@@ -1359,7 +1469,9 @@ export function SpendTrackerApp() {
           ...syncStateRef.current,
           lastErrorMessage: null,
           lastStatus:
-            syncStateRef.current.outbox.length > 0 ? 'local_only_paused' : 'idle',
+            syncStateRef.current.outbox.length > 0
+              ? 'local_only_paused'
+              : 'idle',
         };
 
         syncStateRef.current = nextSyncState;
@@ -1383,7 +1495,12 @@ export function SpendTrackerApp() {
             credentials: activeCredentials,
           });
 
-          if (!areStoredSyncCredentialsEqual(activeCredentials, refreshedCredentials)) {
+          if (
+            !areStoredSyncCredentialsEqual(
+              activeCredentials,
+              refreshedCredentials,
+            )
+          ) {
             applySyncCredentials(refreshedCredentials);
           }
 
@@ -1435,7 +1552,10 @@ export function SpendTrackerApp() {
         setSyncState(nextSyncState);
       }
 
-      if (nextSyncState.lastStatus === 'retry_scheduled' && nextSyncState.lastErrorMessage) {
+      if (
+        nextSyncState.lastStatus === 'retry_scheduled' &&
+        nextSyncState.lastErrorMessage
+      ) {
         trackTelemetryEvent(
           createSyncErrorTelemetryEvent({
             code: 'sync_request_failed',
@@ -1480,7 +1600,8 @@ export function SpendTrackerApp() {
     fileName: string;
     title: string;
   }) {
-    const baseDirectory = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+    const baseDirectory =
+      FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
 
     if (!baseDirectory) {
       Alert.alert(
@@ -1511,7 +1632,10 @@ export function SpendTrackerApp() {
   }
 
   async function handleExportCsv(kind: CsvExportKind) {
-    const artifact = buildCsvExportArtifact(kind, buildPersistedStateSnapshot());
+    const artifact = buildCsvExportArtifact(
+      kind,
+      buildPersistedStateSnapshot(),
+    );
     await shareExportArtifact(artifact);
   }
 
@@ -1539,9 +1663,15 @@ export function SpendTrackerApp() {
   function handleStartClassification(
     transactionId: string,
     returnScreen: ScreenReturnTarget | null = null,
-    classificationSeed: Pick<ClassificationDraft, 'categoryId' | 'itemLabel'> | null = null,
+    classificationSeed: Pick<
+      ClassificationDraft,
+      'categoryId' | 'itemLabel'
+    > | null = null,
   ) {
-    const transaction = getTransactionById(transactionsRef.current, transactionId);
+    const transaction = getTransactionById(
+      transactionsRef.current,
+      transactionId,
+    );
 
     if (!transaction) {
       return;
@@ -1555,17 +1685,20 @@ export function SpendTrackerApp() {
     setDraft({
       ...nextDraft,
       categoryId: classificationSeed?.categoryId ?? nextDraft.categoryId,
-      itemLabel:
-        classificationSeed?.itemLabel?.trim().length
-          ? classificationSeed.itemLabel
-          : nextDraft.itemLabel,
+      itemLabel: classificationSeed?.itemLabel?.trim().length
+        ? classificationSeed.itemLabel
+        : nextDraft.itemLabel,
     });
     setSplitDraft(EMPTY_SPLIT_DRAFT);
     setScreen('classify');
   }
 
   function handleSaveClassification() {
-    if (!activeTransactionId || !activeTransaction || !isClassificationReady(draft)) {
+    if (
+      !activeTransactionId ||
+      !activeTransaction ||
+      !isClassificationReady(draft)
+    ) {
       return;
     }
 
@@ -1651,7 +1784,9 @@ export function SpendTrackerApp() {
   function handleToggleSaveAsRule() {
     setDraft((currentDraft) => ({
       ...currentDraft,
-      autoApplyRule: currentDraft.saveAsRule ? false : currentDraft.autoApplyRule,
+      autoApplyRule: currentDraft.saveAsRule
+        ? false
+        : currentDraft.autoApplyRule,
       saveAsRule: !currentDraft.saveAsRule,
     }));
   }
@@ -1664,7 +1799,9 @@ export function SpendTrackerApp() {
     }));
   }
 
-  function handleApplyClassificationSuggestion(suggestion: ClassificationSuggestion) {
+  function handleApplyClassificationSuggestion(
+    suggestion: ClassificationSuggestion,
+  ) {
     setDraft((currentDraft) => ({
       ...currentDraft,
       categoryId: suggestion.categoryId,
@@ -1734,10 +1871,15 @@ export function SpendTrackerApp() {
   }
 
   function handleCreateCategory(nextDraft: CategoryDraft) {
-    setCategories((currentCategories) => addCustomCategory(currentCategories, nextDraft));
+    setCategories((currentCategories) =>
+      addCustomCategory(currentCategories, nextDraft),
+    );
   }
 
-  function handleUpdateCategory(categoryId: CategoryId, nextDraft: CategoryDraft) {
+  function handleUpdateCategory(
+    categoryId: CategoryId,
+    nextDraft: CategoryDraft,
+  ) {
     setCategories((currentCategories) =>
       updateCustomCategory(currentCategories, categoryId, nextDraft),
     );
@@ -1748,11 +1890,18 @@ export function SpendTrackerApp() {
       return;
     }
 
-    setCategories((currentCategories) => deleteCustomCategory(currentCategories, categoryId));
-    setRules((currentRules) => deleteRulesForCategory(currentRules, categoryId));
+    setCategories((currentCategories) =>
+      deleteCustomCategory(currentCategories, categoryId),
+    );
+    setRules((currentRules) =>
+      deleteRulesForCategory(currentRules, categoryId),
+    );
   }
 
-  function handleMergeCategory(sourceCategoryId: CategoryId, targetCategoryId: CategoryId) {
+  function handleMergeCategory(
+    sourceCategoryId: CategoryId,
+    targetCategoryId: CategoryId,
+  ) {
     const mergedState = mergeCategories(
       categories,
       transactions,
@@ -1762,7 +1911,9 @@ export function SpendTrackerApp() {
 
     setCategories(mergedState.categories);
     setTransactions(mergedState.transactions);
-    setRules((currentRules) => mergeRuleCategories(currentRules, sourceCategoryId, targetCategoryId));
+    setRules((currentRules) =>
+      mergeRuleCategories(currentRules, sourceCategoryId, targetCategoryId),
+    );
   }
 
   function handleOpenTransactionDetail(
@@ -1803,7 +1954,10 @@ export function SpendTrackerApp() {
     handleStartSplit(detailTransactionId, 'detail');
   }
 
-  function handleConfirmDeleteTransaction(transactionId: string, returnScreen: PrimaryScreen) {
+  function handleConfirmDeleteTransaction(
+    transactionId: string,
+    returnScreen: PrimaryScreen,
+  ) {
     const transaction = getTransactionById(transactions, transactionId);
 
     if (!transaction) {
@@ -1822,7 +1976,9 @@ export function SpendTrackerApp() {
           style: 'destructive',
           text: 'Delete',
           onPress: () => {
-            applyMerchantDirectoryState(deleteTransaction(transactions, transactionId));
+            applyMerchantDirectoryState(
+              deleteTransaction(transactions, transactionId),
+            );
 
             if (detailTransactionId === transactionId) {
               setDetailTransactionId(null);
@@ -1851,9 +2007,15 @@ export function SpendTrackerApp() {
   function handleStartSplit(
     transactionId: string,
     returnScreen: SplitReturnScreen,
-    classificationSeed?: Pick<ClassificationDraft, 'categoryId' | 'itemLabel'> | null,
+    classificationSeed?: Pick<
+      ClassificationDraft,
+      'categoryId' | 'itemLabel'
+    > | null,
   ) {
-    const transaction = getTransactionById(transactionsRef.current, transactionId);
+    const transaction = getTransactionById(
+      transactionsRef.current,
+      transactionId,
+    );
 
     if (!transaction) {
       return;
@@ -1898,7 +2060,9 @@ export function SpendTrackerApp() {
   }
 
   function handleMoveSplitRow(rowId: string, direction: 'down' | 'up') {
-    setSplitDraft((currentDraft) => moveSplitDraftRow(currentDraft, rowId, direction));
+    setSplitDraft((currentDraft) =>
+      moveSplitDraftRow(currentDraft, rowId, direction),
+    );
   }
 
   function handleSelectRemainderDisposition(
@@ -1949,7 +2113,11 @@ export function SpendTrackerApp() {
       return;
     }
 
-    const nextTransactions = splitTransaction(transactions, activeTransactionId, splitDraft);
+    const nextTransactions = splitTransaction(
+      transactions,
+      activeTransactionId,
+      splitDraft,
+    );
     const merchantDirectory = applyMerchantDirectoryState(nextTransactions);
 
     setActiveTransactionId(null);
@@ -1966,15 +2134,19 @@ export function SpendTrackerApp() {
 
   function handleToggleSourceAppSelection(sourceAppId: SupportedSourceAppId) {
     setOnboardingPreferences((currentPreferences) => {
-      const nextSelection = currentPreferences.selectedSourceAppIds.includes(sourceAppId)
-        ? currentPreferences.selectedSourceAppIds.filter((id) => id !== sourceAppId)
+      const nextSelection = currentPreferences.selectedSourceAppIds.includes(
+        sourceAppId,
+      )
+        ? currentPreferences.selectedSourceAppIds.filter(
+            (id) => id !== sourceAppId,
+          )
         : [...currentPreferences.selectedSourceAppIds, sourceAppId];
 
       return {
         ...currentPreferences,
-        selectedSourceAppIds: SOURCE_APP_OPTIONS
-          .map((option) => option.id)
-          .filter((id) => nextSelection.includes(id)),
+        selectedSourceAppIds: SOURCE_APP_OPTIONS.map(
+          (option) => option.id,
+        ).filter((id) => nextSelection.includes(id)),
       };
     });
   }
@@ -2015,7 +2187,10 @@ export function SpendTrackerApp() {
     syncCredentialsRef.current = nextCredentials;
     setSyncCredentials(nextCredentials);
 
-    if (!nextCredentials || syncStateRef.current.deviceId === nextCredentials.deviceId) {
+    if (
+      !nextCredentials ||
+      syncStateRef.current.deviceId === nextCredentials.deviceId
+    ) {
       return;
     }
 
@@ -2029,7 +2204,8 @@ export function SpendTrackerApp() {
   }
 
   async function handleCreateGuestSyncSession() {
-    const normalizedDeviceName = syncDeviceNameDraft.trim() || buildDefaultSyncDeviceName();
+    const normalizedDeviceName =
+      syncDeviceNameDraft.trim() || buildDefaultSyncDeviceName();
 
     setIsSyncSessionActionInFlight(true);
 
@@ -2056,7 +2232,8 @@ export function SpendTrackerApp() {
   }
 
   async function handleConsumeSyncPairingCode() {
-    const normalizedDeviceName = syncDeviceNameDraft.trim() || buildDefaultSyncDeviceName();
+    const normalizedDeviceName =
+      syncDeviceNameDraft.trim() || buildDefaultSyncDeviceName();
     const normalizedPairingCode = syncPairingCodeDraft.trim().toUpperCase();
 
     if (!normalizedPairingCode) {
@@ -2204,7 +2381,9 @@ export function SpendTrackerApp() {
   function handleToggleManualSaveAsRule() {
     setManualDraft((currentDraft) => ({
       ...currentDraft,
-      autoApplyRule: currentDraft.saveAsRule ? false : currentDraft.autoApplyRule,
+      autoApplyRule: currentDraft.saveAsRule
+        ? false
+        : currentDraft.autoApplyRule,
       saveAsRule: !currentDraft.saveAsRule,
     }));
   }
@@ -2229,9 +2408,7 @@ export function SpendTrackerApp() {
   }
 
   function handleSkipInboxTransaction(transactionId: string) {
-    applyMerchantDirectoryState(
-      skipTransaction(transactions, transactionId),
-    );
+    applyMerchantDirectoryState(skipTransaction(transactions, transactionId));
   }
 
   function handleRestoreSkippedInboxTransaction(transactionId: string) {
@@ -2241,12 +2418,13 @@ export function SpendTrackerApp() {
   }
 
   function handleDeleteInboxTransaction(transactionId: string) {
-    applyMerchantDirectoryState(
-      deleteTransaction(transactions, transactionId),
-    );
+    applyMerchantDirectoryState(deleteTransaction(transactions, transactionId));
   }
 
-  function handleMergeMerchant(sourceMerchantId: string, targetMerchantId: string) {
+  function handleMergeMerchant(
+    sourceMerchantId: string,
+    targetMerchantId: string,
+  ) {
     const merchantDirectory = mergeMerchants(
       merchants,
       merchantAliases,
@@ -2344,16 +2522,16 @@ export function SpendTrackerApp() {
 
   if (!isHydrating && screen === 'showcase') {
     return (
-      <View style={styles.screen}>
-        <StatusBar style="auto" />
+      <SafeAreaView style={styles.screen}>
+        <StatusBar style={isDarkMode ? 'light' : 'dark'} />
         <DesignSystemShowcaseScreen onBack={() => setScreen('home')} />
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.screen}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={styles.screen}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
       <View style={styles.heroGlowPrimary} />
       <View style={styles.heroGlowSecondary} />
       <View style={styles.screenContent}>
@@ -2375,7 +2553,6 @@ export function SpendTrackerApp() {
             onOpenHome={() => setScreen('home')}
             onOpenManualEntry={() => handleOpenManualEntry('inbox')}
             onRestoreTransaction={handleRestoreSkippedInboxTransaction}
-            onSelectTab={(nextScreen) => setScreen(nextScreen)}
             onSkipTransaction={handleSkipInboxTransaction}
             onStartClassification={handleStartClassification}
             onStartSplit={handleOpenSplitFromInbox}
@@ -2406,10 +2583,11 @@ export function SpendTrackerApp() {
           />
         ) : isInsightsScreen && insightsReport ? (
           <InsightsScreen
-            budgetCycleLabel={getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}
+            budgetCycleLabel={getBudgetCycleLabel(
+              onboardingPreferences.budgetCycleId,
+            )}
             onBack={() => setScreen('home')}
             onOpenTimeline={handleOpenTimeline}
-            onSelectTab={(nextScreen) => setScreen(nextScreen)}
             report={insightsReport}
           />
         ) : isCategoriesScreen ? (
@@ -2469,7 +2647,10 @@ export function SpendTrackerApp() {
             onBack={handleCloseTransactionDetail}
             onChangeNote={setDetailNoteDraft}
             onDelete={() =>
-              handleConfirmDeleteTransaction(detailTransaction.id, detailReturnScreen)
+              handleConfirmDeleteTransaction(
+                detailTransaction.id,
+                detailReturnScreen,
+              )
             }
             onOpenClassification={handleOpenDetailClassification}
             onOpenSplit={handleOpenSplitFromDetail}
@@ -2512,10 +2693,13 @@ export function SpendTrackerApp() {
             transaction={activeTransaction}
           />
         ) : (
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            {isHydrating ? (
-              <HydrationScreen />
-            ) : null}
+          <ScrollView
+            contentContainerStyle={[
+              styles.scrollContent,
+              showPrimaryTabBar ? styles.scrollContentWithPrimaryTabBar : null,
+            ]}
+          >
+            {isHydrating ? <HydrationScreen /> : null}
 
             {!isHydrating && screen === 'onboarding' ? (
               <OnboardingScreen
@@ -2614,7 +2798,9 @@ export function SpendTrackerApp() {
                 onboardingPreferences={onboardingPreferences}
                 onChangeSyncDeviceName={setSyncDeviceNameDraft}
                 onChangeSyncPairingCode={(value) =>
-                  setSyncPairingCodeDraft(value.toUpperCase().replace(/\s+/g, ''))
+                  setSyncPairingCodeDraft(
+                    value.toUpperCase().replace(/\s+/g, ''),
+                  )
                 }
                 onCreateGuestSyncSession={handleCreateGuestSyncSession}
                 onConsumeSyncPairingCode={handleConsumeSyncPairingCode}
@@ -2664,17 +2850,29 @@ export function SpendTrackerApp() {
                 onApplySuggestion={handleApplyManualSuggestion}
                 onCancel={handleCancelManualEntry}
                 onChangeAmount={(amountInput) =>
-                  setManualDraft((currentDraft) => ({ ...currentDraft, amountInput }))
+                  setManualDraft((currentDraft) => ({
+                    ...currentDraft,
+                    amountInput,
+                  }))
                 }
                 onChangeItemLabel={(itemLabel) =>
-                  setManualDraft((currentDraft) => ({ ...currentDraft, itemLabel }))
+                  setManualDraft((currentDraft) => ({
+                    ...currentDraft,
+                    itemLabel,
+                  }))
                 }
                 onChangeMerchant={(merchant) =>
-                  setManualDraft((currentDraft) => ({ ...currentDraft, merchant }))
+                  setManualDraft((currentDraft) => ({
+                    ...currentDraft,
+                    merchant,
+                  }))
                 }
                 onSave={handleSaveManualEntry}
                 onSelectCategory={(categoryId) =>
-                  setManualDraft((currentDraft) => ({ ...currentDraft, categoryId }))
+                  setManualDraft((currentDraft) => ({
+                    ...currentDraft,
+                    categoryId,
+                  }))
                 }
                 onToggleAutoApplyRule={handleToggleManualAutoApplyRule}
                 onToggleSaveAsRule={handleToggleManualSaveAsRule}
@@ -2684,18 +2882,27 @@ export function SpendTrackerApp() {
           </ScrollView>
         )}
       </View>
+      {showPrimaryTabBar && currentPrimaryScreen ? (
+        <PrimaryTabBar
+          activeScreen={currentPrimaryScreen}
+          onSelectTab={(nextScreen) => setScreen(nextScreen)}
+        />
+      ) : null}
       {privacyModeEnabled && appStateStatus !== 'active' ? (
         <View pointerEvents="none" style={styles.privacyOverlay}>
           <View style={styles.privacyOverlayCard}>
             <Text style={styles.sectionEyebrow}>Privacy mode</Text>
-            <Text style={styles.cardTitle}>Content hidden for app previews</Text>
+            <Text style={styles.cardTitle}>
+              Content hidden for app previews
+            </Text>
             <Text style={styles.bodyCopy}>
-              Live spend details are masked while the app is inactive so lockscreen and task-switcher previews stay private.
+              Live spend details are masked while the app is inactive so
+              lockscreen and task-switcher previews stay private.
             </Text>
           </View>
         </View>
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -2738,7 +2945,9 @@ function OnboardingScreen({
   onSelectSyncMode: (syncMode: SyncMode) => void;
   onToggleSourceApp: (sourceAppId: SupportedSourceAppId) => void;
 }) {
-  const isAndroid = Platform.OS === 'android';
+  const platformCapabilities = getPlatformCapabilities();
+  const supportsNativeNotificationCapture =
+    platformCapabilities.supportsNativeNotificationCapture;
   const selectedSourceAppsSummary =
     onboardingPreferences.selectedSourceAppIds.length > 0
       ? onboardingPreferences.selectedSourceAppIds
@@ -2748,11 +2957,18 @@ function OnboardingScreen({
   const selectedBudgetCycleLabel = getBudgetCycleLabel(
     onboardingPreferences.budgetCycleId,
   );
-  const selectedSyncModeLabel = getSyncModeLabel(onboardingPreferences.syncMode);
+  const selectedSyncModeLabel = getSyncModeLabel(
+    onboardingPreferences.syncMode,
+  );
   const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
-  const listenerPermissionGranted = captureDiagnostics.listenerPermissionGranted;
+  const listenerPermissionGranted =
+    captureDiagnostics.listenerPermissionGranted;
+  const captureStepReady =
+    supportsNativeNotificationCapture && !capturePausedRemotely
+      ? listenerPermissionGranted
+      : true;
   const completionCount = [
-    listenerPermissionGranted || capturePausedRemotely,
+    captureStepReady,
     onboardingPreferences.selectedSourceAppIds.length > 0,
     true,
     true,
@@ -2761,18 +2977,26 @@ function OnboardingScreen({
     onboardingPreferences.syncMode === 'local_only'
       ? 'Continue in local-only mode'
       : 'Finish setup';
+  const completionLabel = supportsNativeNotificationCapture
+    ? `${completionCount} of 4 setup choices saved`
+    : 'Manual review path ready on iPhone';
 
   return (
     <View style={styles.stack}>
       <SectionCard accentColor={colors.accentSoft}>
         <Text style={styles.sectionEyebrow}>Onboarding</Text>
-        <Text style={styles.sectionTitle}>Capture each UPI payment while it is fresh.</Text>
+        <Text style={styles.sectionTitle}>
+          {supportsNativeNotificationCapture
+            ? 'Capture each UPI payment while it is fresh.'
+            : 'Keep the first review loop local and lightweight on iPhone.'}
+        </Text>
         <Text style={styles.bodyCopy}>
-          Start with notification access on Android, choose your source apps and budget cycle, then
-          keep the first review loop local-first.
+          {supportsNativeNotificationCapture
+            ? 'Start with notification access on Android, choose your source apps and budget cycle, then keep the first review loop local-first.'
+            : 'This iPhone build focuses on manual spend entry, shared local review screens, and shell verification while Android-only notification capture stays out of scope for v1.'}
         </Text>
         <StatusChip
-          label={`${completionCount} of 4 setup choices saved`}
+          label={completionLabel}
           tone={completionCount >= 3 ? 'ready' : 'pending'}
         />
       </SectionCard>
@@ -2781,31 +3005,37 @@ function OnboardingScreen({
         <SectionCard accentColor={colors.panelWarm}>
           <Text style={styles.cardTitle}>What the app will do</Text>
           <Text style={styles.bodyCopy}>
-            Detect supported payment notifications, turn them into spend events, and keep the first
-            review loop fast.
+            {supportsNativeNotificationCapture
+              ? 'Detect supported payment notifications, turn them into spend events, and keep the first review loop fast.'
+              : 'Keep manual entry, Inbox review, Timeline history, budgets, and exports in one local-first shell without pretending iPhone has Android capture features.'}
           </Text>
         </SectionCard>
 
         <SectionCard accentColor={colors.successSoft}>
           <Text style={styles.cardTitle}>Privacy posture</Text>
           <Text style={styles.bodyCopy}>
-            Raw notification review, classification, and manual add stay on-device today. Sync and
-            native capture still arrive in later tickets.
+            {supportsNativeNotificationCapture
+              ? 'Raw notification review, classification, and manual add stay on-device today. Sync and native capture still arrive in later tickets.'
+              : 'Manual entries, classification, local history, and support exports stay on-device today. iPhone shell support does not introduce background notification capture in v1.'}
           </Text>
         </SectionCard>
       </View>
 
       <SectionCard accentColor={colors.panel}>
-        <Text style={styles.cardTitle}>Notification access</Text>
+        <Text style={styles.cardTitle}>
+          {supportsNativeNotificationCapture
+            ? 'Notification access'
+            : 'iPhone capture mode'}
+        </Text>
         <Text style={styles.bodyCopy}>
           {capturePausedRemotely
-            ? bootstrapState.config.runtimeCompatibility?.reason ??
-              'Remote config currently pauses notification capture. Keep the local review loop running with manual add while refresh retries.'
+            ? (bootstrapState.config.runtimeCompatibility?.reason ??
+              'Remote config currently pauses notification capture. Keep the local review loop running with manual add while refresh retries.')
             : listenerPermissionGranted
               ? 'Android now reports notification-listener access as granted for this app. Allowed source apps below will drive native filtering.'
-            : isAndroid
-              ? 'Notification access is needed before Android can hand UPI payment alerts to the app. Open the system screen, grant access, then return here and retry the permission check.'
-              : 'Open iOS app settings, then return here. iOS remains shell-only and does not support notification capture in v1.'}
+              : supportsNativeNotificationCapture
+                ? 'Notification access is needed before Android can hand UPI payment alerts to the app. Open the system screen, grant access, then return here and retry the permission check.'
+                : 'Manual add, Inbox review, Timeline history, and Settings all stay available on iPhone. Notification capture and parser diagnostics remain Android-only by design in v1.'}
         </Text>
         <StatusChip
           label={
@@ -2813,32 +3043,48 @@ function OnboardingScreen({
               ? 'Capture paused remotely'
               : listenerPermissionGranted
                 ? 'Permission granted'
-                : notificationAccessState === 'settings_opened'
+                : supportsNativeNotificationCapture &&
+                    notificationAccessState === 'settings_opened'
                   ? 'Settings opened, permission still pending'
-              : 'Still needs review'
+                  : supportsNativeNotificationCapture
+                    ? 'Still needs review'
+                    : 'Manual review only on iPhone'
           }
           tone={
-            capturePausedRemotely || listenerPermissionGranted
+            capturePausedRemotely ||
+            listenerPermissionGranted ||
+            !supportsNativeNotificationCapture
               ? 'ready'
               : 'pending'
           }
         />
         <View style={styles.helperStack}>
           <Text style={styles.helperCopy}>
-            Native service: {captureDiagnostics.serviceAvailable ? 'available in this Android build' : 'not available'}
+            Native service:{' '}
+            {supportsNativeNotificationCapture
+              ? captureDiagnostics.serviceAvailable
+                ? 'available in this Android build'
+                : 'not available'
+              : 'not available on iPhone'}
           </Text>
           <Text style={styles.helperCopy}>
-            Stored raw captures: {captureDiagnostics.storedSnapshotCount}
+            {supportsNativeNotificationCapture
+              ? `Stored raw captures: ${captureDiagnostics.storedSnapshotCount}`
+              : 'Shared shell status: current UI, local review, and exports only'}
           </Text>
         </View>
         <View style={styles.actionRow}>
           <ActionButton
             disabled={capturePausedRemotely}
-            label={isAndroid ? 'Open notification access' : 'Open app settings'}
+            label={
+              supportsNativeNotificationCapture
+                ? 'Open notification access'
+                : 'Open app settings'
+            }
             onPress={onOpenNotificationAccess}
             tone="primary"
           />
-          {isAndroid ? (
+          {supportsNativeNotificationCapture ? (
             <ActionButton
               label="Retry permission check"
               onPress={onRefreshCaptureDiagnostics}
@@ -2851,10 +3097,15 @@ function OnboardingScreen({
       <BootstrapConfigStatusCard bootstrapState={bootstrapState} />
 
       <SectionCard accentColor={colors.panelWarm}>
-        <Text style={styles.cardTitle}>Source apps</Text>
+        <Text style={styles.cardTitle}>
+          {supportsNativeNotificationCapture
+            ? 'Source apps'
+            : 'Tracked payment apps'}
+        </Text>
         <Text style={styles.bodyCopy}>
-          Choose which payment apps should be allowed for capture. On Android these choices now
-          sync into the native allowlist and block unsupported packages from being stored.
+          {supportsNativeNotificationCapture
+            ? 'Choose which payment apps should be allowed for capture. On Android these choices now sync into the native allowlist and block unsupported packages from being stored.'
+            : 'Choose the payment apps you actively use so the shared shell, exports, and future platform work keep the same local profile even without iPhone notification capture.'}
         </Text>
         <StatusChip
           label={
@@ -2863,7 +3114,9 @@ function OnboardingScreen({
               : 'No apps selected'
           }
           tone={
-            onboardingPreferences.selectedSourceAppIds.length > 0 ? 'ready' : 'pending'
+            onboardingPreferences.selectedSourceAppIds.length > 0
+              ? 'ready'
+              : 'pending'
           }
         />
         <View style={styles.actionRow}>
@@ -2872,12 +3125,18 @@ function OnboardingScreen({
             onPress={onSelectAllSourceApps}
             tone="secondary"
           />
-          <ActionButton label="Deselect all" onPress={onClearSourceApps} tone="secondary" />
+          <ActionButton
+            label="Deselect all"
+            onPress={onClearSourceApps}
+            tone="secondary"
+          />
         </View>
         <View style={styles.categoryGrid}>
           {SOURCE_APP_OPTIONS.map((sourceApp) => (
             <CategoryChip
-              isActive={onboardingPreferences.selectedSourceAppIds.includes(sourceApp.id)}
+              isActive={onboardingPreferences.selectedSourceAppIds.includes(
+                sourceApp.id,
+              )}
               key={sourceApp.id}
               label={sourceApp.label}
               onPress={() => onToggleSourceApp(sourceApp.id)}
@@ -2885,15 +3144,19 @@ function OnboardingScreen({
           ))}
         </View>
         <Text style={styles.helperCopy}>{selectedSourceAppsSummary}</Text>
-        <Text style={styles.helperCopy}>
-          Native allowlist: {formatSourceAppSummary(captureDiagnostics.allowedSourceAppIds)}
-        </Text>
+        {supportsNativeNotificationCapture ? (
+          <Text style={styles.helperCopy}>
+            Native allowlist:{' '}
+            {formatSourceAppSummary(captureDiagnostics.allowedSourceAppIds)}
+          </Text>
+        ) : null}
       </SectionCard>
 
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Budget cycle</Text>
         <Text style={styles.bodyCopy}>
-          Pick the cycle that should anchor Home totals and future budget tracking.
+          Pick the cycle that should anchor Home totals and future budget
+          tracking.
         </Text>
         <View style={styles.optionStack}>
           {BUDGET_CYCLE_OPTIONS.map((option) => (
@@ -2911,8 +3174,8 @@ function OnboardingScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Sync preference</Text>
         <Text style={styles.bodyCopy}>
-          Both paths stay local today. This choice simply records whether the user wants to stay
-          device-only or prepare for sync once pairing ships.
+          Both paths stay local today. This choice simply records whether the
+          user wants to stay device-only or prepare for sync once pairing ships.
         </Text>
         <View style={styles.optionStack}>
           {SYNC_MODE_OPTIONS.map((option) => (
@@ -2939,11 +3202,15 @@ function OnboardingScreen({
       <SectionCard accentColor={colors.heroGlowSecondary}>
         <Text style={styles.cardTitle}>Finish setup</Text>
         <Text style={styles.bodyCopy}>
-          Source apps: {selectedSourceAppsSummary}. Budget cycle: {selectedBudgetCycleLabel}. Sync
-          mode: {selectedSyncModeLabel}.
+          Source apps: {selectedSourceAppsSummary}. Budget cycle:{' '}
+          {selectedBudgetCycleLabel}. Sync mode: {selectedSyncModeLabel}.
         </Text>
         <View style={styles.actionRow}>
-          <ActionButton label={finishLabel} onPress={onContinue} tone="primary" />
+          <ActionButton
+            label={finishLabel}
+            onPress={onContinue}
+            tone="primary"
+          />
         </View>
       </SectionCard>
     </View>
@@ -3015,6 +3282,9 @@ function HomeScreen({
   syncState: PersistedSyncState;
   syncSummary: SyncQueueSummary;
 }) {
+  const platformCapabilities = getPlatformCapabilities();
+  const supportsNativeNotificationCapture =
+    platformCapabilities.supportsNativeNotificationCapture;
   const selectedSourceAppsSummary =
     onboardingPreferences.selectedSourceAppIds.length > 0
       ? onboardingPreferences.selectedSourceAppIds
@@ -3027,34 +3297,46 @@ function HomeScreen({
     0,
   );
   const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
-  const listenerPermissionGranted = captureDiagnostics.listenerPermissionGranted;
+  const listenerPermissionGranted =
+    captureDiagnostics.listenerPermissionGranted;
   const budgetsEnabled = bootstrapState.config.featureFlags.budgets_enabled;
   const searchEnabled = bootstrapState.config.featureFlags.search_enabled;
   const showcaseEnabled = bootstrapState.config.featureFlags.showcase_enabled;
+  const captureStatusLabel = supportsNativeNotificationCapture
+    ? capturePausedRemotely
+      ? 'Capture paused remotely'
+      : listenerPermissionGranted
+        ? 'Notification access granted'
+        : notificationAccessState === 'settings_opened'
+          ? 'Settings opened, permission still pending'
+          : 'Notification access not confirmed'
+    : 'Manual review mode on iPhone';
+  const captureStatusTone =
+    capturePausedRemotely ||
+    listenerPermissionGranted ||
+    !supportsNativeNotificationCapture
+      ? 'ready'
+      : 'pending';
 
   return (
     <View style={styles.stack}>
-      <View style={styles.tabs}>
-        <TabButton isActive={true} label="Home" onPress={() => onSelectTab('home')} />
-        <TabButton isActive={false} label="Inbox" onPress={() => onSelectTab('inbox')} />
-        <TabButton isActive={false} label="Timeline" onPress={() => onSelectTab('timeline')} />
-        <TabButton isActive={false} label="Settings" onPress={() => onSelectTab('settings')} />
-      </View>
-
       <SectionCard accentColor={colors.accentSoft}>
         <Text style={styles.sectionEyebrow}>Today</Text>
         <Text style={styles.sectionTitle}>Current cycle at a glance</Text>
         <Text style={styles.bodyCopy}>
-          This local-first shell now covers the core review loop: cycle-aware totals on Home,
-          uncategorized work in Inbox, quick classify, and manual spend entry without leaving the
-          device.
+          This local-first shell now covers the core review loop: cycle-aware
+          totals on Home, uncategorized work in Inbox, quick classify, and
+          manual spend entry without leaving the device.
         </Text>
       </SectionCard>
 
       <BootstrapConfigStatusCard bootstrapState={bootstrapState} />
 
       <View style={styles.metricGrid}>
-        <MetricCard label="Total spend" value={formatCurrency(summary.totalSpendMinor)} />
+        <MetricCard
+          label="Total spend"
+          value={formatCurrency(summary.totalSpendMinor)}
+        />
         <MetricCard label="Inbox" value={`${summary.inboxCount} pending`} />
         <MetricCard label="Top category" value={summary.topCategoryLabel} />
         <MetricCard label="Top merchant" value={summary.topMerchantLabel} />
@@ -3063,12 +3345,15 @@ function HomeScreen({
       <SectionCard accentColor={colors.panelWarm}>
         <Text style={styles.cardTitle}>Budget progress</Text>
         <Text style={styles.bodyCopy}>
-          Current period: {getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}. Home now uses
-          the canonical local budget engine for cycle math, projections, and threshold state, and
-          the Budgets screen now owns local setup, edits, and threshold review.
+          Current period:{' '}
+          {getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}. Home now
+          uses the canonical local budget engine for cycle math, projections,
+          and threshold state, and the Budgets screen now owns local setup,
+          edits, and threshold review.
         </Text>
         <Text style={styles.amountLabel}>
-          {formatCurrency(summary.totalSpendMinor)} of {formatCurrency(summary.budgetTargetMinor)}
+          {formatCurrency(summary.totalSpendMinor)} of{' '}
+          {formatCurrency(summary.budgetTargetMinor)}
         </Text>
         <View style={styles.progressTrack}>
           <View
@@ -3080,14 +3365,17 @@ function HomeScreen({
         </View>
         <View style={styles.helperStack}>
           <Text style={styles.helperCopy}>Budget: {summary.budgetLabel}</Text>
-          <Text style={styles.helperCopy}>{budgetUsedPercent}% of the current-cycle target used</Text>
+          <Text style={styles.helperCopy}>
+            {budgetUsedPercent}% of the current-cycle target used
+          </Text>
           <Text style={styles.helperCopy}>
             {budgetOverrunMinor > 0
               ? `${formatCurrency(budgetOverrunMinor)} over the current target`
               : `${formatCurrency(summary.budgetRemainingMinor)} remaining in the current target`}
           </Text>
           <Text style={styles.helperCopy}>
-            Projected spend: {formatCurrency(summary.budgetProjectedSpendMinor)} · Status:{' '}
+            Projected spend: {formatCurrency(summary.budgetProjectedSpendMinor)}{' '}
+            · Status:{' '}
             {getBudgetThresholdStateLabel(summary.budgetThresholdState)}
           </Text>
         </View>
@@ -3096,20 +3384,24 @@ function HomeScreen({
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Quick actions</Text>
         <Text style={styles.bodyCopy}>
-          Manual add and Inbox are live now. Budget creation, search, and showcase access follow
-          the active remote flags so staged rollout does not require a native release. Categories,
-          merchants, and local insights are all derived on device and reused across classify,
-          split, manual add, timeline, and detail.
+          Manual add and Inbox are live now. Budget creation, search, and
+          showcase access follow the active remote flags so staged rollout does
+          not require a native release. Categories, merchants, and local
+          insights are all derived on device and reused across classify, split,
+          manual add, timeline, and detail.
         </Text>
         <View style={styles.helperStack}>
           <Text style={styles.helperCopy}>
-            Budgets: {budgetsEnabled ? 'enabled for this channel' : 'disabled remotely'}
+            Budgets:{' '}
+            {budgetsEnabled ? 'enabled for this channel' : 'disabled remotely'}
           </Text>
           <Text style={styles.helperCopy}>
-            Saved budgets: {budgetCount} · Pending alert review: {pendingBudgetAlerts.length}
+            Saved budgets: {budgetCount} · Pending alert review:{' '}
+            {pendingBudgetAlerts.length}
           </Text>
           <Text style={styles.helperCopy}>
-            Search: {searchEnabled ? 'enabled for this channel' : 'disabled remotely'}
+            Search:{' '}
+            {searchEnabled ? 'enabled for this channel' : 'disabled remotely'}
           </Text>
           <Text style={styles.helperCopy}>
             Insights: local rollups compare the current cycle with the prior one
@@ -3118,16 +3410,37 @@ function HomeScreen({
             Categories: {categories.length} available in this local profile
           </Text>
           <Text style={styles.helperCopy}>
-            Merchants: {merchantUsageCount} tracked locally · {merchantReviewCandidateCount} review
-            suggestion{merchantReviewCandidateCount === 1 ? '' : 's'}
+            Merchants: {merchantUsageCount} tracked locally ·{' '}
+            {merchantReviewCandidateCount} review suggestion
+            {merchantReviewCandidateCount === 1 ? '' : 's'}
           </Text>
         </View>
         <View style={styles.actionRow}>
-          <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
-          <ActionButton label="Review inbox" onPress={onOpenInbox} tone="secondary" />
-          <ActionButton label="Settings" onPress={() => onSelectTab('settings')} tone="secondary" />
-          <ActionButton label="Manage categories" onPress={onOpenCategories} tone="secondary" />
-          <ActionButton label="Manage merchants" onPress={onOpenMerchants} tone="secondary" />
+          <ActionButton
+            label="Add manual spend"
+            onPress={onOpenManualEntry}
+            tone="primary"
+          />
+          <ActionButton
+            label="Review inbox"
+            onPress={onOpenInbox}
+            tone="secondary"
+          />
+          <ActionButton
+            label="Settings"
+            onPress={() => onSelectTab('settings')}
+            tone="secondary"
+          />
+          <ActionButton
+            label="Manage categories"
+            onPress={onOpenCategories}
+            tone="secondary"
+          />
+          <ActionButton
+            label="Manage merchants"
+            onPress={onOpenMerchants}
+            tone="secondary"
+          />
           <ActionButton
             disabled={!budgetsEnabled}
             label="Create budget"
@@ -3140,7 +3453,11 @@ function HomeScreen({
             onPress={onOpenTimeline}
             tone="secondary"
           />
-          <ActionButton label="Insights" onPress={onOpenInsights} tone="secondary" />
+          <ActionButton
+            label="Insights"
+            onPress={onOpenInsights}
+            tone="secondary"
+          />
         </View>
       </SectionCard>
 
@@ -3155,13 +3472,18 @@ function HomeScreen({
           <View style={styles.helperStack}>
             {pendingBudgetAlerts.slice(0, 3).map((alert) => (
               <Text key={alert.id} style={styles.helperCopy}>
-                {alert.budgetLabel}: {alert.thresholdPercent}% · {formatCurrency(alert.spentMinor)} of{' '}
+                {alert.budgetLabel}: {alert.thresholdPercent}% ·{' '}
+                {formatCurrency(alert.spentMinor)} of{' '}
                 {formatCurrency(alert.targetMinor)}
               </Text>
             ))}
           </View>
           <View style={styles.actionRow}>
-            <ActionButton label="Review budgets" onPress={onOpenBudgets} tone="primary" />
+            <ActionButton
+              label="Review budgets"
+              onPress={onOpenBudgets}
+              tone="primary"
+            />
           </View>
         </SectionCard>
       ) : null}
@@ -3174,7 +3496,8 @@ function HomeScreen({
               {nextPendingTransaction.merchant} for{' '}
               {formatCurrency(nextPendingTransaction.amountMinor)} from{' '}
               {nextPendingTransaction.sourceApp} at{' '}
-              {formatCaptureMoment(nextPendingTransaction.capturedAt)} is still waiting in the Inbox.
+              {formatCaptureMoment(nextPendingTransaction.capturedAt)} is still
+              waiting in the Inbox.
             </Text>
             <View style={styles.actionRow}>
               <ActionButton
@@ -3182,19 +3505,36 @@ function HomeScreen({
                 onPress={() => onStartClassification(nextPendingTransaction.id)}
                 tone="primary"
               />
-              <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
-              <ActionButton label="Open inbox" onPress={onOpenInbox} tone="secondary" />
+              <ActionButton
+                label="Add manual spend"
+                onPress={onOpenManualEntry}
+                tone="secondary"
+              />
+              <ActionButton
+                label="Open inbox"
+                onPress={onOpenInbox}
+                tone="secondary"
+              />
             </View>
           </>
         ) : (
           <>
             <Text style={styles.bodyCopy}>
-              You are caught up for this session. Add a manual spend now, or wait for native capture
-              import to bring new uncategorized payments into Inbox later.
+              {supportsNativeNotificationCapture
+                ? 'You are caught up for this session. Add a manual spend now, or wait for native capture import to bring new uncategorized payments into Inbox later.'
+                : 'You are caught up for this session. Add a manual spend now, and future local review will continue from the same on-device history.'}
             </Text>
             <View style={styles.actionRow}>
-              <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
-              <ActionButton label="Open inbox" onPress={onOpenInbox} tone="secondary" />
+              <ActionButton
+                label="Add manual spend"
+                onPress={onOpenManualEntry}
+                tone="primary"
+              />
+              <ActionButton
+                label="Open inbox"
+                onPress={onOpenInbox}
+                tone="secondary"
+              />
             </View>
           </>
         )}
@@ -3205,20 +3545,26 @@ function HomeScreen({
         {summary.topItems.length > 0 ? (
           <View style={styles.listStack}>
             {summary.topItems.map((item) => (
-              <View key={item.transactionId + item.label} style={styles.summaryRow}>
+              <View
+                key={item.transactionId + item.label}
+                style={styles.summaryRow}
+              >
                 <View style={styles.summaryCopy}>
                   <Text style={styles.summaryPrimary}>{item.label}</Text>
                   <Text style={styles.summarySecondary}>
                     {item.merchant} · {item.categoryLabel}
                   </Text>
                 </View>
-                <Text style={styles.summaryAmount}>{formatCurrency(item.amountMinor)}</Text>
+                <Text style={styles.summaryAmount}>
+                  {formatCurrency(item.amountMinor)}
+                </Text>
               </View>
             ))}
           </View>
         ) : (
           <Text style={styles.bodyCopy}>
-            Classify a few spends in Inbox to unlock item-level patterns for the current cycle.
+            Classify a few spends in Inbox to unlock item-level patterns for the
+            current cycle.
           </Text>
         )}
       </SectionCard>
@@ -3230,19 +3576,24 @@ function HomeScreen({
             {summary.recentActivity.map((transaction) => (
               <View key={transaction.id} style={styles.summaryRow}>
                 <View style={styles.summaryCopy}>
-                  <Text style={styles.summaryPrimary}>{transaction.merchant}</Text>
+                  <Text style={styles.summaryPrimary}>
+                    {transaction.merchant}
+                  </Text>
                   <Text style={styles.summarySecondary}>
                     {transaction.items[0]?.label ?? 'Needs classification'} ·{' '}
                     {formatCaptureMoment(transaction.capturedAt)}
                   </Text>
                 </View>
-                <Text style={styles.summaryAmount}>{formatCurrency(transaction.amountMinor)}</Text>
+                <Text style={styles.summaryAmount}>
+                  {formatCurrency(transaction.amountMinor)}
+                </Text>
               </View>
             ))}
           </View>
         ) : (
           <Text style={styles.bodyCopy}>
-            Add a manual spend or classify Inbox items to build a recent-activity preview.
+            Add a manual spend or classify Inbox items to build a
+            recent-activity preview.
           </Text>
         )}
       </SectionCard>
@@ -3250,40 +3601,30 @@ function HomeScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Local loop status</Text>
         <Text style={styles.bodyCopy}>
-          {summary.classifiedCount} transactions already carry user meaning. Classified spends and
-          manual entries now persist in local SQLite tables and survive app restarts until the demo
-          state is reset.
+          {summary.classifiedCount} transactions already carry user meaning.
+          Classified spends and manual entries now persist in local SQLite
+          tables and survive app restarts until the demo state is reset.
         </Text>
         <View style={styles.helperStack}>
-          <Text style={styles.helperCopy}>Source apps: {selectedSourceAppsSummary}</Text>
           <Text style={styles.helperCopy}>
-            Budget cycle: {getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}
+            {supportsNativeNotificationCapture ? 'Source apps' : 'Tracked apps'}
+            : {selectedSourceAppsSummary}
+          </Text>
+          <Text style={styles.helperCopy}>
+            Budget cycle:{' '}
+            {getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}
           </Text>
           <Text style={styles.helperCopy}>
             Sync mode: {getSyncModeLabel(onboardingPreferences.syncMode)}
           </Text>
           <Text style={styles.helperCopy}>
             Sync queue: {syncSummary.pendingCount} queued write
-            {syncSummary.pendingCount === 1 ? '' : 's'} · {syncSummary.conflictCount} conflict
+            {syncSummary.pendingCount === 1 ? '' : 's'} ·{' '}
+            {syncSummary.conflictCount} conflict
             {syncSummary.conflictCount === 1 ? '' : 's'}
           </Text>
         </View>
-        <StatusChip
-          label={
-            capturePausedRemotely
-              ? 'Capture paused remotely'
-              : listenerPermissionGranted
-                ? 'Notification access granted'
-                : notificationAccessState === 'settings_opened'
-                  ? 'Settings opened, permission still pending'
-              : 'Notification access not confirmed'
-          }
-          tone={
-            capturePausedRemotely || listenerPermissionGranted
-              ? 'ready'
-              : 'pending'
-          }
-        />
+        <StatusChip label={captureStatusLabel} tone={captureStatusTone} />
       </SectionCard>
 
       <SyncQueueCard
@@ -3308,27 +3649,46 @@ function HomeScreen({
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Scope right now</Text>
         <Text style={styles.bodyCopy}>
-          Android system settings can already be opened from the app, and Home plus Inbox now read
-          from local SQLite-backed spend tables. Remote config now controls parser kill switches and
-          staged feature rollout, while real permission checks and native capture import remain
-          separate implementation steps.
+          {supportsNativeNotificationCapture
+            ? 'Android system settings can already be opened from the app, and Home plus Inbox now read from local SQLite-backed spend tables. Remote config now controls parser kill switches and staged feature rollout, while real permission checks and native capture import remain separate implementation steps.'
+            : 'This iPhone build keeps Home, Inbox, Timeline, budgets, exports, and support flows current without claiming Android notification capture. Manual add and local review remain the truthful path in v1.'}
         </Text>
         <View style={styles.actionRow}>
           <ActionButton
             disabled={capturePausedRemotely}
-            label="Review notification access"
+            label={
+              supportsNativeNotificationCapture
+                ? 'Review notification access'
+                : 'Open app settings'
+            }
             onPress={onOpenNotificationAccess}
             tone="secondary"
           />
-          <ActionButton label="Diagnostics" onPress={onOpenDiagnostics} tone="secondary" />
-          <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
+          <ActionButton
+            label={
+              supportsNativeNotificationCapture
+                ? 'Diagnostics'
+                : 'Support details'
+            }
+            onPress={onOpenDiagnostics}
+            tone="secondary"
+          />
+          <ActionButton
+            label="Add manual spend"
+            onPress={onOpenManualEntry}
+            tone="secondary"
+          />
           <ActionButton
             disabled={!showcaseEnabled}
             label="View UI showcase"
             onPress={onOpenShowcase}
             tone="secondary"
           />
-          <ActionButton label="Reset demo data" onPress={onResetDemoData} tone="secondary" />
+          <ActionButton
+            label="Reset demo data"
+            onPress={onResetDemoData}
+            tone="secondary"
+          />
         </View>
       </SectionCard>
     </View>
@@ -3354,25 +3714,32 @@ function DiagnosticsScreen({
   onRefreshCaptureDiagnostics: () => Promise<void>;
   onShareDiagnosticsBundle: () => Promise<void>;
 }) {
-  const enabledParserTemplates = buildEnabledParserTemplateSummaries(bootstrapState);
+  const platformCapabilities = getPlatformCapabilities();
+  const supportsNativeNotificationCapture =
+    platformCapabilities.supportsNativeNotificationCapture;
+  const enabledParserTemplates =
+    buildEnabledParserTemplateSummaries(bootstrapState);
 
   return (
     <View style={styles.stack}>
-      <View style={styles.tabs}>
-        <TabButton isActive={false} label="Home" onPress={onBack} />
-        <TabButton isActive={true} label="Diagnostics" onPress={() => undefined} />
-      </View>
-
       <SectionCard accentColor={colors.panelWarm}>
         <Text style={styles.sectionEyebrow}>Diagnostics</Text>
-        <Text style={styles.sectionTitle}>Support-ready native capture status</Text>
+        <Text style={styles.sectionTitle}>
+          {supportsNativeNotificationCapture
+            ? 'Support-ready native capture status'
+            : 'Support-ready local shell status'}
+        </Text>
         <Text style={styles.bodyCopy}>
-          This screen stays reachable from Home without developer mode and keeps the bundle
-          redacted by default when it is shared.
+          {supportsNativeNotificationCapture
+            ? 'This screen stays reachable from Home without developer mode and keeps the bundle redacted by default when it is shared.'
+            : 'This screen stays reachable from Home without developer mode and keeps the shared support bundle redacted while making the current iPhone scope explicit.'}
         </Text>
         <View style={styles.helperStack}>
           <Text style={styles.helperCopy}>
-            Notification setup: {notificationAccessState === 'settings_opened' ? 'settings opened' : 'not started'}
+            Notification setup:{' '}
+            {notificationAccessState === 'settings_opened'
+              ? 'settings opened'
+              : 'not started'}
           </Text>
           <Text style={styles.helperCopy}>
             Selected source apps:{' '}
@@ -3384,7 +3751,11 @@ function DiagnosticsScreen({
           </Text>
         </View>
         <View style={styles.actionRow}>
-          <ActionButton label="Back to Home" onPress={onBack} tone="secondary" />
+          <ActionButton
+            label="Back to Home"
+            onPress={onBack}
+            tone="secondary"
+          />
           <ActionButton
             label="Share redacted bundle"
             onPress={onShareDiagnosticsBundle}
@@ -3404,97 +3775,126 @@ function DiagnosticsScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Parser versions</Text>
         <Text style={styles.bodyCopy}>
-          Native parser bundle versions and remote template versions are shown together so QA can
-          tell whether the issue came from parser code, template rollout, or permission state.
+          {supportsNativeNotificationCapture
+            ? 'Native parser bundle versions and remote template versions are shown together so QA can tell whether the issue came from parser code, template rollout, or permission state.'
+            : 'Remote template versions stay visible here for shell verification, even though native parser inventory and capture logs remain Android-only.'}
         </Text>
         <View style={styles.helperStack}>
-          {captureDiagnostics.supportedParsers.length > 0 ? (
+          {supportsNativeNotificationCapture &&
+          captureDiagnostics.supportedParsers.length > 0 ? (
             captureDiagnostics.supportedParsers.map((parserDescriptor) => (
-              <Text
-                key={parserDescriptor.parserId}
-                style={styles.helperCopy}
-              >
-                Native {parserDescriptor.parserId} v{parserDescriptor.parserVersion} ·{' '}
+              <Text key={parserDescriptor.parserId} style={styles.helperCopy}>
+                Native {parserDescriptor.parserId} v
+                {parserDescriptor.parserVersion} ·{' '}
                 {formatSourceAppIdsList(parserDescriptor.sourceAppIds)}
               </Text>
             ))
+          ) : supportsNativeNotificationCapture ? (
+            <Text style={styles.helperCopy}>
+              Native parser inventory is not available yet.
+            </Text>
           ) : (
-            <Text style={styles.helperCopy}>Native parser inventory is not available yet.</Text>
+            <Text style={styles.helperCopy}>
+              Native parser inventory is unavailable on iPhone in this v1 shell.
+            </Text>
           )}
           {enabledParserTemplates.length > 0 ? (
             enabledParserTemplates.map((templateSummary) => (
-              <Text
-                key={templateSummary.templateId}
-                style={styles.helperCopy}
-              >
+              <Text key={templateSummary.templateId} style={styles.helperCopy}>
                 Remote {templateSummary.templateId} v{templateSummary.version} ·{' '}
                 {formatSourceAppIdsList(templateSummary.sourceAppIds)}
               </Text>
             ))
           ) : (
-            <Text style={styles.helperCopy}>No remote parser templates are enabled for this channel.</Text>
+            <Text style={styles.helperCopy}>
+              No remote parser templates are enabled for this channel.
+            </Text>
           )}
         </View>
       </SectionCard>
 
-      <SectionCard accentColor={colors.panel}>
-        <Text style={styles.cardTitle}>Recent parse failures</Text>
-        <Text style={styles.bodyCopy}>
-          Failures stay redacted here: no notification body or merchant text, only the source app,
-          time, reason code, and parser trace.
-        </Text>
-        {captureDiagnostics.recentParseFailures.length > 0 ? (
-          <View style={styles.listStack}>
-            {captureDiagnostics.recentParseFailures.map((parseFailure) => (
-              <View key={`failure_${parseFailure.captureEventId}`} style={styles.summaryRow}>
-                <View style={styles.summaryCopy}>
-                  <Text style={styles.summaryPrimary}>
-                    {getSourceAppLabel(parseFailure.sourceAppId)} ·{' '}
-                    {formatNativeCaptureMoment(parseFailure.capturedAtMs)}
-                  </Text>
-                  <Text style={styles.summarySecondary}>
-                    Reason: {parseFailure.failureReasonCode}
-                    {parseFailure.parserTrace ? ` · Trace: ${parseFailure.parserTrace}` : ''}
-                  </Text>
-                </View>
+      {supportsNativeNotificationCapture ? (
+        <>
+          <SectionCard accentColor={colors.panel}>
+            <Text style={styles.cardTitle}>Recent parse failures</Text>
+            <Text style={styles.bodyCopy}>
+              Failures stay redacted here: no notification body or merchant
+              text, only the source app, time, reason code, and parser trace.
+            </Text>
+            {captureDiagnostics.recentParseFailures.length > 0 ? (
+              <View style={styles.listStack}>
+                {captureDiagnostics.recentParseFailures.map((parseFailure) => (
+                  <View
+                    key={`failure_${parseFailure.captureEventId}`}
+                    style={styles.summaryRow}
+                  >
+                    <View style={styles.summaryCopy}>
+                      <Text style={styles.summaryPrimary}>
+                        {getSourceAppLabel(parseFailure.sourceAppId)} ·{' '}
+                        {formatNativeCaptureMoment(parseFailure.capturedAtMs)}
+                      </Text>
+                      <Text style={styles.summarySecondary}>
+                        Reason: {parseFailure.failureReasonCode}
+                        {parseFailure.parserTrace
+                          ? ` · Trace: ${parseFailure.parserTrace}`
+                          : ''}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-        ) : (
-          <Text style={styles.bodyCopy}>
-            No recent parse failures are stored on this device.
-          </Text>
-        )}
-      </SectionCard>
+            ) : (
+              <Text style={styles.bodyCopy}>
+                No recent parse failures are stored on this device.
+              </Text>
+            )}
+          </SectionCard>
 
-      <SectionCard accentColor={colors.panel}>
-        <Text style={styles.cardTitle}>Recent capture log</Text>
-        <Text style={styles.bodyCopy}>
-          Use this to confirm whether the latest allowlisted notifications were parsed, deduped,
-          or are still waiting on later import work.
-        </Text>
-        {captureDiagnostics.recentCaptureLog.length > 0 ? (
-          <View style={styles.listStack}>
-            {captureDiagnostics.recentCaptureLog.map((captureLogEntry) => (
-              <View key={`capture_log_${captureLogEntry.captureEventId}`} style={styles.summaryRow}>
-                <View style={styles.summaryCopy}>
-                  <Text style={styles.summaryPrimary}>
-                    {getSourceAppLabel(captureLogEntry.sourceAppId)} ·{' '}
-                    {formatNativeCaptureMoment(captureLogEntry.capturedAtMs)}
-                  </Text>
-                  <Text style={styles.summarySecondary}>
-                    {formatRecentCaptureLogEntry(captureLogEntry)}
-                  </Text>
-                </View>
+          <SectionCard accentColor={colors.panel}>
+            <Text style={styles.cardTitle}>Recent capture log</Text>
+            <Text style={styles.bodyCopy}>
+              Use this to confirm whether the latest allowlisted notifications
+              were parsed, deduped, or are still waiting on later import work.
+            </Text>
+            {captureDiagnostics.recentCaptureLog.length > 0 ? (
+              <View style={styles.listStack}>
+                {captureDiagnostics.recentCaptureLog.map((captureLogEntry) => (
+                  <View
+                    key={`capture_log_${captureLogEntry.captureEventId}`}
+                    style={styles.summaryRow}
+                  >
+                    <View style={styles.summaryCopy}>
+                      <Text style={styles.summaryPrimary}>
+                        {getSourceAppLabel(captureLogEntry.sourceAppId)} ·{' '}
+                        {formatNativeCaptureMoment(
+                          captureLogEntry.capturedAtMs,
+                        )}
+                      </Text>
+                      <Text style={styles.summarySecondary}>
+                        {formatRecentCaptureLogEntry(captureLogEntry)}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-        ) : (
+            ) : (
+              <Text style={styles.bodyCopy}>
+                No native capture events are stored yet.
+              </Text>
+            )}
+          </SectionCard>
+        </>
+      ) : (
+        <SectionCard accentColor={colors.panel}>
+          <Text style={styles.cardTitle}>iPhone scope</Text>
           <Text style={styles.bodyCopy}>
-            No native capture events are stored yet.
+            This shell intentionally excludes native payment notification
+            capture, parser logs, and background import work on iPhone. Use
+            manual add, Inbox, Timeline, exports, and the shared support bundle
+            to verify the current local experience.
           </Text>
-        )}
-      </SectionCard>
+        </SectionCard>
+      )}
     </View>
   );
 }
@@ -3568,81 +3968,123 @@ function SettingsScreen({
   syncState: PersistedSyncState;
   syncSummary: SyncQueueSummary;
 }) {
+  const platformCapabilities = getPlatformCapabilities();
+  const supportsNativeNotificationCapture =
+    platformCapabilities.supportsNativeNotificationCapture;
   const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
-  const listenerStatusLabel = capturePausedRemotely
-    ? 'Capture paused remotely'
-    : captureDiagnostics.listenerPermissionGranted
-      ? 'Notification access granted'
-      : notificationAccessState === 'settings_opened'
-        ? 'Settings opened, permission still pending'
-        : 'Notification access not confirmed';
+  const listenerStatusLabel = supportsNativeNotificationCapture
+    ? capturePausedRemotely
+      ? 'Capture paused remotely'
+      : captureDiagnostics.listenerPermissionGranted
+        ? 'Notification access granted'
+        : notificationAccessState === 'settings_opened'
+          ? 'Settings opened, permission still pending'
+          : 'Notification access not confirmed'
+    : 'Manual review only on iPhone';
   const selectedSourceAppsSummary =
     onboardingPreferences.selectedSourceAppIds.length > 0
       ? onboardingPreferences.selectedSourceAppIds
           .map((sourceAppId) => getSourceAppLabel(sourceAppId))
           .join(', ')
       : 'None selected';
-  const nativeAllowlistSummary = formatSourceAppSummary(captureDiagnostics.allowedSourceAppIds);
+  const nativeAllowlistSummary = formatSourceAppSummary(
+    captureDiagnostics.allowedSourceAppIds,
+  );
 
   return (
     <View style={styles.stack}>
-      <View style={styles.tabs}>
-        <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
-        <TabButton isActive={false} label="Inbox" onPress={() => onSelectTab('inbox')} />
-        <TabButton isActive={false} label="Timeline" onPress={() => onSelectTab('timeline')} />
-        <TabButton isActive={true} label="Settings" onPress={() => undefined} />
-      </View>
-
       <SectionCard accentColor={colors.accentSoft}>
         <Text style={styles.sectionEyebrow}>Settings</Text>
-        <Text style={styles.sectionTitle}>Capture, privacy, and support controls</Text>
+        <Text style={styles.sectionTitle}>
+          Capture, privacy, and support controls
+        </Text>
         <Text style={styles.bodyCopy}>
-          These preferences stay local on this device today. Source apps, budget cycle, sync mode,
-          privacy mode, and diagnostics access now live in one visible screen instead of hidden
-          setup-only flows.
+          These preferences stay local on this device today. Source apps, budget
+          cycle, sync mode, privacy mode, and diagnostics access now live in one
+          visible screen instead of hidden setup-only flows.
         </Text>
         <View style={styles.helperStack}>
           <Text style={styles.helperCopy}>
-            Rollout channel: {formatRolloutChannel(bootstrapState.config.rolloutChannel)}
+            Rollout channel:{' '}
+            {formatRolloutChannel(bootstrapState.config.rolloutChannel)}
           </Text>
           <Text style={styles.helperCopy}>
-            Current budget cycle: {getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}
+            Current budget cycle:{' '}
+            {getBudgetCycleLabel(onboardingPreferences.budgetCycleId)}
           </Text>
           <Text style={styles.helperCopy}>
             Sync mode: {getSyncModeLabel(onboardingPreferences.syncMode)}
           </Text>
           <Text style={styles.helperCopy}>
-            Privacy mode: {privacyModeEnabled ? 'mask previews when inactive' : 'standard preview'}
+            Privacy mode:{' '}
+            {privacyModeEnabled
+              ? 'mask previews when inactive'
+              : 'standard preview'}
           </Text>
         </View>
       </SectionCard>
 
       <SectionCard accentColor={colors.panelWarm}>
-        <Text style={styles.cardTitle}>Capture sources</Text>
+        <Text style={styles.cardTitle}>
+          {supportsNativeNotificationCapture
+            ? 'Capture sources'
+            : 'Tracked payment apps'}
+        </Text>
         <Text style={styles.bodyCopy}>
-          These selections sync straight into the native allowlist. The listener still stays
-          Android-first, but the chosen apps persist locally and remain editable here after
-          onboarding.
+          {supportsNativeNotificationCapture
+            ? 'These selections sync straight into the native allowlist. The listener still stays Android-first, but the chosen apps persist locally and remain editable here after onboarding.'
+            : 'These selections persist locally so the shared shell, exports, and future platform work keep the same app profile without pretending iPhone can run the Android listener stack.'}
         </Text>
         <View style={styles.helperStack}>
-          <Text style={styles.helperCopy}>Listener status: {listenerStatusLabel}</Text>
-          <Text style={styles.helperCopy}>Selected source apps: {selectedSourceAppsSummary}</Text>
-          <Text style={styles.helperCopy}>Native allowlist: {nativeAllowlistSummary}</Text>
+          <Text style={styles.helperCopy}>
+            Listener status: {listenerStatusLabel}
+          </Text>
+          <Text style={styles.helperCopy}>
+            Selected source apps: {selectedSourceAppsSummary}
+          </Text>
+          {supportsNativeNotificationCapture ? (
+            <Text style={styles.helperCopy}>
+              Native allowlist: {nativeAllowlistSummary}
+            </Text>
+          ) : (
+            <Text style={styles.helperCopy}>
+              Capture path: manual add, local review, exports, and support
+              bundle
+            </Text>
+          )}
         </View>
         <View style={styles.actionRow}>
+          {supportsNativeNotificationCapture ? (
+            <ActionButton
+              label="Open notification access"
+              onPress={onOpenNotificationAccess}
+              tone="secondary"
+            />
+          ) : (
+            <ActionButton
+              label="Open app settings"
+              onPress={onOpenNotificationAccess}
+              tone="secondary"
+            />
+          )}
           <ActionButton
-            label="Open notification access"
-            onPress={onOpenNotificationAccess}
+            label="Select all"
+            onPress={onSelectAllSourceApps}
             tone="secondary"
           />
-          <ActionButton label="Select all" onPress={onSelectAllSourceApps} tone="secondary" />
-          <ActionButton label="Clear all" onPress={onClearSourceApps} tone="secondary" />
+          <ActionButton
+            label="Clear all"
+            onPress={onClearSourceApps}
+            tone="secondary"
+          />
         </View>
         <View style={styles.categoryGrid}>
           {SOURCE_APP_OPTIONS.map((sourceApp) => (
             <CategoryChip
               key={sourceApp.id}
-              isActive={onboardingPreferences.selectedSourceAppIds.includes(sourceApp.id)}
+              isActive={onboardingPreferences.selectedSourceAppIds.includes(
+                sourceApp.id,
+              )}
               label={sourceApp.label}
               onPress={() => onToggleSourceApp(sourceApp.id)}
             />
@@ -3650,11 +4092,14 @@ function SettingsScreen({
         </View>
       </SectionCard>
 
-      <SectionCard accentColor={privacyModeEnabled ? colors.panelWarm : colors.successSoft}>
+      <SectionCard
+        accentColor={privacyModeEnabled ? colors.panelWarm : colors.successSoft}
+      >
         <Text style={styles.cardTitle}>Privacy mode</Text>
         <Text style={styles.bodyCopy}>
-          When privacy mode is on, the app swaps in a neutral cover while it is inactive so
-          lockscreen and task-switcher previews do not show live spend details.
+          When privacy mode is on, the app swaps in a neutral cover while it is
+          inactive so lockscreen and task-switcher previews do not show live
+          spend details.
         </Text>
         <View style={styles.optionStack}>
           <PreferenceCard
@@ -3672,8 +4117,8 @@ function SettingsScreen({
         </View>
         <View style={styles.helperStack}>
           <Text style={styles.helperCopy}>
-            App lock: placeholder only for now. A real secure-entry flow still needs later native
-            work.
+            App lock: placeholder only for now. A real secure-entry flow still
+            needs later native work.
           </Text>
         </View>
       </SectionCard>
@@ -3681,9 +4126,10 @@ function SettingsScreen({
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Sync and budget defaults</Text>
         <Text style={styles.bodyCopy}>
-          These defaults already drive the current local dashboard and onboarding resume flow. The
-          outbox queues writes locally whenever sync mode is enabled, and this screen now handles
-          the client-side session and pairing setup needed before cloud sync can actually run.
+          These defaults already drive the current local dashboard and
+          onboarding resume flow. The outbox queues writes locally whenever sync
+          mode is enabled, and this screen now handles the client-side session
+          and pairing setup needed before cloud sync can actually run.
         </Text>
         <Text style={styles.fieldLabel}>Budget cycle</Text>
         <View style={styles.optionStack}>
@@ -3713,8 +4159,9 @@ function SettingsScreen({
           <View style={styles.inputStack}>
             <Text style={styles.fieldLabel}>Device pairing</Text>
             <Text style={styles.helperCopy}>
-              Provision this device as a new cloud-sync primary, or join it to an existing account
-              with a trusted-device pairing code. The outbox stays local-first either way.
+              Provision this device as a new cloud-sync primary, or join it to
+              an existing account with a trusted-device pairing code. The outbox
+              stays local-first either way.
             </Text>
             <TextField
               helperText="Give this device a label you can recognize when pairing another phone later."
@@ -3753,10 +4200,15 @@ function SettingsScreen({
                   <Text style={styles.helperCopy}>
                     Cloud sync is provisioned for this device now.
                   </Text>
-                  <Text style={styles.helperCopy}>Device ID: {syncCredentials.deviceId}</Text>
-                  <Text style={styles.helperCopy}>User ID: {syncCredentials.userId}</Text>
                   <Text style={styles.helperCopy}>
-                    Access token refresh window: {formatCaptureMoment(syncCredentials.accessTokenExpiresAt)}
+                    Device ID: {syncCredentials.deviceId}
+                  </Text>
+                  <Text style={styles.helperCopy}>
+                    User ID: {syncCredentials.userId}
+                  </Text>
+                  <Text style={styles.helperCopy}>
+                    Access token refresh window:{' '}
+                    {formatCaptureMoment(syncCredentials.accessTokenExpiresAt)}
                   </Text>
                 </View>
                 <View style={styles.actionRow}>
@@ -3773,7 +4225,8 @@ function SettingsScreen({
                       Pairing code: {generatedPairingCode.pairingCode}
                     </Text>
                     <Text style={styles.helperCopy}>
-                      Expires: {formatCaptureMoment(generatedPairingCode.expiresAt)}
+                      Expires:{' '}
+                      {formatCaptureMoment(generatedPairingCode.expiresAt)}
                     </Text>
                   </View>
                 ) : null}
@@ -3804,19 +4257,22 @@ function SettingsScreen({
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Export data</Text>
         <Text style={styles.bodyCopy}>
-          CSV export is live here now for transactions, items, categories, and budgets. Privacy
-          mode redacts raw merchant text, notes, item labels, custom category labels, and custom
-          budget labels in those CSV files before sharing.
+          CSV export is live here now for transactions, items, categories, and
+          budgets. Privacy mode redacts raw merchant text, notes, item labels,
+          custom category labels, and custom budget labels in those CSV files
+          before sharing.
         </Text>
         <View style={styles.helperStack}>
           <Text style={styles.helperCopy}>
-            Stable CSV columns: {CSV_EXPORT_SCHEMAS.transactions.length} transaction,{' '}
-            {CSV_EXPORT_SCHEMAS.items.length} item, {CSV_EXPORT_SCHEMAS.categories.length}{' '}
-            category, and {CSV_EXPORT_SCHEMAS.budgets.length} budget fields.
+            Stable CSV columns: {CSV_EXPORT_SCHEMAS.transactions.length}{' '}
+            transaction, {CSV_EXPORT_SCHEMAS.items.length} item,{' '}
+            {CSV_EXPORT_SCHEMAS.categories.length} category, and{' '}
+            {CSV_EXPORT_SCHEMAS.budgets.length} budget fields.
           </Text>
           <Text style={styles.helperCopy}>
-            Local backup export keeps the full device snapshot for future restore work. Use the
-            redacted diagnostics bundle instead when you only need support-safe sharing.
+            Local backup export keeps the full device snapshot for future
+            restore work. Use the redacted diagnostics bundle instead when you
+            only need support-safe sharing.
           </Text>
         </View>
         <View style={styles.actionRow}>
@@ -3856,11 +4312,20 @@ function SettingsScreen({
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Support and diagnostics</Text>
         <Text style={styles.bodyCopy}>
-          Native capture diagnostics stay live here with a redacted sharing path, so support work
-          does not depend on raw notification text exports.
+          {supportsNativeNotificationCapture
+            ? 'Native capture diagnostics stay live here with a redacted sharing path, so support work does not depend on raw notification text exports.'
+            : 'Support details stay live here with a redacted sharing path, so iPhone shell verification does not depend on raw payment notification data that this platform does not collect in v1.'}
         </Text>
         <View style={styles.actionRow}>
-          <ActionButton label="Open diagnostics" onPress={onOpenDiagnostics} tone="primary" />
+          <ActionButton
+            label={
+              supportsNativeNotificationCapture
+                ? 'Open diagnostics'
+                : 'Open support details'
+            }
+            onPress={onOpenDiagnostics}
+            tone="primary"
+          />
           <ActionButton
             label="Share redacted bundle"
             onPress={onShareDiagnosticsBundle}
@@ -3902,8 +4367,9 @@ function SyncQueueCard({
     <SectionCard accentColor={accentColor}>
       <Text style={styles.cardTitle}>Sync queue</Text>
       <Text style={styles.bodyCopy}>
-        Local writes still commit first on this device. The outbox retains them until cloud sync is
-        allowed to run, then retries in small chunks without blocking the rest of the app.
+        Local writes still commit first on this device. The outbox retains them
+        until cloud sync is allowed to run, then retries in small chunks without
+        blocking the rest of the app.
       </Text>
       <View style={styles.helperStack}>
         <Text style={styles.helperCopy}>Status: {syncSummary.statusLabel}</Text>
@@ -3912,14 +4378,16 @@ function SyncQueueCard({
           Network observer: {formatSyncNetworkLabel(syncNetworkState)}
         </Text>
         <Text style={styles.helperCopy}>
-          Queued writes: {syncSummary.pendingCount} · Ready now: {syncSummary.readyCount}
+          Queued writes: {syncSummary.pendingCount} · Ready now:{' '}
+          {syncSummary.readyCount}
         </Text>
         <Text style={styles.helperCopy}>
           Conflicts: {syncSummary.conflictCount}
         </Text>
         {syncState.lastSyncSuccessAt ? (
           <Text style={styles.helperCopy}>
-            Last successful sync: {formatCaptureMoment(syncState.lastSyncSuccessAt)}
+            Last successful sync:{' '}
+            {formatCaptureMoment(syncState.lastSyncSuccessAt)}
           </Text>
         ) : null}
         {syncSummary.nextRetryAt ? (
@@ -3932,10 +4400,12 @@ function SyncQueueCard({
             Last sync error: {syncState.lastErrorMessage}
           </Text>
         ) : null}
-        {syncMode === 'sync_later' && syncSummary.lastStatus === 'waiting_for_pairing' ? (
+        {syncMode === 'sync_later' &&
+        syncSummary.lastStatus === 'waiting_for_pairing' ? (
           <Text style={styles.helperCopy}>
-            Pair this device or create a new sync session from Settings. Until then, the outbox
-            stays local-first and truthful about why cloud sync is paused.
+            Pair this device or create a new sync session from Settings. Until
+            then, the outbox stays local-first and truthful about why cloud sync
+            is paused.
           </Text>
         ) : null}
       </View>
@@ -3944,7 +4414,9 @@ function SyncQueueCard({
           {recentConflicts.map((conflict) => (
             <View key={conflict.id} style={styles.summaryRow}>
               <View style={styles.summaryCopy}>
-                <Text style={styles.summaryPrimary}>{formatSyncConflictTitle(conflict)}</Text>
+                <Text style={styles.summaryPrimary}>
+                  {formatSyncConflictTitle(conflict)}
+                </Text>
                 <Text style={styles.summarySecondary}>
                   {formatSyncConflictReason(conflict)}
                 </Text>
@@ -4002,7 +4474,10 @@ function BudgetManagementScreen({
     initialIntent === 'create' || budgets.length === 0,
   );
   const budgetSummaryById = new Map(
-    budgetSummaries.map((budgetSummary) => [budgetSummary.budget.id, budgetSummary]),
+    budgetSummaries.map((budgetSummary) => [
+      budgetSummary.budget.id,
+      budgetSummary,
+    ]),
   );
   const pendingAlerts = getPendingBudgetAlerts(budgetAlerts);
 
@@ -4102,27 +4577,39 @@ function BudgetManagementScreen({
         <Text style={styles.sectionEyebrow}>Budgets</Text>
         <Text style={styles.sectionTitle}>Local budget setup</Text>
         <Text style={styles.bodyCopy}>
-          Create overall, category, merchant, or item budgets on this device. Threshold alerts are
-          scheduled locally from the same canonical budget engine that powers Home.
+          Create overall, category, merchant, or item budgets on this device.
+          Threshold alerts are scheduled locally from the same canonical budget
+          engine that powers Home.
         </Text>
         <View style={styles.helperStack}>
-          <Text style={styles.helperCopy}>{budgets.length} saved budget{budgets.length === 1 ? '' : 's'}</Text>
           <Text style={styles.helperCopy}>
-            {pendingAlerts.length} alert{pendingAlerts.length === 1 ? '' : 's'} waiting for review
+            {budgets.length} saved budget{budgets.length === 1 ? '' : 's'}
+          </Text>
+          <Text style={styles.helperCopy}>
+            {pendingAlerts.length} alert{pendingAlerts.length === 1 ? '' : 's'}{' '}
+            waiting for review
           </Text>
         </View>
         <View style={styles.actionRow}>
-          <ActionButton label="Back to Home" onPress={onBack} tone="secondary" />
-          <ActionButton label="New budget" onPress={handleStartCreateBudget} tone="primary" />
+          <ActionButton
+            label="Back to Home"
+            onPress={onBack}
+            tone="secondary"
+          />
+          <ActionButton
+            label="New budget"
+            onPress={handleStartCreateBudget}
+            tone="primary"
+          />
         </View>
       </SectionCard>
 
       <SectionCard accentColor={colors.heroGlowSecondary}>
         <Text style={styles.cardTitle}>Threshold alert quiet mode</Text>
         <Text style={styles.bodyCopy}>
-          Quiet mode keeps threshold alerts in this screen instead of surfacing them as an intrusive
-          banner during late hours. The local alert log still records each threshold crossing once
-          per cycle.
+          Quiet mode keeps threshold alerts in this screen instead of surfacing
+          them as an intrusive banner during late hours. The local alert log
+          still records each threshold crossing once per cycle.
         </Text>
         <View style={styles.chipWrap}>
           <Chip
@@ -4147,7 +4634,8 @@ function BudgetManagementScreen({
           />
         </View>
         <Text style={styles.helperCopy}>
-          Quiet hours: {formatHourLabel(budgetAlertSettings.quietHoursStartHour)} to{' '}
+          Quiet hours:{' '}
+          {formatHourLabel(budgetAlertSettings.quietHoursStartHour)} to{' '}
           {formatHourLabel(budgetAlertSettings.quietHoursEndHour)}
         </Text>
       </SectionCard>
@@ -4158,19 +4646,23 @@ function BudgetManagementScreen({
             {editingBudgetId ? 'Edit budget' : 'Create budget'}
           </Text>
           <Text style={styles.bodyCopy}>
-            Keep it fast: amount first, then scope and cycle. The label is optional because the app
-            can derive one from the selected scope.
+            Keep it fast: amount first, then scope and cycle. The label is
+            optional because the app can derive one from the selected scope.
           </Text>
           <TextField
             keyboardType="numeric"
             label="Target amount"
-            onChangeText={(targetInput) => setDraft((currentDraft) => ({ ...currentDraft, targetInput }))}
+            onChangeText={(targetInput) =>
+              setDraft((currentDraft) => ({ ...currentDraft, targetInput }))
+            }
             placeholder="2500"
             value={draft.targetInput}
           />
           <TextField
             label="Label"
-            onChangeText={(label) => setDraft((currentDraft) => ({ ...currentDraft, label }))}
+            onChangeText={(label) =>
+              setDraft((currentDraft) => ({ ...currentDraft, label }))
+            }
             placeholder="Groceries for this month"
             value={draft.label}
           />
@@ -4183,9 +4675,12 @@ function BudgetManagementScreen({
                 onPress={() =>
                   setDraft((currentDraft) => ({
                     ...currentDraft,
-                    categoryId: option.id === 'category' ? currentDraft.categoryId : null,
-                    itemLabel: option.id === 'item' ? currentDraft.itemLabel : '',
-                    merchantId: option.id === 'merchant' ? currentDraft.merchantId : null,
+                    categoryId:
+                      option.id === 'category' ? currentDraft.categoryId : null,
+                    itemLabel:
+                      option.id === 'item' ? currentDraft.itemLabel : '',
+                    merchantId:
+                      option.id === 'merchant' ? currentDraft.merchantId : null,
                     scope: option.id,
                   }))
                 }
@@ -4203,7 +4698,10 @@ function BudgetManagementScreen({
                     key={category.id}
                     label={category.label}
                     onPress={() =>
-                      setDraft((currentDraft) => ({ ...currentDraft, categoryId: category.id }))
+                      setDraft((currentDraft) => ({
+                        ...currentDraft,
+                        categoryId: category.id,
+                      }))
                     }
                     selected={draft.categoryId === category.id}
                   />
@@ -4222,7 +4720,10 @@ function BudgetManagementScreen({
                       key={merchant.id}
                       label={merchant.label}
                       onPress={() =>
-                        setDraft((currentDraft) => ({ ...currentDraft, merchantId: merchant.id }))
+                        setDraft((currentDraft) => ({
+                          ...currentDraft,
+                          merchantId: merchant.id,
+                        }))
                       }
                       selected={draft.merchantId === merchant.id}
                     />
@@ -4231,7 +4732,8 @@ function BudgetManagementScreen({
               </>
             ) : (
               <Text style={styles.helperCopy}>
-                Save or classify a few transactions first so merchants appear here.
+                Save or classify a few transactions first so merchants appear
+                here.
               </Text>
             )
           ) : null}
@@ -4321,7 +4823,11 @@ function BudgetManagementScreen({
               onPress={handleSaveBudget}
               tone="primary"
             />
-            <ActionButton label="Cancel" onPress={handleCancelBudgetComposer} tone="secondary" />
+            <ActionButton
+              label="Cancel"
+              onPress={handleCancelBudgetComposer}
+              tone="secondary"
+            />
           </View>
         </SectionCard>
       ) : null}
@@ -4337,8 +4843,12 @@ function BudgetManagementScreen({
                 title={`${budgetAlert.budgetLabel} · ${budgetAlert.thresholdPercent}%`}
                 trailing={
                   <Chip
-                    label={getBudgetThresholdStateLabel(budgetAlert.thresholdState)}
-                    tone={budgetAlert.status === 'reviewed' ? 'default' : 'pending'}
+                    label={getBudgetThresholdStateLabel(
+                      budgetAlert.thresholdState,
+                    )}
+                    tone={
+                      budgetAlert.status === 'reviewed' ? 'default' : 'pending'
+                    }
                   />
                 }
               >
@@ -4369,8 +4879,14 @@ function BudgetManagementScreen({
                   trailing={
                     budgetSummary ? (
                       <Chip
-                        label={getBudgetThresholdStateLabel(budgetSummary.thresholdState)}
-                        tone={budgetSummary.thresholdState === 'over_budget' ? 'pending' : 'ready'}
+                        label={getBudgetThresholdStateLabel(
+                          budgetSummary.thresholdState,
+                        )}
+                        tone={
+                          budgetSummary.thresholdState === 'over_budget'
+                            ? 'pending'
+                            : 'ready'
+                        }
                       />
                     ) : undefined
                   }
@@ -4382,11 +4898,14 @@ function BudgetManagementScreen({
                     {budgetSummary ? (
                       <>
                         <Text style={styles.helperCopy}>
-                          Spent: {formatCurrency(budgetSummary.spentMinor)} · Remaining:{' '}
+                          Spent: {formatCurrency(budgetSummary.spentMinor)} ·
+                          Remaining:{' '}
                           {formatCurrency(budgetSummary.remainingMinor)}
                         </Text>
                         <Text style={styles.helperCopy}>
-                          Projected: {formatCurrency(budgetSummary.projectedSpendMinor)} · Matched transactions:{' '}
+                          Projected:{' '}
+                          {formatCurrency(budgetSummary.projectedSpendMinor)} ·
+                          Matched transactions:{' '}
                           {budgetSummary.matchedTransactionCount}
                         </Text>
                       </>
@@ -4411,7 +4930,11 @@ function BudgetManagementScreen({
         ) : (
           <EmptyState
             actions={
-              <ActionButton label="Create first budget" onPress={handleStartCreateBudget} tone="primary" />
+              <ActionButton
+                label="Create first budget"
+                onPress={handleStartCreateBudget}
+                tone="primary"
+              />
             }
             description="Create an overall, category, merchant, or item budget to start local threshold tracking."
             title="No budgets saved yet"
@@ -4437,14 +4960,18 @@ function BootstrapConfigStatusCard({
 
   return (
     <SectionCard
-      accentColor={bootstrapState.status === 'fresh' ? colors.successSoft : colors.panelWarm}
+      accentColor={
+        bootstrapState.status === 'fresh'
+          ? colors.successSoft
+          : colors.panelWarm
+      }
     >
       <Text style={styles.cardTitle}>Remote bootstrap config</Text>
       <Text style={styles.bodyCopy}>{bootstrapState.message}</Text>
       <View style={styles.helperStack}>
         <Text style={styles.helperCopy}>
-          Channel: {formatRolloutChannel(bootstrapState.config.rolloutChannel)} · Version:{' '}
-          {bootstrapState.config.configVersion}
+          Channel: {formatRolloutChannel(bootstrapState.config.rolloutChannel)}{' '}
+          · Version: {bootstrapState.config.configVersion}
         </Text>
         {bootstrapState.config.copyOverrides?.home_remote_config_status ? (
           <Text style={styles.helperCopy}>
@@ -4453,12 +4980,18 @@ function BootstrapConfigStatusCard({
         ) : null}
         <Text style={styles.helperCopy}>
           Parser templates:{' '}
-          {enabledTemplateIds.length > 0 ? enabledTemplateIds.join(', ') : 'all templates disabled'}
+          {enabledTemplateIds.length > 0
+            ? enabledTemplateIds.join(', ')
+            : 'all templates disabled'}
         </Text>
         <Text style={styles.helperCopy}>Flags: {featureSummary}</Text>
-        {runtimeReason ? <Text style={styles.helperCopy}>{runtimeReason}</Text> : null}
+        {runtimeReason ? (
+          <Text style={styles.helperCopy}>{runtimeReason}</Text>
+        ) : null}
         {bootstrapState.lastError ? (
-          <Text style={styles.helperCopy}>Last refresh issue: {bootstrapState.lastError}</Text>
+          <Text style={styles.helperCopy}>
+            Last refresh issue: {bootstrapState.lastError}
+          </Text>
         ) : null}
       </View>
       <StatusChip
@@ -4480,69 +5013,129 @@ function CaptureDiagnosticsCard({
   onOpenNotificationAccess: () => Promise<void>;
   onRefreshCaptureDiagnostics: () => Promise<void>;
 }) {
+  const platformCapabilities = getPlatformCapabilities();
+  const supportsNativeNotificationCapture =
+    platformCapabilities.supportsNativeNotificationCapture;
+
   return (
     <SectionCard accentColor={colors.panelWarm}>
-      <Text style={styles.cardTitle}>Android capture diagnostics</Text>
+      <Text style={styles.cardTitle}>
+        {supportsNativeNotificationCapture
+          ? 'Android capture diagnostics'
+          : 'iPhone capture mode'}
+      </Text>
       <Text style={styles.bodyCopy}>
-        This native status now comes from the Android listener service and raw snapshot store, not
-        just the local onboarding checklist.
+        {supportsNativeNotificationCapture
+          ? 'This native status now comes from the Android listener service and raw snapshot store, not just the local onboarding checklist.'
+          : 'This iPhone build stays honest about scope: manual add, shared review screens, exports, and support tooling are live, while Android notification capture remains out of scope in v1.'}
       </Text>
       <View style={styles.helperStack}>
-        <Text style={styles.helperCopy}>
-          Listener permission:{' '}
-          {captureDiagnostics.listenerPermissionGranted ? 'granted' : 'not granted yet'}
-        </Text>
-        <Text style={styles.helperCopy}>
-          Allowed source apps: {formatSourceAppSummary(captureDiagnostics.allowedSourceAppIds)}
-        </Text>
-        <Text style={styles.helperCopy}>
-          Stored raw captures: {captureDiagnostics.storedSnapshotCount}
-        </Text>
-        <Text style={styles.helperCopy}>
-          Suppressed duplicates: {captureDiagnostics.exactDuplicateCount} exact,{' '}
-          {captureDiagnostics.fuzzyDuplicateCount} fuzzy
-        </Text>
-        <Text style={styles.helperCopy}>
-          Dedupe config: {formatNativeDedupeConfig(captureDiagnostics)}
-        </Text>
-        <Text style={styles.helperCopy}>
-          Last capture:{' '}
-          {captureDiagnostics.lastCapture
-            ? `${getSourceAppLabel(captureDiagnostics.lastCapture.sourceAppId)} · ${formatNativeCaptureMoment(captureDiagnostics.lastCapture.capturedAtMs)}`
-            : 'No allowlisted notifications stored yet'}
-        </Text>
-        <Text style={styles.helperCopy}>
-          Supported parsers: {captureDiagnostics.supportedParsers.length}
-        </Text>
-        <Text style={styles.helperCopy}>
-          Recent parse failures: {captureDiagnostics.recentParseFailures.length}
-        </Text>
-        {captureDiagnostics.lastDedupeDecision ? (
-          <Text style={styles.helperCopy}>
-            Last dedupe: {formatDedupeKindLabel(captureDiagnostics.lastDedupeDecision.dedupeKind)}{' '}
-            · {getSourceAppLabel(captureDiagnostics.lastDedupeDecision.sourceAppId)} ·{' '}
-            {formatCurrency(captureDiagnostics.lastDedupeDecision.amountMinor)} · duplicate #
-            {captureDiagnostics.lastDedupeDecision.duplicateCount} ·{' '}
-            {formatNativeCaptureMoment(captureDiagnostics.lastDedupeDecision.dedupedAtMs)}
-            {captureDiagnostics.lastDedupeDecision.similarityScore !== undefined
-              ? ` · similarity ${captureDiagnostics.lastDedupeDecision.similarityScore.toFixed(2)}`
-              : ''}
-          </Text>
-        ) : null}
+        {supportsNativeNotificationCapture ? (
+          <>
+            <Text style={styles.helperCopy}>
+              Listener permission:{' '}
+              {captureDiagnostics.listenerPermissionGranted
+                ? 'granted'
+                : 'not granted yet'}
+            </Text>
+            <Text style={styles.helperCopy}>
+              Allowed source apps:{' '}
+              {formatSourceAppSummary(captureDiagnostics.allowedSourceAppIds)}
+            </Text>
+            <Text style={styles.helperCopy}>
+              Stored raw captures: {captureDiagnostics.storedSnapshotCount}
+            </Text>
+            <Text style={styles.helperCopy}>
+              Suppressed duplicates: {captureDiagnostics.exactDuplicateCount}{' '}
+              exact, {captureDiagnostics.fuzzyDuplicateCount} fuzzy
+            </Text>
+            <Text style={styles.helperCopy}>
+              Dedupe config: {formatNativeDedupeConfig(captureDiagnostics)}
+            </Text>
+            <Text style={styles.helperCopy}>
+              Last capture:{' '}
+              {captureDiagnostics.lastCapture
+                ? `${getSourceAppLabel(captureDiagnostics.lastCapture.sourceAppId)} · ${formatNativeCaptureMoment(captureDiagnostics.lastCapture.capturedAtMs)}`
+                : 'No allowlisted notifications stored yet'}
+            </Text>
+            <Text style={styles.helperCopy}>
+              Supported parsers: {captureDiagnostics.supportedParsers.length}
+            </Text>
+            <Text style={styles.helperCopy}>
+              Recent parse failures:{' '}
+              {captureDiagnostics.recentParseFailures.length}
+            </Text>
+            {captureDiagnostics.lastDedupeDecision ? (
+              <Text style={styles.helperCopy}>
+                Last dedupe:{' '}
+                {formatDedupeKindLabel(
+                  captureDiagnostics.lastDedupeDecision.dedupeKind,
+                )}{' '}
+                ·{' '}
+                {getSourceAppLabel(
+                  captureDiagnostics.lastDedupeDecision.sourceAppId,
+                )}{' '}
+                ·{' '}
+                {formatCurrency(
+                  captureDiagnostics.lastDedupeDecision.amountMinor,
+                )}{' '}
+                · duplicate #
+                {captureDiagnostics.lastDedupeDecision.duplicateCount} ·{' '}
+                {formatNativeCaptureMoment(
+                  captureDiagnostics.lastDedupeDecision.dedupedAtMs,
+                )}
+                {captureDiagnostics.lastDedupeDecision.similarityScore !==
+                undefined
+                  ? ` · similarity ${captureDiagnostics.lastDedupeDecision.similarityScore.toFixed(2)}`
+                  : ''}
+              </Text>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Text style={styles.helperCopy}>
+              Capture path: manual add and local review
+            </Text>
+            <Text style={styles.helperCopy}>
+              Native capture service: not available on iPhone
+            </Text>
+            <Text style={styles.helperCopy}>
+              Background parser logs: Android-only by design
+            </Text>
+            <Text style={styles.helperCopy}>
+              Support bundle: redacted local state, config, and shell
+              diagnostics only
+            </Text>
+          </>
+        )}
       </View>
       <View style={styles.actionRow}>
+        {supportsNativeNotificationCapture ? (
+          <ActionButton
+            label="Refresh diagnostics"
+            onPress={onRefreshCaptureDiagnostics}
+            tone="secondary"
+          />
+        ) : null}
         <ActionButton
-          label="Refresh diagnostics"
-          onPress={onRefreshCaptureDiagnostics}
-          tone="secondary"
-        />
-        <ActionButton
-          label="Review notification access"
+          label={
+            supportsNativeNotificationCapture
+              ? 'Review notification access'
+              : 'Open app settings'
+          }
           onPress={onOpenNotificationAccess}
           tone="secondary"
         />
         {onOpenDiagnostics ? (
-          <ActionButton label="Open diagnostics" onPress={onOpenDiagnostics} tone="secondary" />
+          <ActionButton
+            label={
+              supportsNativeNotificationCapture
+                ? 'Open diagnostics'
+                : 'Open support details'
+            }
+            onPress={onOpenDiagnostics}
+            tone="secondary"
+          />
         ) : null}
       </View>
     </SectionCard>
@@ -4560,7 +5153,6 @@ function InboxScreen({
   onOpenHome,
   onOpenManualEntry,
   onRestoreTransaction,
-  onSelectTab,
   onSkipTransaction,
   onStartClassification,
   onStartSplit,
@@ -4576,7 +5168,6 @@ function InboxScreen({
   onOpenHome: () => void;
   onOpenManualEntry: () => void;
   onRestoreTransaction: (transactionId: string) => void;
-  onSelectTab: (screen: PrimaryScreen) => void;
   onSkipTransaction: (transactionId: string) => void;
   onStartClassification: (transactionId: string) => void;
   onStartSplit: (transactionId: string) => void;
@@ -4587,8 +5178,8 @@ function InboxScreen({
       ? filters.statusFilter === 'partially_classified'
         ? 'Continue split items'
         : filters.statusFilter === 'skipped'
-        ? 'Revisit what you skipped'
-        : 'Inbox for unresolved spend'
+          ? 'Revisit what you skipped'
+          : 'Inbox for unresolved spend'
       : allReviewCount > 0 && hasActiveFilters
         ? 'No items match these filters'
         : 'Inbox is empty';
@@ -4599,11 +5190,11 @@ function InboxScreen({
         : 'Use filters to narrow the queue, split multi-part spends, skip noisy items for later, or classify directly into the local dashboard.'
       : allReviewCount > 0 && hasActiveFilters
         ? 'Clear or relax the active filters to bring hidden review items back into view.'
-        : 'The current session has no unresolved local transactions left. Future captured payments will show up here, while manual spends save directly as classified records.';
+        : 'The current session has no unresolved local transactions left. Future review items will show up here, while manual spends save directly as classified records.';
 
   return (
     <FlatList
-      contentContainerStyle={styles.inboxListContent}
+      contentContainerStyle={styles.inboxListContentWithPrimaryTabBar}
       data={filteredReviewTransactions}
       initialNumToRender={12}
       ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
@@ -4620,53 +5211,70 @@ function InboxScreen({
           actions={
             <View style={styles.actionRow}>
               {hasActiveFilters ? (
-                <ActionButton label="Clear filters" onPress={onClearFilters} tone="primary" />
+                <ActionButton
+                  label="Clear filters"
+                  onPress={onClearFilters}
+                  tone="primary"
+                />
               ) : (
-                <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
+                <ActionButton
+                  label="Add manual spend"
+                  onPress={onOpenManualEntry}
+                  tone="primary"
+                />
               )}
-              <ActionButton label="Back to home" onPress={onOpenHome} tone="secondary" />
+              <ActionButton
+                label="Back to home"
+                onPress={onOpenHome}
+                tone="secondary"
+              />
             </View>
           }
         />
       }
       ListHeaderComponent={
         <View style={styles.inboxHeaderStack}>
-        <View style={styles.tabs}>
-          <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
-          <TabButton isActive={true} label="Inbox" onPress={() => onSelectTab('inbox')} />
-          <TabButton isActive={false} label="Timeline" onPress={() => onSelectTab('timeline')} />
-          <TabButton isActive={false} label="Settings" onPress={() => onSelectTab('settings')} />
-        </View>
-
           <SectionCard accentColor={colors.panelWarm}>
             <Text style={styles.sectionEyebrow}>Inbox</Text>
             <Text style={styles.sectionTitle}>{statusHeadline}</Text>
             <Text style={styles.bodyCopy}>{statusBody}</Text>
             <View style={styles.helperStack}>
               <Text style={styles.helperCopy}>
-                Showing {filteredReviewTransactions.length} of {allReviewCount} unresolved items
+                Showing {filteredReviewTransactions.length} of {allReviewCount}{' '}
+                unresolved items
               </Text>
               <Text style={styles.helperCopy}>
-                Partially classified transactions stay in this queue until their remainder is resolved.
+                Partially classified transactions stay in this queue until their
+                remainder is resolved.
               </Text>
             </View>
             <View style={styles.actionRow}>
-              <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
-              <ActionButton label="Back to home" onPress={onOpenHome} tone="secondary" />
+              <ActionButton
+                label="Add manual spend"
+                onPress={onOpenManualEntry}
+                tone="secondary"
+              />
+              <ActionButton
+                label="Back to home"
+                onPress={onOpenHome}
+                tone="secondary"
+              />
             </View>
           </SectionCard>
 
           <SectionCard accentColor={colors.panel}>
             <Text style={styles.cardTitle}>Filters</Text>
             <Text style={styles.bodyCopy}>
-              Narrow the local queue by status, merchant, source app, amount, or age without
-              needing network access.
+              Narrow the local queue by status, merchant, source app, amount, or
+              age without needing network access.
             </Text>
 
             <View style={styles.fieldStack}>
               <TextField
                 label="Merchant"
-                onChangeText={(merchantQuery) => onUpdateFilters({ merchantQuery })}
+                onChangeText={(merchantQuery) =>
+                  onUpdateFilters({ merchantQuery })
+                }
                 placeholder="Filter by merchant"
                 value={filters.merchantQuery}
               />
@@ -4679,12 +5287,16 @@ function InboxScreen({
                   <CategoryChip
                     isActive={filters.statusFilter === 'needs_review'}
                     label="Needs review"
-                    onPress={() => onUpdateFilters({ statusFilter: 'needs_review' })}
+                    onPress={() =>
+                      onUpdateFilters({ statusFilter: 'needs_review' })
+                    }
                   />
                   <CategoryChip
                     isActive={filters.statusFilter === 'partially_classified'}
                     label="Partially split"
-                    onPress={() => onUpdateFilters({ statusFilter: 'partially_classified' })}
+                    onPress={() =>
+                      onUpdateFilters({ statusFilter: 'partially_classified' })
+                    }
                   />
                   <CategoryChip
                     isActive={filters.statusFilter === 'skipped'}
@@ -4729,17 +5341,23 @@ function InboxScreen({
                   <CategoryChip
                     isActive={filters.amountFilter === 'under_250'}
                     label="Under Rs 250"
-                    onPress={() => onUpdateFilters({ amountFilter: 'under_250' })}
+                    onPress={() =>
+                      onUpdateFilters({ amountFilter: 'under_250' })
+                    }
                   />
                   <CategoryChip
                     isActive={filters.amountFilter === 'between_250_and_500'}
                     label="Rs 250 to 500"
-                    onPress={() => onUpdateFilters({ amountFilter: 'between_250_and_500' })}
+                    onPress={() =>
+                      onUpdateFilters({ amountFilter: 'between_250_and_500' })
+                    }
                   />
                   <CategoryChip
                     isActive={filters.amountFilter === 'over_500'}
                     label="Over Rs 500"
-                    onPress={() => onUpdateFilters({ amountFilter: 'over_500' })}
+                    onPress={() =>
+                      onUpdateFilters({ amountFilter: 'over_500' })
+                    }
                   />
                 </View>
               </View>
@@ -4760,7 +5378,9 @@ function InboxScreen({
                   <CategoryChip
                     isActive={filters.ageFilter === 'last_3_days'}
                     label="Last 3 days"
-                    onPress={() => onUpdateFilters({ ageFilter: 'last_3_days' })}
+                    onPress={() =>
+                      onUpdateFilters({ ageFilter: 'last_3_days' })
+                    }
                   />
                   <CategoryChip
                     isActive={filters.ageFilter === 'older'}
@@ -4772,7 +5392,11 @@ function InboxScreen({
             </View>
 
             <View style={styles.actionRow}>
-              <ActionButton label="Clear filters" onPress={onClearFilters} tone="secondary" />
+              <ActionButton
+                label="Clear filters"
+                onPress={onClearFilters}
+                tone="secondary"
+              />
             </View>
           </SectionCard>
         </View>
@@ -4800,13 +5424,11 @@ function InsightsScreen({
   budgetCycleLabel,
   onBack,
   onOpenTimeline,
-  onSelectTab,
   report,
 }: {
   budgetCycleLabel: string;
   onBack: () => void;
   onOpenTimeline: () => void;
-  onSelectTab: (screen: PrimaryScreen) => void;
   report: InsightsReport;
 }) {
   const topCategory = getInsightSectionTopRow(report.sections, 'category');
@@ -4817,31 +5439,43 @@ function InsightsScreen({
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <View style={styles.stack}>
-        <View style={styles.tabs}>
-          <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
-          <TabButton isActive={false} label="Inbox" onPress={() => onSelectTab('inbox')} />
-          <TabButton isActive={false} label="Timeline" onPress={() => onSelectTab('timeline')} />
-          <TabButton isActive={false} label="Settings" onPress={() => onSelectTab('settings')} />
-        </View>
-
         <SectionCard accentColor={colors.accentSoft}>
           <Text style={styles.sectionEyebrow}>Insights</Text>
-          <Text style={styles.sectionTitle}>See where the current cycle is moving</Text>
+          <Text style={styles.sectionTitle}>
+            See where the current cycle is moving
+          </Text>
           <Text style={styles.bodyCopy}>
-            These rollups stay on device. The current {budgetCycleLabel.toLowerCase()} is compared
-            against the immediately prior cycle using the same local transaction set.
+            These rollups stay on device. The current{' '}
+            {budgetCycleLabel.toLowerCase()} is compared against the immediately
+            prior cycle using the same local transaction set.
           </Text>
           <View style={styles.helperStack}>
             <Text style={styles.helperCopy}>
-              Current: {formatInsightDateRange(report.comparison.currentCycleStart, report.comparison.currentCycleEnd)}
+              Current:{' '}
+              {formatInsightDateRange(
+                report.comparison.currentCycleStart,
+                report.comparison.currentCycleEnd,
+              )}
             </Text>
             <Text style={styles.helperCopy}>
-              Prior: {formatInsightDateRange(report.comparison.priorCycleStart, report.comparison.priorCycleEnd)}
+              Prior:{' '}
+              {formatInsightDateRange(
+                report.comparison.priorCycleStart,
+                report.comparison.priorCycleEnd,
+              )}
             </Text>
           </View>
           <View style={styles.actionRow}>
-            <ActionButton label="Back to home" onPress={onBack} tone="secondary" />
-            <ActionButton label="Search timeline" onPress={onOpenTimeline} tone="secondary" />
+            <ActionButton
+              label="Back to home"
+              onPress={onBack}
+              tone="secondary"
+            />
+            <ActionButton
+              label="Search timeline"
+              onPress={onOpenTimeline}
+              tone="secondary"
+            />
           </View>
         </SectionCard>
 
@@ -4867,8 +5501,8 @@ function InsightsScreen({
         <SectionCard accentColor={colors.panelWarm}>
           <Text style={styles.cardTitle}>Trend cards</Text>
           <Text style={styles.bodyCopy}>
-            Quick local signals for the strongest spending shifts in this cycle versus the one
-            before it.
+            Quick local signals for the strongest spending shifts in this cycle
+            versus the one before it.
           </Text>
           <View style={styles.metricGrid}>
             <MetricCard
@@ -4933,11 +5567,16 @@ function InsightSectionCard({ section }: { section: InsightSection }) {
               key={row.id}
               subtitle={`${formatInsightShare(row.shareRatio)} of current spend · ${row.currentMatchCount} match${row.currentMatchCount === 1 ? '' : 'es'}`}
               title={row.label}
-              trailing={<Text style={styles.transactionAmount}>{formatCurrency(row.currentAmountMinor)}</Text>}
+              trailing={
+                <Text style={styles.transactionAmount}>
+                  {formatCurrency(row.currentAmountMinor)}
+                </Text>
+              }
             >
               <View style={styles.helperStack}>
                 <Text style={styles.helperCopy}>
-                  Prior: {formatCurrency(row.priorAmountMinor)} · {formatInsightDelta(row.deltaMinor)}
+                  Prior: {formatCurrency(row.priorAmountMinor)} ·{' '}
+                  {formatInsightDelta(row.deltaMinor)}
                 </Text>
                 <Chip
                   label={getInsightTrendLabel(row)}
@@ -4989,7 +5628,10 @@ function TimelineScreen({
   onOpenHome: () => void;
   onOpenInbox: () => void;
   onOpenManualEntry: () => void;
-  onOpenTransaction: (transactionId: string, returnScreen?: PrimaryScreen) => void;
+  onOpenTransaction: (
+    transactionId: string,
+    returnScreen?: PrimaryScreen,
+  ) => void;
   onRefreshSync: () => Promise<void>;
   onSelectTab: (screen: PrimaryScreen) => void;
   onUpdateFilters: (nextFilters: Partial<TimelineFilters>) => void;
@@ -5002,7 +5644,7 @@ function TimelineScreen({
 }) {
   return (
     <FlatList
-      contentContainerStyle={styles.inboxListContent}
+      contentContainerStyle={styles.inboxListContentWithPrimaryTabBar}
       data={timelineDayGroups}
       initialNumToRender={8}
       ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
@@ -5015,53 +5657,74 @@ function TimelineScreen({
               ? 'Clear or relax the active search filters to bring hidden transactions back into the local timeline.'
               : 'Add a manual spend or classify Inbox items to populate the historical timeline.'
           }
-          title={hasActiveFilters ? 'No matching transactions' : 'No saved history yet'}
+          title={
+            hasActiveFilters
+              ? 'No matching transactions'
+              : 'No saved history yet'
+          }
           actions={
             <View style={styles.actionRow}>
               {hasActiveFilters ? (
-                <ActionButton label="Clear filters" onPress={onClearFilters} tone="primary" />
+                <ActionButton
+                  label="Clear filters"
+                  onPress={onClearFilters}
+                  tone="primary"
+                />
               ) : (
-                <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="primary" />
+                <ActionButton
+                  label="Add manual spend"
+                  onPress={onOpenManualEntry}
+                  tone="primary"
+                />
               )}
-              <ActionButton label="Back to home" onPress={onOpenHome} tone="secondary" />
+              <ActionButton
+                label="Back to home"
+                onPress={onOpenHome}
+                tone="secondary"
+              />
             </View>
           }
         />
       }
       ListHeaderComponent={
         <View style={styles.inboxHeaderStack}>
-          <View style={styles.tabs}>
-            <TabButton isActive={false} label="Home" onPress={() => onSelectTab('home')} />
-            <TabButton isActive={false} label="Inbox" onPress={() => onSelectTab('inbox')} />
-            <TabButton isActive={true} label="Timeline" onPress={() => onSelectTab('timeline')} />
-            <TabButton isActive={false} label="Settings" onPress={() => onSelectTab('settings')} />
-          </View>
-
           <SectionCard accentColor={colors.successSoft}>
             <Text style={styles.sectionEyebrow}>Timeline</Text>
-            <Text style={styles.sectionTitle}>Search local history and audit what changed</Text>
+            <Text style={styles.sectionTitle}>
+              Search local history and audit what changed
+            </Text>
             <Text style={styles.bodyCopy}>
-              Search stays local and scans merchant names, item labels, and saved categories. Open
-              any row to inspect the current local state and correct mistakes.
+              Search stays local and scans merchant names, item labels, and
+              saved categories. Open any row to inspect the current local state
+              and correct mistakes.
             </Text>
             <View style={styles.helperStack}>
               <Text style={styles.helperCopy}>
-                Showing {filteredTransactionsCount} of {allTransactionsCount} local transactions
+                Showing {filteredTransactionsCount} of {allTransactionsCount}{' '}
+                local transactions
               </Text>
               <Text style={styles.helperCopy}>
-                Parser context, saved notes, and audit history come straight from the local
-                transaction records shown here.
+                Parser context, saved notes, and audit history come straight
+                from the local transaction records shown here.
               </Text>
               {syncMode === 'sync_later' ? (
                 <Text style={styles.helperCopy}>
-                  Pull to refresh rechecks the local outbox, reachability, and conflict queue for
-                  this device.
+                  Pull to refresh rechecks the local outbox, reachability, and
+                  conflict queue for this device.
                 </Text>
               ) : null}
             </View>
             <View style={styles.actionRow}>
-              <ActionButton label="Add manual spend" onPress={onOpenManualEntry} tone="secondary" />
-              <ActionButton label="Open inbox" onPress={onOpenInbox} tone="secondary" />
+              <ActionButton
+                label="Add manual spend"
+                onPress={onOpenManualEntry}
+                tone="secondary"
+              />
+              <ActionButton
+                label="Open inbox"
+                onPress={onOpenInbox}
+                tone="secondary"
+              />
             </View>
           </SectionCard>
 
@@ -5080,7 +5743,8 @@ function TimelineScreen({
           <SectionCard accentColor={colors.panel}>
             <Text style={styles.cardTitle}>Search and filters</Text>
             <Text style={styles.bodyCopy}>
-              Narrow history by merchant, item, category, status, source app, amount, or date.
+              Narrow history by merchant, item, category, status, source app,
+              amount, or date.
             </Text>
 
             <View style={styles.fieldStack}>
@@ -5104,17 +5768,23 @@ function TimelineScreen({
                   <CategoryChip
                     isActive={filters.statusFilter === 'classified'}
                     label="Classified"
-                    onPress={() => onUpdateFilters({ statusFilter: 'classified' })}
+                    onPress={() =>
+                      onUpdateFilters({ statusFilter: 'classified' })
+                    }
                   />
                   <CategoryChip
                     isActive={filters.statusFilter === 'uncategorized'}
                     label="Needs review"
-                    onPress={() => onUpdateFilters({ statusFilter: 'uncategorized' })}
+                    onPress={() =>
+                      onUpdateFilters({ statusFilter: 'uncategorized' })
+                    }
                   />
                   <CategoryChip
                     isActive={filters.statusFilter === 'partially_classified'}
                     label="Partial"
-                    onPress={() => onUpdateFilters({ statusFilter: 'partially_classified' })}
+                    onPress={() =>
+                      onUpdateFilters({ statusFilter: 'partially_classified' })
+                    }
                   />
                   <CategoryChip
                     isActive={filters.statusFilter === 'skipped'}
@@ -5154,17 +5824,23 @@ function TimelineScreen({
                   <CategoryChip
                     isActive={filters.amountFilter === 'under_250'}
                     label="Under Rs 250"
-                    onPress={() => onUpdateFilters({ amountFilter: 'under_250' })}
+                    onPress={() =>
+                      onUpdateFilters({ amountFilter: 'under_250' })
+                    }
                   />
                   <CategoryChip
                     isActive={filters.amountFilter === 'between_250_and_500'}
                     label="Rs 250 to 500"
-                    onPress={() => onUpdateFilters({ amountFilter: 'between_250_and_500' })}
+                    onPress={() =>
+                      onUpdateFilters({ amountFilter: 'between_250_and_500' })
+                    }
                   />
                   <CategoryChip
                     isActive={filters.amountFilter === 'over_500'}
                     label="Over Rs 500"
-                    onPress={() => onUpdateFilters({ amountFilter: 'over_500' })}
+                    onPress={() =>
+                      onUpdateFilters({ amountFilter: 'over_500' })
+                    }
                   />
                 </View>
               </View>
@@ -5185,12 +5861,16 @@ function TimelineScreen({
                   <CategoryChip
                     isActive={filters.dateFilter === 'last_7_days'}
                     label="Last 7 days"
-                    onPress={() => onUpdateFilters({ dateFilter: 'last_7_days' })}
+                    onPress={() =>
+                      onUpdateFilters({ dateFilter: 'last_7_days' })
+                    }
                   />
                   <CategoryChip
                     isActive={filters.dateFilter === 'last_30_days'}
                     label="Last 30 days"
-                    onPress={() => onUpdateFilters({ dateFilter: 'last_30_days' })}
+                    onPress={() =>
+                      onUpdateFilters({ dateFilter: 'last_30_days' })
+                    }
                   />
                   <CategoryChip
                     isActive={filters.dateFilter === 'older'}
@@ -5202,7 +5882,11 @@ function TimelineScreen({
             </View>
 
             <View style={styles.actionRow}>
-              <ActionButton label="Clear filters" onPress={onClearFilters} tone="secondary" />
+              <ActionButton
+                label="Clear filters"
+                onPress={onClearFilters}
+                tone="secondary"
+              />
             </View>
           </SectionCard>
         </View>
@@ -5243,7 +5927,10 @@ function TimelineTransactionRow({
   const itemSummary =
     transaction.items.length > 0
       ? transaction.items
-          .map((item) => `${item.label} · ${getCategoryLabel(item.categoryId, categories)}`)
+          .map(
+            (item) =>
+              `${item.label} · ${getCategoryLabel(item.categoryId, categories)}`,
+          )
           .join(', ')
       : 'No saved items yet';
 
@@ -5253,9 +5940,16 @@ function TimelineTransactionRow({
       onPress={onPress}
       subtitle={`${transaction.sourceApp} · ${formatCaptureMoment(transaction.capturedAt)}`}
       title={transaction.merchant}
-      trailing={<Text style={styles.transactionAmount}>{formatCurrency(transaction.amountMinor)}</Text>}
+      trailing={
+        <Text style={styles.transactionAmount}>
+          {formatCurrency(transaction.amountMinor)}
+        </Text>
+      }
     >
-      <StatusChip label={getTransactionStatusLabel(transaction.status)} tone={getStatusTone(transaction.status)} />
+      <StatusChip
+        label={getTransactionStatusLabel(transaction.status)}
+        tone={getStatusTone(transaction.status)}
+      />
       <Text style={styles.bodyCopy}>{itemSummary}</Text>
     </ListItem>
   );
@@ -5275,16 +5969,27 @@ function CategoryManagementScreen({
   onBack: () => void;
   onCreateCategory: (draft: CategoryDraft) => void;
   onDeleteCategory: (categoryId: CategoryId) => void;
-  onMergeCategory: (sourceCategoryId: CategoryId, targetCategoryId: CategoryId) => void;
+  onMergeCategory: (
+    sourceCategoryId: CategoryId,
+    targetCategoryId: CategoryId,
+  ) => void;
   onUpdateCategory: (categoryId: CategoryId, draft: CategoryDraft) => void;
 }) {
   const [draft, setDraft] = useState<CategoryDraft>(EMPTY_CATEGORY_DRAFT);
-  const [editingCategoryId, setEditingCategoryId] = useState<CategoryId | null>(null);
-  const [mergeSourceCategoryId, setMergeSourceCategoryId] = useState<CategoryId | null>(null);
-  const [mergeTargetCategoryId, setMergeTargetCategoryId] = useState<CategoryId | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<CategoryId | null>(
+    null,
+  );
+  const [mergeSourceCategoryId, setMergeSourceCategoryId] =
+    useState<CategoryId | null>(null);
+  const [mergeTargetCategoryId, setMergeTargetCategoryId] =
+    useState<CategoryId | null>(null);
 
-  const defaultCategoryUsage = categoryUsage.filter(({ category }) => category.isDefault);
-  const customCategoryUsage = categoryUsage.filter(({ category }) => !category.isDefault);
+  const defaultCategoryUsage = categoryUsage.filter(
+    ({ category }) => category.isDefault,
+  );
+  const customCategoryUsage = categoryUsage.filter(
+    ({ category }) => !category.isDefault,
+  );
   const normalizedLabel = draft.label.trim().toLowerCase();
   const hasDuplicateLabel =
     normalizedLabel.length > 0 &&
@@ -5365,8 +6070,12 @@ function CategoryManagementScreen({
       return;
     }
 
-    const sourceCategory = categories.find((category) => category.id === mergeSourceCategoryId);
-    const targetCategory = categories.find((category) => category.id === mergeTargetCategoryId);
+    const sourceCategory = categories.find(
+      (category) => category.id === mergeSourceCategoryId,
+    );
+    const targetCategory = categories.find(
+      (category) => category.id === mergeTargetCategoryId,
+    );
 
     if (!sourceCategory || !targetCategory) {
       return;
@@ -5394,33 +6103,51 @@ function CategoryManagementScreen({
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       <SectionCard accentColor={colors.accentSoft}>
         <Text style={styles.sectionEyebrow}>Categories</Text>
-        <Text style={styles.sectionTitle}>Manage the labels used across your local spend data</Text>
+        <Text style={styles.sectionTitle}>
+          Manage the labels used across your local spend data
+        </Text>
         <Text style={styles.bodyCopy}>
-          Seeded defaults ship on first launch. Custom categories now behave like first-class
-          options in quick classify, split items, manual add, dashboard summaries, and Timeline.
+          Seeded defaults ship on first launch. Custom categories now behave
+          like first-class options in quick classify, split items, manual add,
+          dashboard summaries, and Timeline.
         </Text>
         <View style={styles.actionRow}>
-          <ActionButton label="Back to home" onPress={onBack} tone="secondary" />
-          <ActionButton label="Add custom category" onPress={handleStartCreate} tone="primary" />
+          <ActionButton
+            label="Back to home"
+            onPress={onBack}
+            tone="secondary"
+          />
+          <ActionButton
+            label="Add custom category"
+            onPress={handleStartCreate}
+            tone="primary"
+          />
         </View>
       </SectionCard>
 
       <SectionCard accentColor={colors.panelWarm}>
         <Text style={styles.cardTitle}>
-          {editingCategoryId ? 'Edit custom category' : 'Create a custom category'}
+          {editingCategoryId
+            ? 'Edit custom category'
+            : 'Create a custom category'}
         </Text>
         <Text style={styles.bodyCopy}>
-          Custom categories are local-first. Merge them when you want to preserve existing
-          transaction history while consolidating labels.
+          Custom categories are local-first. Merge them when you want to
+          preserve existing transaction history while consolidating labels.
         </Text>
         <View style={styles.inputStack}>
           <TextField
             autoCapitalize="words"
             label="Category label"
-            onChangeText={(label) => setDraft((currentDraft) => ({ ...currentDraft, label }))}
+            onChangeText={(label) =>
+              setDraft((currentDraft) => ({ ...currentDraft, label }))
+            }
             placeholder="Weekend treats"
             value={draft.label}
           />
@@ -5440,7 +6167,11 @@ function CategoryManagementScreen({
           </Text>
         ) : null}
         <View style={styles.actionRow}>
-          <ActionButton label="Clear draft" onPress={resetEditor} tone="secondary" />
+          <ActionButton
+            label="Clear draft"
+            onPress={resetEditor}
+            tone="secondary"
+          />
           <ActionButton
             disabled={saveDisabled}
             label={editingCategoryId ? 'Save changes' : 'Create category'}
@@ -5453,15 +6184,19 @@ function CategoryManagementScreen({
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Seeded defaults</Text>
         <Text style={styles.bodyCopy}>
-          These defaults anchor the first classification experience and remain available even if the
-          user never creates a custom category.
+          These defaults anchor the first classification experience and remain
+          available even if the user never creates a custom category.
         </Text>
         <View style={styles.listStack}>
           {defaultCategoryUsage.map((summary) => (
             <View key={summary.category.id} style={styles.summaryRow}>
               <View style={styles.summaryCopy}>
-                <Text style={styles.summaryPrimary}>{summary.category.label}</Text>
-                <Text style={styles.summarySecondary}>{summary.category.description}</Text>
+                <Text style={styles.summaryPrimary}>
+                  {summary.category.label}
+                </Text>
+                <Text style={styles.summarySecondary}>
+                  {summary.category.description}
+                </Text>
               </View>
               <Text style={styles.helperCopy}>{summary.itemCount} rows</Text>
             </View>
@@ -5472,18 +6207,23 @@ function CategoryManagementScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Custom categories</Text>
         <Text style={styles.bodyCopy}>
-          Edit custom labels directly. Delete only when unused, or merge into another category to
-          preserve historical transaction rows.
+          Edit custom labels directly. Delete only when unused, or merge into
+          another category to preserve historical transaction rows.
         </Text>
         {customCategoryUsage.length > 0 ? (
           <View style={styles.listStack}>
             {customCategoryUsage.map((summary) => (
               <View key={summary.category.id} style={styles.summaryCard}>
                 <View style={styles.summaryCopy}>
-                  <Text style={styles.summaryPrimary}>{summary.category.label}</Text>
-                  <Text style={styles.summarySecondary}>{summary.category.description}</Text>
+                  <Text style={styles.summaryPrimary}>
+                    {summary.category.label}
+                  </Text>
+                  <Text style={styles.summarySecondary}>
+                    {summary.category.description}
+                  </Text>
                   <Text style={styles.helperCopy}>
-                    {summary.itemCount} item rows across {summary.transactionCount} transaction
+                    {summary.itemCount} item rows across{' '}
+                    {summary.transactionCount} transaction
                     {summary.transactionCount === 1 ? '' : 's'}
                   </Text>
                 </View>
@@ -5532,8 +6272,8 @@ function CategoryManagementScreen({
         <SectionCard accentColor={colors.panelWarm}>
           <Text style={styles.cardTitle}>Merge category</Text>
           <Text style={styles.bodyCopy}>
-            Pick the target category that should keep the historical rows currently using the source
-            category.
+            Pick the target category that should keep the historical rows
+            currently using the source category.
           </Text>
           <View style={styles.categoryGrid}>
             {mergeTargets.map((category) => (
@@ -5582,10 +6322,16 @@ function MerchantManagementScreen({
   onMergeMerchant: (sourceMerchantId: string, targetMerchantId: string) => void;
   onSplitMerchantAlias: (aliasId: string) => void;
 }) {
-  const [mergeSourceMerchantId, setMergeSourceMerchantId] = useState<string | null>(null);
-  const [mergeTargetMerchantId, setMergeTargetMerchantId] = useState<string | null>(null);
+  const [mergeSourceMerchantId, setMergeSourceMerchantId] = useState<
+    string | null
+  >(null);
+  const [mergeTargetMerchantId, setMergeTargetMerchantId] = useState<
+    string | null
+  >(null);
   const mergeTargets = mergeSourceMerchantId
-    ? merchantUsage.filter(({ merchant }) => merchant.id !== mergeSourceMerchantId)
+    ? merchantUsage.filter(
+        ({ merchant }) => merchant.id !== mergeSourceMerchantId,
+      )
     : [];
 
   function resetManualMerge() {
@@ -5636,24 +6382,35 @@ function MerchantManagementScreen({
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       <SectionCard accentColor={colors.accentSoft}>
         <Text style={styles.sectionEyebrow}>Merchants</Text>
-        <Text style={styles.sectionTitle}>Normalize repeated merchant variants locally</Text>
+        <Text style={styles.sectionTitle}>
+          Normalize repeated merchant variants locally
+        </Text>
         <Text style={styles.bodyCopy}>
-          Deterministic matches already fold repeated variants into one canonical merchant. This
-          screen lets the user review likely merges, create future aliases through explicit
-          corrections, and split an alias back out when a merge was too aggressive.
+          Deterministic matches already fold repeated variants into one
+          canonical merchant. This screen lets the user review likely merges,
+          create future aliases through explicit corrections, and split an alias
+          back out when a merge was too aggressive.
         </Text>
         <View style={styles.actionRow}>
-          <ActionButton label="Back to home" onPress={onBack} tone="secondary" />
+          <ActionButton
+            label="Back to home"
+            onPress={onBack}
+            tone="secondary"
+          />
         </View>
       </SectionCard>
 
       <SectionCard accentColor={colors.panelWarm}>
         <Text style={styles.cardTitle}>Likely merges to review</Text>
         <Text style={styles.bodyCopy}>
-          These are suggestions only. Low-confidence or ambiguous matches are not auto-applied.
+          These are suggestions only. Low-confidence or ambiguous matches are
+          not auto-applied.
         </Text>
         {merchantReviewCandidates.length > 0 ? (
           <View style={styles.listStack}>
@@ -5661,10 +6418,12 @@ function MerchantManagementScreen({
               <View key={candidate.sourceMerchantId} style={styles.summaryCard}>
                 <View style={styles.summaryCopy}>
                   <Text style={styles.summaryPrimary}>
-                    {candidate.sourceMerchantLabel} → {candidate.targetMerchantLabel}
+                    {candidate.sourceMerchantLabel} →{' '}
+                    {candidate.targetMerchantLabel}
                   </Text>
                   <Text style={styles.summarySecondary}>
-                    Confidence {formatMerchantConfidence(candidate.confidenceBps)}
+                    Confidence{' '}
+                    {formatMerchantConfidence(candidate.confidenceBps)}
                   </Text>
                 </View>
                 <View style={styles.actionRow}>
@@ -5694,8 +6453,8 @@ function MerchantManagementScreen({
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Manual merge</Text>
         <Text style={styles.bodyCopy}>
-          Pick the source merchant that should be folded into another canonical label. This also
-          creates a saved alias for future local matches.
+          Pick the source merchant that should be folded into another canonical
+          label. This also creates a saved alias for future local matches.
         </Text>
         <View style={styles.fieldStack}>
           <Text style={styles.fieldLabel}>Merge from</Text>
@@ -5731,7 +6490,11 @@ function MerchantManagementScreen({
         ) : null}
 
         <View style={styles.actionRow}>
-          <ActionButton label="Clear merge" onPress={resetManualMerge} tone="secondary" />
+          <ActionButton
+            label="Clear merge"
+            onPress={resetManualMerge}
+            tone="secondary"
+          />
           <ActionButton
             disabled={!mergeSourceMerchantId || !mergeTargetMerchantId}
             label="Merge selected merchants"
@@ -5748,23 +6511,27 @@ function MerchantManagementScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Merchant directory</Text>
         <Text style={styles.bodyCopy}>
-          Canonical merchant labels, saved aliases, and the number of local transactions currently
-          mapped into each merchant.
+          Canonical merchant labels, saved aliases, and the number of local
+          transactions currently mapped into each merchant.
         </Text>
         {merchantUsage.length > 0 ? (
           <View style={styles.listStack}>
             {merchantUsage.map((summary) => {
               const aliases = merchantAliases.filter(
-                (merchantAlias) => merchantAlias.merchantId === summary.merchant.id,
+                (merchantAlias) =>
+                  merchantAlias.merchantId === summary.merchant.id,
               );
 
               return (
                 <View key={summary.merchant.id} style={styles.summaryCard}>
                   <View style={styles.summaryCopy}>
-                    <Text style={styles.summaryPrimary}>{summary.merchant.label}</Text>
+                    <Text style={styles.summaryPrimary}>
+                      {summary.merchant.label}
+                    </Text>
                     <Text style={styles.summarySecondary}>
                       {summary.transactionCount} transaction
-                      {summary.transactionCount === 1 ? '' : 's'} · {aliases.length} alias
+                      {summary.transactionCount === 1 ? '' : 's'} ·{' '}
+                      {aliases.length} alias
                       {aliases.length === 1 ? '' : 'es'}
                     </Text>
                   </View>
@@ -5774,16 +6541,22 @@ function MerchantManagementScreen({
                       {aliases.map((alias) => (
                         <View key={alias.id} style={styles.aliasRow}>
                           <View style={styles.summaryCopy}>
-                            <Text style={styles.summaryPrimary}>{alias.alias}</Text>
+                            <Text style={styles.summaryPrimary}>
+                              {alias.alias}
+                            </Text>
                             <Text style={styles.summarySecondary}>
-                              {alias.source === 'merged' ? 'Merged alias' : 'Manual alias'} ·{' '}
-                              {formatMerchantConfidence(alias.confidenceBps)}
+                              {alias.source === 'merged'
+                                ? 'Merged alias'
+                                : 'Manual alias'}{' '}
+                              · {formatMerchantConfidence(alias.confidenceBps)}
                             </Text>
                           </View>
                           <ActionButton
                             accessibilityLabel={`Split alias ${alias.alias}`}
                             label="Split alias"
-                            onPress={() => confirmAliasSplit(alias.id, alias.alias)}
+                            onPress={() =>
+                              confirmAliasSplit(alias.id, alias.alias)
+                            }
                             tone="secondary"
                           />
                         </View>
@@ -5832,41 +6605,58 @@ function TransactionDetailScreen({
 }) {
   const unresolvedAmountMinor = getUnresolvedAmountMinor(transaction);
   const shouldEditSplit =
-    transaction.items.length > 1 || transaction.status === 'partially_classified';
+    transaction.items.length > 1 ||
+    transaction.status === 'partially_classified';
   const primaryActionLabel = shouldEditSplit
     ? 'Edit split items'
     : transaction.status === 'classified'
       ? 'Edit classification'
       : 'Classify transaction';
   const parserSummary = formatParserInfo(transaction.parserInfo ?? null);
-  const classificationHistory = (transaction.history ?? []).filter((entry) =>
-    entry.kind === 'classified' ||
-    entry.kind === 'classification_imported' ||
-    entry.kind === 'split_saved',
+  const classificationHistory = (transaction.history ?? []).filter(
+    (entry) =>
+      entry.kind === 'classified' ||
+      entry.kind === 'classification_imported' ||
+      entry.kind === 'split_saved',
   );
   const noteDirty = noteDraft.trim() !== (transaction.note ?? '');
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       <SectionCard accentColor={colors.accentSoft}>
         <Text style={styles.sectionEyebrow}>Transaction detail</Text>
-        <Text style={styles.sectionTitle}>Inspect the local record before changing it</Text>
+        <Text style={styles.sectionTitle}>
+          Inspect the local record before changing it
+        </Text>
         <Text style={styles.bodyCopy}>
-          This screen shows the current local transaction state. Parser and audit metadata appear
-          only when the record actually carries them.
+          This screen shows the current local transaction state. Parser and
+          audit metadata appear only when the record actually carries them.
         </Text>
         <View style={styles.actionRow}>
-          <ActionButton label="Back to timeline" onPress={onBack} tone="secondary" />
+          <ActionButton
+            label="Back to timeline"
+            onPress={onBack}
+            tone="secondary"
+          />
         </View>
       </SectionCard>
 
       <SectionCard accentColor={colors.panelWarm}>
         <Text style={styles.cardTitle}>{transaction.merchant}</Text>
-        <Text style={styles.amountLabel}>{formatCurrency(transaction.amountMinor)}</Text>
-        <Text style={styles.bodyCopy}>
-          {transaction.sourceApp} · {formatCaptureMoment(transaction.capturedAt)}
+        <Text style={styles.amountLabel}>
+          {formatCurrency(transaction.amountMinor)}
         </Text>
-        <StatusChip label={getTransactionStatusLabel(transaction.status)} tone={getStatusTone(transaction.status)} />
+        <Text style={styles.bodyCopy}>
+          {transaction.sourceApp} ·{' '}
+          {formatCaptureMoment(transaction.capturedAt)}
+        </Text>
+        <StatusChip
+          label={getTransactionStatusLabel(transaction.status)}
+          tone={getStatusTone(transaction.status)}
+        />
       </SectionCard>
 
       <SectionCard accentColor={colors.panel}>
@@ -5874,27 +6664,31 @@ function TransactionDetailScreen({
         {transaction.items.length > 0 ? (
           <View style={styles.detailItemStack}>
             {transaction.items.map((item) => (
-                <View key={item.id} style={styles.detailItemRow}>
-                  <View style={styles.summaryCopy}>
-                    <Text style={styles.summaryPrimary}>{item.label}</Text>
-                    <Text style={styles.summarySecondary}>
-                      {getCategoryLabel(item.categoryId, categories)}
-                    </Text>
-                  </View>
-                  <Text style={styles.summaryAmount}>{formatCurrency(item.amountMinor)}</Text>
+              <View key={item.id} style={styles.detailItemRow}>
+                <View style={styles.summaryCopy}>
+                  <Text style={styles.summaryPrimary}>{item.label}</Text>
+                  <Text style={styles.summarySecondary}>
+                    {getCategoryLabel(item.categoryId, categories)}
+                  </Text>
                 </View>
+                <Text style={styles.summaryAmount}>
+                  {formatCurrency(item.amountMinor)}
+                </Text>
+              </View>
             ))}
           </View>
         ) : (
           <Text style={styles.bodyCopy}>
-            No saved item rows yet. This payment still needs classification before it can leave the
-            review loop.
+            No saved item rows yet. This payment still needs classification
+            before it can leave the review loop.
           </Text>
         )}
-        {unresolvedAmountMinor > 0 && transaction.status === 'partially_classified' ? (
+        {unresolvedAmountMinor > 0 &&
+        transaction.status === 'partially_classified' ? (
           <Text style={styles.helperCopy}>
-            {formatCurrency(unresolvedAmountMinor)} still remains unresolved, so this transaction
-            stays visible in Inbox until the split is finished or the remainder is saved.
+            {formatCurrency(unresolvedAmountMinor)} still remains unresolved, so
+            this transaction stays visible in Inbox until the split is finished
+            or the remainder is saved.
           </Text>
         ) : null}
       </SectionCard>
@@ -5902,7 +6696,9 @@ function TransactionDetailScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Source and parser context</Text>
         <View style={styles.helperStack}>
-          <Text style={styles.helperCopy}>Normalized merchant: {transaction.merchant}</Text>
+          <Text style={styles.helperCopy}>
+            Normalized merchant: {transaction.merchant}
+          </Text>
           <Text style={styles.helperCopy}>
             Raw merchant:{' '}
             {transaction.merchantRaw && transaction.merchantRaw.length > 0
@@ -5911,35 +6707,48 @@ function TransactionDetailScreen({
           </Text>
           {transaction.merchantMatchKind ? (
             <Text style={styles.helperCopy}>
-              Merchant match: {formatMerchantMatchKind(transaction.merchantMatchKind)}
+              Merchant match:{' '}
+              {formatMerchantMatchKind(transaction.merchantMatchKind)}
             </Text>
           ) : null}
           {typeof transaction.merchantConfidenceBps === 'number' ? (
             <Text style={styles.helperCopy}>
-              Merchant confidence: {formatMerchantConfidence(transaction.merchantConfidenceBps)}
+              Merchant confidence:{' '}
+              {formatMerchantConfidence(transaction.merchantConfidenceBps)}
             </Text>
           ) : null}
-          <Text style={styles.helperCopy}>Source app: {transaction.sourceApp}</Text>
+          <Text style={styles.helperCopy}>
+            Source app: {transaction.sourceApp}
+          </Text>
           <Text style={styles.helperCopy}>
             Local status: {getTransactionStatusLabel(transaction.status)}
           </Text>
-          <Text style={styles.helperCopy}>Local record ID: {transaction.id}</Text>
+          <Text style={styles.helperCopy}>
+            Local record ID: {transaction.id}
+          </Text>
           <Text style={styles.helperCopy}>Parser: {parserSummary.label}</Text>
           {parserSummary.version ? (
-            <Text style={styles.helperCopy}>Parser version: {parserSummary.version}</Text>
+            <Text style={styles.helperCopy}>
+              Parser version: {parserSummary.version}
+            </Text>
           ) : null}
           {parserSummary.confidence ? (
-            <Text style={styles.helperCopy}>Confidence: {parserSummary.confidence}</Text>
+            <Text style={styles.helperCopy}>
+              Confidence: {parserSummary.confidence}
+            </Text>
           ) : null}
-          {parserSummary.note ? <Text style={styles.helperCopy}>{parserSummary.note}</Text> : null}
+          {parserSummary.note ? (
+            <Text style={styles.helperCopy}>{parserSummary.note}</Text>
+          ) : null}
         </View>
       </SectionCard>
 
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Local note</Text>
         <Text style={styles.bodyCopy}>
-          Notes are stored on-device and included in Timeline search so the user can annotate why a
-          payment mattered or how it should be reviewed later.
+          Notes are stored on-device and included in Timeline search so the user
+          can annotate why a payment mattered or how it should be reviewed
+          later.
         </Text>
         <View style={styles.fieldStack}>
           <TextField
@@ -5993,8 +6802,8 @@ function TransactionDetailScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Actions</Text>
         <Text style={styles.bodyCopy}>
-          Edit the current local classification, reopen split items when one payment needs multiple
-          rows, or delete the record with confirmation.
+          Edit the current local classification, reopen split items when one
+          payment needs multiple rows, or delete the record with confirmation.
         </Text>
         <View style={styles.actionRow}>
           <ActionButton
@@ -6003,27 +6812,35 @@ function TransactionDetailScreen({
             tone="primary"
           />
           {!shouldEditSplit ? (
-            <ActionButton label="Split items" onPress={onOpenSplit} tone="secondary" />
+            <ActionButton
+              label="Split items"
+              onPress={onOpenSplit}
+              tone="secondary"
+            />
           ) : null}
-          <ActionButton label="Delete transaction locally" onPress={onDelete} tone="secondary" />
+          <ActionButton
+            label="Delete transaction locally"
+            onPress={onDelete}
+            tone="secondary"
+          />
         </View>
       </SectionCard>
     </ScrollView>
   );
 }
 
-function HistoryEventRow({
-  entry,
-}: {
-  entry: TransactionHistoryEntry;
-}) {
+function HistoryEventRow({ entry }: { entry: TransactionHistoryEntry }) {
   return (
     <View style={styles.historyRow}>
       <View style={styles.summaryCopy}>
-        <Text style={styles.summaryPrimary}>{getHistoryEventLabel(entry.kind)}</Text>
+        <Text style={styles.summaryPrimary}>
+          {getHistoryEventLabel(entry.kind)}
+        </Text>
         <Text style={styles.summarySecondary}>{entry.summary}</Text>
       </View>
-      <Text style={styles.historyTimestamp}>{formatCaptureMoment(entry.at)}</Text>
+      <Text style={styles.historyTimestamp}>
+        {formatCaptureMoment(entry.at)}
+      </Text>
     </View>
   );
 }
@@ -6061,21 +6878,29 @@ function ClassifyScreen({
 
   return (
     <BottomSheet onDismiss={onCancel}>
-      <ScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.sheetContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.sheetHeader}>
           <Text style={styles.sectionEyebrow}>Quick classify sheet</Text>
-          <Text style={styles.cardTitle}>Turn this payment into a usable spend</Text>
+          <Text style={styles.cardTitle}>
+            Turn this payment into a usable spend
+          </Text>
           <Text style={styles.bodyCopy}>
-            Common cases should take two taps here: choose a suggestion, then save. The full edit
-            path still stays available inside the sheet.
+            Common cases should take two taps here: choose a suggestion, then
+            save. The full edit path still stays available inside the sheet.
           </Text>
         </View>
 
         <SectionCard accentColor={colors.panelWarm}>
           <Text style={styles.cardTitle}>{transaction.merchant}</Text>
-          <Text style={styles.amountLabel}>{formatCurrency(transaction.amountMinor)}</Text>
+          <Text style={styles.amountLabel}>
+            {formatCurrency(transaction.amountMinor)}
+          </Text>
           <Text style={styles.bodyCopy}>
-            {transaction.sourceApp} captured at {formatCaptureMoment(transaction.capturedAt)}
+            {transaction.sourceApp} captured at{' '}
+            {formatCaptureMoment(transaction.capturedAt)}
           </Text>
         </SectionCard>
 
@@ -6095,9 +6920,10 @@ function ClassifyScreen({
         <SectionCard accentColor={colors.successSoft}>
           <Text style={styles.cardTitle}>Save behavior</Text>
           <Text style={styles.bodyCopy}>
-            Saving removes the payment from Inbox, recalculates Home immediately, and writes the
-            updated transaction back into local SQLite tables. Split opens a full-screen editor
-            when one payment needs to become multiple items first.
+            Saving removes the payment from Inbox, recalculates Home
+            immediately, and writes the updated transaction back into local
+            SQLite tables. Split opens a full-screen editor when one payment
+            needs to become multiple items first.
           </Text>
           <RuleIntentToggle
             accessibilityLabel="Save as reusable rule"
@@ -6116,9 +6942,21 @@ function ClassifyScreen({
             />
           ) : null}
           <View style={styles.actionRow}>
-            <ActionButton label="Back to inbox" onPress={onCancel} tone="secondary" />
-            <ActionButton label="Skip for now" onPress={onSkip} tone="secondary" />
-            <ActionButton label="Split items" onPress={onOpenSplit} tone="secondary" />
+            <ActionButton
+              label="Back to inbox"
+              onPress={onCancel}
+              tone="secondary"
+            />
+            <ActionButton
+              label="Skip for now"
+              onPress={onSkip}
+              tone="secondary"
+            />
+            <ActionButton
+              label="Split items"
+              onPress={onOpenSplit}
+              tone="secondary"
+            />
             <ActionButton
               disabled={saveDisabled}
               label="Save classification"
@@ -6153,7 +6991,9 @@ function SplitItemsScreen({
   onRemoveRow: (rowId: string) => void;
   onSave: () => void;
   onSelectRemainderCategory: (categoryId: CategoryId) => void;
-  onSelectRemainderDisposition: (remainderDisposition: SplitRemainderDisposition) => void;
+  onSelectRemainderDisposition: (
+    remainderDisposition: SplitRemainderDisposition,
+  ) => void;
   onUpdateRow: (
     rowId: string,
     nextRowPatch: Partial<SplitDraft['rows'][number]>,
@@ -6181,12 +7021,16 @@ function SplitItemsScreen({
     summaryCopy = `Reduce the rows by ${formatCurrency(
       Math.abs(splitSummary.signedRemainingMinor),
     )} before saving.`;
-  } else if (hasRemainingAmount && splitDraft.remainderDisposition === 'leave_unresolved') {
+  } else if (
+    hasRemainingAmount &&
+    splitDraft.remainderDisposition === 'leave_unresolved'
+  ) {
     summaryCopy = `${formatCurrency(
       splitSummary.remainingMinor,
     )} will stay unresolved, so this payment remains visible in Inbox as partially classified.`;
   } else if (hasRemainingAmount && requiresRemainderCategory) {
-    summaryCopy = 'Choose a category for the remainder before saving this split.';
+    summaryCopy =
+      'Choose a category for the remainder before saving this split.';
   } else if (hasRemainingAmount) {
     summaryCopy = `${formatCurrency(
       splitSummary.remainingMinor,
@@ -6194,34 +7038,47 @@ function SplitItemsScreen({
       splitDraft.remainderDisposition,
     ).toLowerCase()}.`;
   } else if (splitSummary.readyRows.length > 0) {
-    summaryCopy = 'This payment is fully allocated and ready to leave the Inbox.';
+    summaryCopy =
+      'This payment is fully allocated and ready to leave the Inbox.';
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       <SectionCard accentColor={colors.accentSoft}>
         <Text style={styles.sectionEyebrow}>Split items</Text>
-        <Text style={styles.sectionTitle}>Break one payment into meaningful parts</Text>
+        <Text style={styles.sectionTitle}>
+          Break one payment into meaningful parts
+        </Text>
         <Text style={styles.bodyCopy}>
-          Use rows when one UPI payment maps to groceries plus fees, shared items, or any other
-          multi-part spend that should not stay as one flat label.
+          Use rows when one UPI payment maps to groceries plus fees, shared
+          items, or any other multi-part spend that should not stay as one flat
+          label.
         </Text>
       </SectionCard>
 
       <SectionCard accentColor={colors.panelWarm}>
         <Text style={styles.cardTitle}>{transaction.merchant}</Text>
-        <Text style={styles.amountLabel}>{formatCurrency(transaction.amountMinor)}</Text>
+        <Text style={styles.amountLabel}>
+          {formatCurrency(transaction.amountMinor)}
+        </Text>
         <Text style={styles.bodyCopy}>
-          {transaction.sourceApp} captured at {formatCaptureMoment(transaction.capturedAt)}
+          {transaction.sourceApp} captured at{' '}
+          {formatCaptureMoment(transaction.capturedAt)}
         </Text>
         {transaction.items.length > 0 ? (
           <Text style={styles.helperCopy}>
-            Existing rows: {transaction.items.map((item) => item.label).join(', ')}
+            Existing rows:{' '}
+            {transaction.items.map((item) => item.label).join(', ')}
           </Text>
         ) : null}
       </SectionCard>
 
-      <SectionCard accentColor={hasOverAllocation ? colors.panelWarm : colors.successSoft}>
+      <SectionCard
+        accentColor={hasOverAllocation ? colors.panelWarm : colors.successSoft}
+      >
         <Text style={styles.cardTitle}>Running total</Text>
         <View style={styles.metricGrid}>
           <MetricCard
@@ -6240,7 +7097,8 @@ function SplitItemsScreen({
         <Text style={styles.bodyCopy}>{summaryCopy}</Text>
         {splitSummary.hasInvalidRows ? (
           <Text style={styles.helperCopy}>
-            Rows only count after amount, item label, and category are all filled.
+            Rows only count after amount, item label, and category are all
+            filled.
           </Text>
         ) : null}
       </SectionCard>
@@ -6248,7 +7106,8 @@ function SplitItemsScreen({
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Split rows</Text>
         <Text style={styles.bodyCopy}>
-          Add, reorder, or remove rows until the payment matches what actually happened.
+          Add, reorder, or remove rows until the payment matches what actually
+          happened.
         </Text>
         <View style={styles.splitRowStack}>
           {splitDraft.rows.map((row, index) => (
@@ -6265,7 +7124,11 @@ function SplitItemsScreen({
           ))}
         </View>
         <View style={styles.actionRow}>
-          <ActionButton label="Add another row" onPress={onAddRow} tone="secondary" />
+          <ActionButton
+            label="Add another row"
+            onPress={onAddRow}
+            tone="secondary"
+          />
         </View>
       </SectionCard>
 
@@ -6273,8 +7136,9 @@ function SplitItemsScreen({
         <SectionCard accentColor={colors.panelWarm}>
           <Text style={styles.cardTitle}>Remainder handling</Text>
           <Text style={styles.bodyCopy}>
-            Decide whether the leftover {formatCurrency(splitSummary.remainingMinor)} should stay in
-            Inbox or be saved now as tip, tax, fees, or an unknown remainder.
+            Decide whether the leftover{' '}
+            {formatCurrency(splitSummary.remainingMinor)} should stay in Inbox
+            or be saved now as tip, tax, fees, or an unknown remainder.
           </Text>
           <View style={styles.categoryGrid}>
             {SPLIT_REMAINDER_OPTIONS.map((option) => (
@@ -6302,7 +7166,8 @@ function SplitItemsScreen({
               </View>
               {requiresRemainderCategory ? (
                 <Text style={styles.helperCopy}>
-                  Pick a category so the explicit remainder can save with the rest of the split.
+                  Pick a category so the explicit remainder can save with the
+                  rest of the split.
                 </Text>
               ) : null}
             </View>
@@ -6313,8 +7178,8 @@ function SplitItemsScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Save split</Text>
         <Text style={styles.bodyCopy}>
-          Full splits leave Inbox. Partial saves keep the transaction visible until the unresolved
-          remainder is reviewed later.
+          Full splits leave Inbox. Partial saves keep the transaction visible
+          until the unresolved remainder is reviewed later.
         </Text>
         <View style={styles.actionRow}>
           <ActionButton label="Back" onPress={onCancel} tone="secondary" />
@@ -6355,7 +7220,9 @@ function SplitRowCard({
       <View style={styles.splitRowHeader}>
         <Text style={styles.fieldLabel}>Item {index + 1}</Text>
         <Text style={styles.helperCopy}>
-          {row.categoryId ? getCategoryLabel(row.categoryId, categories) : 'Category still needed'}
+          {row.categoryId
+            ? getCategoryLabel(row.categoryId, categories)
+            : 'Category still needed'}
         </Text>
       </View>
 
@@ -6457,10 +7324,12 @@ function ManualEntryScreen({
     <View style={styles.stack}>
       <SectionCard accentColor={colors.accentSoft}>
         <Text style={styles.sectionEyebrow}>Manual add</Text>
-        <Text style={styles.sectionTitle}>Capture a spend even without a notification</Text>
+        <Text style={styles.sectionTitle}>
+          Capture a spend even without a notification
+        </Text>
         <Text style={styles.bodyCopy}>
-          This is the fallback path for denied notification access, missed captures, or cashless
-          spends the user wants logged immediately.
+          This is the fallback path for denied notification access, missed
+          captures, or cashless spends the user wants logged immediately.
         </Text>
       </SectionCard>
 
@@ -6501,8 +7370,8 @@ function ManualEntryScreen({
       <SectionCard accentColor={colors.panel}>
         <Text style={styles.cardTitle}>Rule behavior</Text>
         <Text style={styles.bodyCopy}>
-          Save this combination as an explicit local rule if the same merchant, amount range, and
-          timing pattern keeps repeating.
+          Save this combination as an explicit local rule if the same merchant,
+          amount range, and timing pattern keeps repeating.
         </Text>
         <RuleIntentToggle
           accessibilityLabel="Save manual rule"
@@ -6525,11 +7394,14 @@ function ManualEntryScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Preview</Text>
         <Text style={styles.amountLabel}>
-          {amountMinor && amountMinor > 0 ? formatCurrency(amountMinor) : 'Enter a valid amount'}
+          {amountMinor && amountMinor > 0
+            ? formatCurrency(amountMinor)
+            : 'Enter a valid amount'}
         </Text>
         <Text style={styles.bodyCopy}>
-          Saving creates a classified local transaction immediately, updates Home totals, and uses
-          the same item-label and category validation rules as captured spends.
+          Saving creates a classified local transaction immediately, updates
+          Home totals, and uses the same item-label and category validation
+          rules as captured spends.
         </Text>
         <View style={styles.actionRow}>
           <ActionButton label="Back" onPress={onCancel} tone="secondary" />
@@ -6635,7 +7507,8 @@ function SuggestionCard({
     >
       <Text style={styles.suggestionTitle}>{suggestion.itemLabel}</Text>
       <Text style={styles.suggestionMeta}>
-        {getCategoryLabel(suggestion.categoryId, categories)} · {suggestion.reason}
+        {getCategoryLabel(suggestion.categoryId, categories)} ·{' '}
+        {suggestion.reason}
       </Text>
       <Text style={styles.helperCopy}>
         {suggestion.explanation.join(' · ')}
@@ -6665,7 +7538,12 @@ function RuleIntentToggle({
       onPress={onPress}
       style={styles.ruleToggle}
     >
-      <View style={[styles.ruleToggleIndicator, isActive ? styles.ruleToggleIndicatorActive : null]}>
+      <View
+        style={[
+          styles.ruleToggleIndicator,
+          isActive ? styles.ruleToggleIndicatorActive : null,
+        ]}
+      >
         {isActive ? <View style={styles.ruleToggleIndicatorDot} /> : null}
       </View>
       <View style={styles.ruleToggleCopy}>
@@ -6680,19 +7558,13 @@ function SectionCard({
   accentColor,
   children,
 }: {
-  accentColor: string;
+  accentColor: ColorValue;
   children: ReactNode;
 }) {
   return <Card accentColor={accentColor}>{children}</Card>;
 }
 
-function MetricCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function MetricCard({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.metricCardShell}>
       <KPIBlock label={label} value={value} />
@@ -6757,7 +7629,9 @@ function ActionButton({
   onPress: () => void | Promise<void>;
   tone: 'primary' | 'secondary';
 }) {
-  const buttonAccessibilityProps = accessibilityLabel ? { accessibilityLabel } : {};
+  const buttonAccessibilityProps = accessibilityLabel
+    ? { accessibilityLabel }
+    : {};
 
   return (
     <Button
@@ -6767,6 +7641,58 @@ function ActionButton({
       onPress={onPress}
       variant={tone === 'primary' ? 'primary' : 'secondary'}
     />
+  );
+}
+
+function PrimaryTabBar({
+  activeScreen,
+  onSelectTab,
+}: {
+  activeScreen: PrimaryScreen;
+  onSelectTab: (screen: PrimaryScreen) => void;
+}) {
+  return (
+    <View pointerEvents="box-none" style={styles.primaryTabBarScene}>
+      <View style={styles.primaryTabBar}>
+        {PRIMARY_SCREENS.map((screen) => {
+          const label =
+            screen === 'home'
+              ? 'Home'
+              : screen === 'inbox'
+                ? 'Inbox'
+                : screen === 'timeline'
+                  ? 'Timeline'
+                  : 'Settings';
+          const isActive = activeScreen === screen;
+
+          return (
+            <Pressable
+              accessibilityLabel={label}
+              accessibilityRole="button"
+              key={screen}
+              onPress={() => onSelectTab(screen)}
+              style={[
+                styles.primaryTabButton,
+                isActive
+                  ? styles.primaryTabButtonActive
+                  : styles.primaryTabButtonInactive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.primaryTabLabel,
+                  isActive
+                    ? styles.primaryTabLabelActive
+                    : styles.primaryTabLabelInactive,
+                ]}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -6789,7 +7715,12 @@ function TabButton({
         isActive ? styles.tabButtonActive : styles.tabButtonInactive,
       ]}
     >
-      <Text style={[styles.tabLabel, isActive ? styles.tabLabelActive : styles.tabLabelInactive]}>
+      <Text
+        style={[
+          styles.tabLabel,
+          isActive ? styles.tabLabelActive : styles.tabLabelInactive,
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -6831,7 +7762,11 @@ function TransactionCard({
     <ListItem
       subtitle={`${transaction.sourceApp} | ${formatCaptureMoment(transaction.capturedAt)}`}
       title={transaction.merchant}
-      trailing={<Text style={styles.transactionAmount}>{formatCurrency(transaction.amountMinor)}</Text>}
+      trailing={
+        <Text style={styles.transactionAmount}>
+          {formatCurrency(transaction.amountMinor)}
+        </Text>
+      }
     >
       <StatusChip
         label={
@@ -6855,7 +7790,9 @@ function TransactionCard({
       </Text>
 
       {hasSavedItemPreview ? (
-        <Text style={styles.helperCopy}>Saved preview: {transaction.items[0]?.label}</Text>
+        <Text style={styles.helperCopy}>
+          Saved preview: {transaction.items[0]?.label}
+        </Text>
       ) : null}
 
       <View style={styles.actionRow}>
@@ -6952,11 +7889,11 @@ function buildBudgetDefinitionFromDraft(
 
   const currentTimestamp = new Date().toISOString();
   const existingBudget = editingBudgetId
-    ? budgets.find((budget) => budget.id === editingBudgetId) ?? null
+    ? (budgets.find((budget) => budget.id === editingBudgetId) ?? null)
     : null;
   const selectedMerchant =
     draft.scope === 'merchant'
-      ? merchants.find((merchant) => merchant.id === draft.merchantId) ?? null
+      ? (merchants.find((merchant) => merchant.id === draft.merchantId) ?? null)
       : null;
   const nextBudget: BudgetDefinition = {
     createdAt: existingBudget?.createdAt ?? currentTimestamp,
@@ -7045,7 +7982,8 @@ function buildBudgetLabelFromDraft(
       return `${getCategoryLabel(draft.categoryId ?? 'misc', categories)} budget`;
     case 'merchant':
       return `${
-        merchants.find((merchant) => merchant.id === draft.merchantId)?.label ?? 'Merchant'
+        merchants.find((merchant) => merchant.id === draft.merchantId)?.label ??
+        'Merchant'
       } budget`;
     case 'item':
       return `${draft.itemLabel.trim() || 'Item'} budget`;
@@ -7106,7 +8044,9 @@ function formatBudgetPeriodLabel(budget: BudgetDefinition): string {
   }
 }
 
-function formatBudgetAlertStatusLabel(status: BudgetThresholdAlert['status']): string {
+function formatBudgetAlertStatusLabel(
+  status: BudgetThresholdAlert['status'],
+): string {
   switch (status) {
     case 'quieted':
       return 'Queued quietly';
@@ -7132,8 +8072,8 @@ function formatHourLabel(hour: number): string {
 
 function getSourceAppLabel(sourceAppId: SupportedSourceAppId): string {
   return (
-    SOURCE_APP_OPTIONS.find((sourceApp) => sourceApp.id === sourceAppId)?.label ??
-    'Unsupported app'
+    SOURCE_APP_OPTIONS.find((sourceApp) => sourceApp.id === sourceAppId)
+      ?.label ?? 'Unsupported app'
   );
 }
 
@@ -7142,7 +8082,9 @@ function formatSourceAppSummary(sourceAppIds: SupportedSourceAppId[]): string {
     return 'None selected';
   }
 
-  return sourceAppIds.map((sourceAppId) => getSourceAppLabel(sourceAppId)).join(', ');
+  return sourceAppIds
+    .map((sourceAppId) => getSourceAppLabel(sourceAppId))
+    .join(', ');
 }
 
 function getBudgetCycleLabel(budgetCycleId: BudgetCycleId): string {
@@ -7172,7 +8114,9 @@ function getInsightSectionTopRow(
   sections: InsightSection[],
   dimension: InsightSection['dimension'],
 ): InsightRow | null {
-  return sections.find((section) => section.dimension === dimension)?.rows[0] ?? null;
+  return (
+    sections.find((section) => section.dimension === dimension)?.rows[0] ?? null
+  );
 }
 
 function formatInsightDateRange(start: string, end: string): string {
@@ -7184,7 +8128,20 @@ function formatInsightDateRange(start: string, end: string): string {
 }
 
 function formatInsightDate(date: Date): string {
-  const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthLabels = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   const monthLabel = monthLabels[date.getMonth()] ?? 'Date';
 
   return `${monthLabel} ${date.getDate()}`;
@@ -7238,11 +8195,17 @@ function formatNativeCaptureMoment(capturedAtMs: number): string {
   return formatCaptureMoment(new Date(capturedAtMs).toISOString());
 }
 
-function formatDedupeKindLabel(dedupeKind: 'exact_duplicate' | 'fuzzy_duplicate'): string {
-  return dedupeKind === 'exact_duplicate' ? 'Exact duplicate' : 'Fuzzy duplicate';
+function formatDedupeKindLabel(
+  dedupeKind: 'exact_duplicate' | 'fuzzy_duplicate',
+): string {
+  return dedupeKind === 'exact_duplicate'
+    ? 'Exact duplicate'
+    : 'Fuzzy duplicate';
 }
 
-function formatNativeDedupeConfig(captureDiagnostics: NativeCaptureDiagnostics): string {
+function formatNativeDedupeConfig(
+  captureDiagnostics: NativeCaptureDiagnostics,
+): string {
   return `${captureDiagnostics.dedupeConfig.exactMatchWindowSeconds}s exact · ${captureDiagnostics.dedupeConfig.fuzzyMatchWindowSeconds}s fuzzy · threshold ${captureDiagnostics.dedupeConfig.merchantSimilarityThreshold.toFixed(2)}`;
 }
 
@@ -7265,7 +8228,9 @@ function buildEnabledParserTemplateSummaries(
 }
 
 function formatSourceAppIdsList(sourceAppIds: SupportedSourceAppId[]): string {
-  return sourceAppIds.map((sourceAppId) => getSourceAppLabel(sourceAppId)).join(', ');
+  return sourceAppIds
+    .map((sourceAppId) => getSourceAppLabel(sourceAppId))
+    .join(', ');
 }
 
 function formatRecentCaptureLogEntry(
@@ -7302,7 +8267,10 @@ function getBudgetCycleStartDay(budgetCycleId: BudgetCycleId): number {
 }
 
 function getSyncModeLabel(syncMode: SyncMode): string {
-  return SYNC_MODE_OPTIONS.find((option) => option.id === syncMode)?.label ?? 'Local-only for now';
+  return (
+    SYNC_MODE_OPTIONS.find((option) => option.id === syncMode)?.label ??
+    'Local-only for now'
+  );
 }
 
 function getCategoryLabel(
@@ -7344,9 +8312,12 @@ function getHistoryEventLabel(kind: TransactionHistoryEntry['kind']): string {
   }
 }
 
-function formatParserInfo(
-  parserInfo: TransactionParserInfo | null,
-): { confidence: string | null; label: string; note: string | null; version: string | null } {
+function formatParserInfo(parserInfo: TransactionParserInfo | null): {
+  confidence: string | null;
+  label: string;
+  note: string | null;
+  version: string | null;
+} {
   if (!parserInfo) {
     return {
       confidence: null,
@@ -7383,8 +8354,8 @@ function getSplitRemainderLabel(
   remainderDisposition: SplitRemainderDisposition,
 ): string {
   return (
-    SPLIT_REMAINDER_OPTIONS.find((option) => option.id === remainderDisposition)?.label ??
-    'Unknown'
+    SPLIT_REMAINDER_OPTIONS.find((option) => option.id === remainderDisposition)
+      ?.label ?? 'Unknown'
   );
 }
 
@@ -7457,7 +8428,8 @@ function areStoredSyncCredentialsEqual(
 
   return (
     currentCredentials.accessToken === nextCredentials.accessToken &&
-    currentCredentials.accessTokenExpiresAt === nextCredentials.accessTokenExpiresAt &&
+    currentCredentials.accessTokenExpiresAt ===
+      nextCredentials.accessTokenExpiresAt &&
     currentCredentials.apiBaseUrl === nextCredentials.apiBaseUrl &&
     currentCredentials.deviceId === nextCredentials.deviceId &&
     currentCredentials.refreshToken === nextCredentials.refreshToken &&
@@ -7467,10 +8439,14 @@ function areStoredSyncCredentialsEqual(
 
 function formatSyncConflictTitle(conflict: SyncConflictQueueEntry): string {
   const serverLabel =
-    (typeof conflict.serverState.label === 'string' && conflict.serverState.label) ||
-    (typeof conflict.serverState.merchant === 'string' && conflict.serverState.merchant) ||
-    (typeof conflict.serverState.alias === 'string' && conflict.serverState.alias) ||
-    (typeof conflict.serverState.itemLabel === 'string' && conflict.serverState.itemLabel) ||
+    (typeof conflict.serverState.label === 'string' &&
+      conflict.serverState.label) ||
+    (typeof conflict.serverState.merchant === 'string' &&
+      conflict.serverState.merchant) ||
+    (typeof conflict.serverState.alias === 'string' &&
+      conflict.serverState.alias) ||
+    (typeof conflict.serverState.itemLabel === 'string' &&
+      conflict.serverState.itemLabel) ||
     conflict.entityId;
 
   return `${getSyncEntityLabel(conflict.entityType)} · ${serverLabel}`;
@@ -7491,7 +8467,9 @@ function formatSyncConflictReason(conflict: SyncConflictQueueEntry): string {
   }
 }
 
-function getSyncEntityLabel(entityType: PersistedSyncState['entityVersions'][number]['entityType']): string {
+function getSyncEntityLabel(
+  entityType: PersistedSyncState['entityVersions'][number]['entityType'],
+): string {
   switch (entityType) {
     case 'budget':
       return 'Budget';
@@ -7714,6 +8692,9 @@ const styles = StyleSheet.create({
   inboxListContent: {
     paddingBottom: 40,
   },
+  inboxListContentWithPrimaryTabBar: {
+    paddingBottom: 120,
+  },
   inputStack: {
     gap: 14,
   },
@@ -7862,7 +8843,7 @@ const styles = StyleSheet.create({
   screenContent: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 72,
+    paddingTop: 28,
   },
   sheetBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -7902,6 +8883,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     gap: 20,
     paddingBottom: 40,
+  },
+  scrollContentWithPrimaryTabBar: {
+    paddingBottom: 120,
   },
   sectionAccent: {
     borderRadius: 20,
@@ -8034,6 +9018,46 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
     fontSize: 13,
     lineHeight: 18,
+  },
+  primaryTabBar: {
+    backgroundColor: colors.tabBarBackground,
+    borderColor: colors.tabBarBorder,
+    borderRadius: 28,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    padding: 8,
+    width: '100%',
+  },
+  primaryTabBarScene: {
+    bottom: 16,
+    left: 20,
+    position: 'absolute',
+    right: 20,
+  },
+  primaryTabButton: {
+    alignItems: 'center',
+    borderRadius: 22,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: 10,
+  },
+  primaryTabButtonActive: {
+    backgroundColor: colors.accentStrong,
+  },
+  primaryTabButtonInactive: {
+    backgroundColor: 'transparent',
+  },
+  primaryTabLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  primaryTabLabelActive: {
+    color: colors.panelStrong,
+  },
+  primaryTabLabelInactive: {
+    color: colors.accentText,
   },
   tabButton: {
     alignItems: 'center',

@@ -1,16 +1,14 @@
-import {
-  createContext,
-  type ReactNode,
-  useContext,
-} from 'react';
+import { createContext, type ReactNode, useContext } from 'react';
 import {
   Pressable,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   useColorScheme,
   View,
+  type ColorValue,
   type KeyboardTypeOptions,
   type TextInputProps,
   type StyleProp,
@@ -53,7 +51,11 @@ function getCardBackground(theme: MobileUiTheme, tone: CardTone): string {
   }
 }
 
-function getChipColors(theme: MobileUiTheme, tone: ChipTone, selected: boolean) {
+function getChipColors(
+  theme: MobileUiTheme,
+  tone: ChipTone,
+  selected: boolean,
+) {
   if (selected) {
     return {
       backgroundColor: theme.colors.accentStrong,
@@ -85,7 +87,11 @@ function getChipColors(theme: MobileUiTheme, tone: ChipTone, selected: boolean) 
   }
 }
 
-function getButtonColors(theme: MobileUiTheme, variant: ButtonVariant, disabled: boolean) {
+function getButtonColors(
+  theme: MobileUiTheme,
+  variant: ButtonVariant,
+  disabled: boolean,
+) {
   if (disabled) {
     return {
       backgroundColor: theme.colors.panel,
@@ -129,7 +135,9 @@ export function MobileUiThemeProvider({
   theme: MobileUiTheme;
 }) {
   return (
-    <MobileUiThemeContext.Provider value={theme}>{children}</MobileUiThemeContext.Provider>
+    <MobileUiThemeContext.Provider value={theme}>
+      {children}
+    </MobileUiThemeContext.Provider>
   );
 }
 
@@ -153,7 +161,9 @@ export function AppShell({
   title?: string;
 }) {
   const systemScheme = useColorScheme();
-  const theme = resolveTheme(themeName ?? (systemScheme === 'dark' ? 'dark' : 'light'));
+  const theme = resolveTheme(
+    themeName ?? (systemScheme === 'dark' ? 'dark' : 'light'),
+  );
   const headerVisible = Boolean(eyebrow || title || description);
 
   const body = (
@@ -161,11 +171,19 @@ export function AppShell({
       {headerVisible ? (
         <View style={styles.shellHeader}>
           {eyebrow ? (
-            <Text style={[styles.eyebrow, { color: theme.colors.inkMuted }]}>{eyebrow}</Text>
+            <Text style={[styles.eyebrow, { color: theme.colors.inkMuted }]}>
+              {eyebrow}
+            </Text>
           ) : null}
-          {title ? <Text style={[styles.heroTitle, { color: theme.colors.ink }]}>{title}</Text> : null}
+          {title ? (
+            <Text style={[styles.heroTitle, { color: theme.colors.ink }]}>
+              {title}
+            </Text>
+          ) : null}
           {description ? (
-            <Text style={[styles.heroDescription, { color: theme.colors.inkMuted }]}>
+            <Text
+              style={[styles.heroDescription, { color: theme.colors.inkMuted }]}
+            >
               {description}
             </Text>
           ) : null}
@@ -177,30 +195,41 @@ export function AppShell({
 
   return (
     <MobileUiThemeProvider theme={theme}>
-      <View
+      <SafeAreaView
         style={[styles.shellSafeArea, { backgroundColor: theme.colors.canvas }]}
         testID={testID}
       >
         <View
           pointerEvents="none"
-          style={[styles.shellGlowPrimary, { backgroundColor: theme.colors.glowPrimary }]}
+          style={[
+            styles.shellGlowPrimary,
+            { backgroundColor: theme.colors.glowPrimary },
+          ]}
         />
         <View
           pointerEvents="none"
-          style={[styles.shellGlowSecondary, { backgroundColor: theme.colors.glowSecondary }]}
+          style={[
+            styles.shellGlowSecondary,
+            { backgroundColor: theme.colors.glowSecondary },
+          ]}
         />
 
         {scrollable ? (
           <ScrollView
-            contentContainerStyle={[styles.shellScrollContent, contentContainerStyle]}
+            contentContainerStyle={[
+              styles.shellScrollContent,
+              contentContainerStyle,
+            ]}
             showsVerticalScrollIndicator={false}
           >
             {body}
           </ScrollView>
         ) : (
-          <View style={[styles.shellScrollContent, contentContainerStyle]}>{body}</View>
+          <View style={[styles.shellScrollContent, contentContainerStyle]}>
+            {body}
+          </View>
         )}
-      </View>
+      </SafeAreaView>
     </MobileUiThemeProvider>
   );
 }
@@ -211,7 +240,7 @@ export function Card({
   style,
   tone = 'default',
 }: {
-  accentColor?: string;
+  accentColor?: ColorValue;
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
   tone?: CardTone;
@@ -273,7 +302,9 @@ export function Button({
         style,
       ]}
     >
-      <Text style={[styles.buttonLabel, { color: colors.labelColor }]}>{label}</Text>
+      <Text style={[styles.buttonLabel, { color: colors.labelColor }]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -298,14 +329,23 @@ export function ListItem({
     <>
       <View style={styles.listItemHeader}>
         <View style={styles.listItemCopy}>
-          <Text style={[styles.listItemTitle, { color: theme.colors.ink }]}>{title}</Text>
+          <Text style={[styles.listItemTitle, { color: theme.colors.ink }]}>
+            {title}
+          </Text>
           {subtitle ? (
-            <Text style={[styles.listItemSubtitle, { color: theme.colors.inkMuted }]}>
+            <Text
+              style={[
+                styles.listItemSubtitle,
+                { color: theme.colors.inkMuted },
+              ]}
+            >
               {subtitle}
             </Text>
           ) : null}
         </View>
-        {trailing ? <View style={styles.listItemTrailing}>{trailing}</View> : null}
+        {trailing ? (
+          <View style={styles.listItemTrailing}>{trailing}</View>
+        ) : null}
       </View>
       {children ? <View style={styles.listItemBody}>{children}</View> : null}
     </>
@@ -369,7 +409,10 @@ export function BottomSheet({
         accessibilityLabel="Dismiss bottom sheet"
         accessibilityRole="button"
         onPress={onDismiss}
-        style={[styles.bottomSheetBackdrop, { backgroundColor: theme.colors.overlay }]}
+        style={[
+          styles.bottomSheetBackdrop,
+          { backgroundColor: theme.colors.overlay },
+        ]}
       />
       <View
         style={[
@@ -381,7 +424,12 @@ export function BottomSheet({
           },
         ]}
       >
-        <View style={[styles.bottomSheetHandle, { backgroundColor: theme.colors.edgeStrong }]} />
+        <View
+          style={[
+            styles.bottomSheetHandle,
+            { backgroundColor: theme.colors.edgeStrong },
+          ]}
+        />
         {children}
       </View>
     </View>
@@ -411,7 +459,11 @@ export function TextField({
 
   return (
     <View style={styles.textFieldStack}>
-      {label ? <Text style={[styles.fieldLabel, { color: theme.colors.ink }]}>{label}</Text> : null}
+      {label ? (
+        <Text style={[styles.fieldLabel, { color: theme.colors.ink }]}>
+          {label}
+        </Text>
+      ) : null}
       <TextInput
         autoCapitalize={autoCapitalize}
         keyboardType={keyboardType}
@@ -431,7 +483,9 @@ export function TextField({
         value={value}
       />
       {helperText ? (
-        <Text style={[styles.helperText, { color: theme.colors.inkMuted }]}>{helperText}</Text>
+        <Text style={[styles.helperText, { color: theme.colors.inkMuted }]}>
+          {helperText}
+        </Text>
       ) : null}
     </View>
   );
@@ -468,7 +522,9 @@ export function Chip({
           },
         ]}
       >
-        <Text style={[styles.chipLabel, { color: colors.labelColor }]}>{label}</Text>
+        <Text style={[styles.chipLabel, { color: colors.labelColor }]}>
+          {label}
+        </Text>
       </Pressable>
     );
   }
@@ -483,7 +539,9 @@ export function Chip({
         },
       ]}
     >
-      <Text style={[styles.chipLabel, { color: colors.labelColor }]}>{label}</Text>
+      <Text style={[styles.chipLabel, { color: colors.labelColor }]}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -502,11 +560,17 @@ export function EmptyState({
   return (
     <Card tone="positive">
       <View style={styles.emptyState}>
-        <Text style={[styles.listItemTitle, { color: theme.colors.ink }]}>{title}</Text>
-        <Text style={[styles.listItemSubtitle, { color: theme.colors.inkMuted }]}>
+        <Text style={[styles.listItemTitle, { color: theme.colors.ink }]}>
+          {title}
+        </Text>
+        <Text
+          style={[styles.listItemSubtitle, { color: theme.colors.inkMuted }]}
+        >
           {description}
         </Text>
-        {actions ? <View style={styles.emptyStateActions}>{actions}</View> : null}
+        {actions ? (
+          <View style={styles.emptyStateActions}>{actions}</View>
+        ) : null}
       </View>
     </Card>
   );
@@ -526,11 +590,17 @@ export function SectionHeader({
   return (
     <View style={styles.sectionHeader}>
       {eyebrow ? (
-        <Text style={[styles.eyebrow, { color: theme.colors.inkMuted }]}>{eyebrow}</Text>
+        <Text style={[styles.eyebrow, { color: theme.colors.inkMuted }]}>
+          {eyebrow}
+        </Text>
       ) : null}
-      <Text style={[styles.sectionTitle, { color: theme.colors.ink }]}>{title}</Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.ink }]}>
+        {title}
+      </Text>
       {description ? (
-        <Text style={[styles.sectionDescription, { color: theme.colors.inkMuted }]}>
+        <Text
+          style={[styles.sectionDescription, { color: theme.colors.inkMuted }]}
+        >
           {description}
         </Text>
       ) : null}
@@ -551,10 +621,16 @@ export function KPIBlock({
 
   return (
     <Card style={styles.kpiBlock}>
-      <Text style={[styles.kpiLabel, { color: theme.colors.inkMuted }]}>{label}</Text>
-      <Text style={[styles.kpiValue, { color: theme.colors.ink }]}>{value}</Text>
+      <Text style={[styles.kpiLabel, { color: theme.colors.inkMuted }]}>
+        {label}
+      </Text>
+      <Text style={[styles.kpiValue, { color: theme.colors.ink }]}>
+        {value}
+      </Text>
       {caption ? (
-        <Text style={[styles.helperText, { color: theme.colors.inkMuted }]}>{caption}</Text>
+        <Text style={[styles.helperText, { color: theme.colors.inkMuted }]}>
+          {caption}
+        </Text>
       ) : null}
     </Card>
   );
@@ -761,7 +837,7 @@ const styles = StyleSheet.create({
   shellScrollContent: {
     paddingBottom: 40,
     paddingHorizontal: 20,
-    paddingTop: 72,
+    paddingTop: 32,
   },
   textField: {
     borderRadius: designTokens.radius.md,

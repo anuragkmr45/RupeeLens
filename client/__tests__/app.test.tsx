@@ -1,4 +1,10 @@
-import { act, fireEvent, render, waitFor, type RenderAPI } from '@testing-library/react-native';
+import {
+  act,
+  fireEvent,
+  render,
+  waitFor,
+  type RenderAPI,
+} from '@testing-library/react-native';
 import { Alert, AppState, Linking, Share } from 'react-native';
 
 import App from '../App';
@@ -31,6 +37,15 @@ import {
   saveStoredSyncState,
 } from '../src/features/sync/persistence';
 import type { StoredSyncCredentials } from '../src/features/sync/session';
+
+jest.mock('../src/lib/platform-capabilities', () => ({
+  getPlatformCapabilities: jest.fn(() => ({
+    platform: 'android',
+    prefersBottomPrimaryNavigation: false,
+    supportsNativeCaptureDiagnostics: true,
+    supportsNativeNotificationCapture: true,
+  })),
+}));
 
 jest.mock('../src/features/spend-tracker/persistence', () => ({
   DEFAULT_ONBOARDING_PREFERENCES: {
@@ -101,7 +116,8 @@ jest.mock('expo-file-system/legacy', () => ({
 jest.mock('../src/features/bootstrap-config/runtime-config', () => ({
   buildBootstrapRefreshFailureState: jest.fn((currentState, error) => ({
     ...currentState,
-    lastError: error instanceof Error ? error.message : 'Bootstrap refresh failed.',
+    lastError:
+      error instanceof Error ? error.message : 'Bootstrap refresh failed.',
     message: 'Using stale cached config while refresh retries.',
     status: 'stale',
   })),
@@ -151,7 +167,11 @@ jest.mock('../src/features/bootstrap-config/runtime-config', () => ({
     status: 'loading',
   })),
   formatRolloutChannel: jest.fn((channel: string) =>
-    channel === 'beta' ? 'Beta' : channel === 'internal' ? 'Internal' : 'Production',
+    channel === 'beta'
+      ? 'Beta'
+      : channel === 'internal'
+        ? 'Internal'
+        : 'Production',
   ),
   getDefaultBootstrapConfigQuery: jest.fn(() => ({
     appVersion: '1.0.0',
@@ -210,10 +230,11 @@ jest.mock('../src/features/bootstrap-config/runtime-config', () => ({
     source: 'cache',
     status: 'fresh',
   }),
-  isRemoteCapturePaused: jest.fn((config) =>
-    !config.featureFlags.notification_capture_enabled ||
-    config.parserConfig.parserKillSwitch ||
-    config.runtimeCompatibility?.compatible === false,
+  isRemoteCapturePaused: jest.fn(
+    (config) =>
+      !config.featureFlags.notification_capture_enabled ||
+      config.parserConfig.parserKillSwitch ||
+      config.runtimeCompatibility?.compatible === false,
   ),
   refreshBootstrapConfig: jest.fn().mockResolvedValue({
     config: {
@@ -389,21 +410,36 @@ jest.mock('../src/features/android-capture/native-capture', () => ({
 }));
 
 const mockedLoadStoredSpendTrackerState =
-  loadStoredSpendTrackerState as jest.MockedFunction<typeof loadStoredSpendTrackerState>;
+  loadStoredSpendTrackerState as jest.MockedFunction<
+    typeof loadStoredSpendTrackerState
+  >;
 const mockedSaveStoredSpendTrackerState =
-  saveStoredSpendTrackerState as jest.MockedFunction<typeof saveStoredSpendTrackerState>;
-const mockedLoadStoredSyncState =
-  loadStoredSyncState as jest.MockedFunction<typeof loadStoredSyncState>;
+  saveStoredSpendTrackerState as jest.MockedFunction<
+    typeof saveStoredSpendTrackerState
+  >;
+const mockedLoadStoredSyncState = loadStoredSyncState as jest.MockedFunction<
+  typeof loadStoredSyncState
+>;
 const mockedLoadStoredSyncCredentials =
-  loadStoredSyncCredentials as jest.MockedFunction<typeof loadStoredSyncCredentials>;
+  loadStoredSyncCredentials as jest.MockedFunction<
+    typeof loadStoredSyncCredentials
+  >;
 const mockedSaveStoredSyncCredentials =
-  saveStoredSyncCredentials as jest.MockedFunction<typeof saveStoredSyncCredentials>;
-const mockedSaveStoredSyncState =
-  saveStoredSyncState as jest.MockedFunction<typeof saveStoredSyncState>;
-const mockedSyncSessionModule = jest.requireMock('../src/features/sync/session') as {
+  saveStoredSyncCredentials as jest.MockedFunction<
+    typeof saveStoredSyncCredentials
+  >;
+const mockedSaveStoredSyncState = saveStoredSyncState as jest.MockedFunction<
+  typeof saveStoredSyncState
+>;
+const mockedSyncSessionModule = jest.requireMock(
+  '../src/features/sync/session',
+) as {
   consumeSyncPairingCode: jest.Mock<Promise<StoredSyncCredentials>, [unknown]>;
   createGuestSyncSession: jest.Mock<Promise<StoredSyncCredentials>, [unknown]>;
-  createSyncPairingCode: jest.Mock<Promise<{ expiresAt: string; pairingCode: string }>, [unknown]>;
+  createSyncPairingCode: jest.Mock<
+    Promise<{ expiresAt: string; pairingCode: string }>,
+    [unknown]
+  >;
   ensureFreshSyncCredentials: jest.Mock<
     Promise<StoredSyncCredentials>,
     [
@@ -416,37 +452,80 @@ const mockedSyncSessionModule = jest.requireMock('../src/features/sync/session')
   >;
 };
 const mockedBootstrapConfigModule = jest.requireMock(
-  '../src/features/bootstrap-config/runtime-config'
+  '../src/features/bootstrap-config/runtime-config',
 ) as {
-  hydrateBootstrapConfigCache: jest.Mock<Promise<BootstrapConfigState | null>, []>;
+  hydrateBootstrapConfigCache: jest.Mock<
+    Promise<BootstrapConfigState | null>,
+    []
+  >;
   refreshBootstrapConfig: jest.Mock<Promise<BootstrapConfigState>, []>;
 };
 const mockedNativeCaptureModule = jest.requireMock(
-  '../src/features/android-capture/native-capture'
+  '../src/features/android-capture/native-capture',
 ) as {
-  getNativeCaptureEvent: jest.Mock<Promise<NativeCaptureEventRecord | null>, [number]>;
+  getNativeCaptureEvent: jest.Mock<
+    Promise<NativeCaptureEventRecord | null>,
+    [number]
+  >;
   getNativeCaptureDiagnostics: jest.Mock<Promise<NativeCaptureDiagnostics>, []>;
-  getPendingNativeCaptureEvents: jest.Mock<Promise<NativeCaptureEventRecord[]>, [number?]>;
+  getPendingNativeCaptureEvents: jest.Mock<
+    Promise<NativeCaptureEventRecord[]>,
+    [number?]
+  >;
   markNativeCaptureImportFailed: jest.Mock<Promise<void>, [number, string]>;
   markNativeCaptureImported: jest.Mock<Promise<void>, [number, string]>;
   setNativeCaptureDedupeConfig: jest.Mock<
     Promise<NativeCaptureDiagnostics>,
     [NativeCaptureDedupeConfig]
   >;
-  setAllowedSourceApps: jest.Mock<Promise<NativeCaptureDiagnostics>, [string[]]>;
-  setNativeCapturePrivacyModeEnabled: jest.Mock<Promise<NativeCaptureDiagnostics>, [boolean]>;
-  subscribeToPendingCaptureEvents: jest.Mock<() => void, [(captureEventId: number | null) => void]>;
+  setAllowedSourceApps: jest.Mock<
+    Promise<NativeCaptureDiagnostics>,
+    [string[]]
+  >;
+  setNativeCapturePrivacyModeEnabled: jest.Mock<
+    Promise<NativeCaptureDiagnostics>,
+    [boolean]
+  >;
+  subscribeToPendingCaptureEvents: jest.Mock<
+    () => void,
+    [(captureEventId: number | null) => void]
+  >;
 };
 const mockedFileSystem = jest.requireMock('expo-file-system/legacy') as {
-  writeAsStringAsync: jest.Mock<Promise<void>, [string, string, { encoding: string }]>;
+  writeAsStringAsync: jest.Mock<
+    Promise<void>,
+    [string, string, { encoding: string }]
+  >;
 };
-const mockedTelemetryModule = jest.requireMock('../src/features/telemetry/runtime') as {
+const mockedPlatformCapabilitiesModule = jest.requireMock(
+  '../src/lib/platform-capabilities',
+) as {
+  getPlatformCapabilities: jest.Mock<
+    {
+      platform: 'android' | 'ios';
+      prefersBottomPrimaryNavigation: boolean;
+      supportsNativeCaptureDiagnostics: boolean;
+      supportsNativeNotificationCapture: boolean;
+    },
+    []
+  >;
+};
+const mockedTelemetryModule = jest.requireMock(
+  '../src/features/telemetry/runtime',
+) as {
   enqueueTelemetryEvent: jest.Mock<Promise<number>, [unknown]>;
   flushTelemetryEvents: jest.Mock<
-    Promise<{ acceptedCount: number; duplicateCount: number; remainingCount: number }>,
+    Promise<{
+      acceptedCount: number;
+      duplicateCount: number;
+      remainingCount: number;
+    }>,
     [unknown]
   >;
-  installGlobalTelemetryErrorHandler: jest.Mock<() => void, [(error: unknown, isFatal: boolean) => void]>;
+  installGlobalTelemetryErrorHandler: jest.Mock<
+    () => void,
+    [(error: unknown, isFatal: boolean) => void]
+  >;
 };
 
 function buildMockBootstrapState(
@@ -496,6 +575,20 @@ function buildMockBootstrapState(
     message: 'Loaded cached beta bootstrap config instantly.',
     source: 'cache',
     status: 'fresh',
+    ...overrides,
+  };
+}
+
+function buildMockPlatformCapabilities(
+  overrides: Partial<
+    ReturnType<typeof mockedPlatformCapabilitiesModule.getPlatformCapabilities>
+  > = {},
+) {
+  return {
+    platform: 'android' as const,
+    prefersBottomPrimaryNavigation: false,
+    supportsNativeCaptureDiagnostics: true,
+    supportsNativeNotificationCapture: true,
     ...overrides,
   };
 }
@@ -556,7 +649,9 @@ function buildMockNativeCaptureEvent(
   };
 }
 
-function buildHighVolumeInboxTransactions(totalTransactions = 1_000): Transaction[] {
+function buildHighVolumeInboxTransactions(
+  totalTransactions = 1_000,
+): Transaction[] {
   return [
     {
       amountMinor: 79900,
@@ -650,15 +745,30 @@ type EnsureFreshSyncCredentialsArgs = Parameters<
 >[0];
 
 describe('App', () => {
+  let originalConsoleWarn: typeof console.warn;
+
   beforeEach(() => {
+    originalConsoleWarn = console.warn;
     jest.clearAllMocks();
+    jest.spyOn(console, 'warn').mockImplementation((message, ...args) => {
+      if (
+        typeof message === 'string' &&
+        message.includes('SafeAreaView has been deprecated')
+      ) {
+        return;
+      }
+
+      originalConsoleWarn(message, ...args);
+    });
     jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(null);
     jest
       .spyOn(Linking, 'addEventListener')
       .mockImplementation(
         () =>
-          ({ remove: jest.fn() }) as unknown as ReturnType<typeof Linking.addEventListener>,
-    );
+          ({ remove: jest.fn() }) as unknown as ReturnType<
+            typeof Linking.addEventListener
+          >,
+      );
     mockedLoadStoredSpendTrackerState.mockResolvedValue(null);
     mockedSaveStoredSpendTrackerState.mockResolvedValue(undefined);
     mockedLoadStoredSyncCredentials.mockResolvedValue(null);
@@ -684,12 +794,19 @@ describe('App', () => {
       buildMockCaptureDiagnostics(),
     );
     mockedNativeCaptureModule.getNativeCaptureEvent.mockResolvedValue(null);
-    mockedNativeCaptureModule.getPendingNativeCaptureEvents.mockResolvedValue([]);
-    mockedNativeCaptureModule.markNativeCaptureImportFailed.mockResolvedValue(undefined);
-    mockedNativeCaptureModule.markNativeCaptureImported.mockResolvedValue(undefined);
+    mockedNativeCaptureModule.getPendingNativeCaptureEvents.mockResolvedValue(
+      [],
+    );
+    mockedNativeCaptureModule.markNativeCaptureImportFailed.mockResolvedValue(
+      undefined,
+    );
+    mockedNativeCaptureModule.markNativeCaptureImported.mockResolvedValue(
+      undefined,
+    );
     mockedNativeCaptureModule.setNativeCaptureDedupeConfig.mockImplementation(
       async (dedupeConfig) => {
-        const diagnostics = await mockedNativeCaptureModule.getNativeCaptureDiagnostics();
+        const diagnostics =
+          await mockedNativeCaptureModule.getNativeCaptureDiagnostics();
 
         return {
           ...diagnostics,
@@ -697,18 +814,24 @@ describe('App', () => {
         };
       },
     );
-    mockedNativeCaptureModule.setAllowedSourceApps.mockImplementation(async (sourceAppIds) => {
-      const diagnostics = await mockedNativeCaptureModule.getNativeCaptureDiagnostics();
+    mockedNativeCaptureModule.setAllowedSourceApps.mockImplementation(
+      async (sourceAppIds) => {
+        const diagnostics =
+          await mockedNativeCaptureModule.getNativeCaptureDiagnostics();
 
-      return {
-        ...diagnostics,
-        allowedSourceAppIds: sourceAppIds as NativeCaptureDiagnostics['allowedSourceAppIds'],
-      };
-    });
-    mockedNativeCaptureModule.setNativeCapturePrivacyModeEnabled.mockImplementation(async () =>
-      mockedNativeCaptureModule.getNativeCaptureDiagnostics(),
+        return {
+          ...diagnostics,
+          allowedSourceAppIds:
+            sourceAppIds as NativeCaptureDiagnostics['allowedSourceAppIds'],
+        };
+      },
     );
-    mockedNativeCaptureModule.subscribeToPendingCaptureEvents.mockReturnValue(jest.fn());
+    mockedNativeCaptureModule.setNativeCapturePrivacyModeEnabled.mockImplementation(
+      async () => mockedNativeCaptureModule.getNativeCaptureDiagnostics(),
+    );
+    mockedNativeCaptureModule.subscribeToPendingCaptureEvents.mockReturnValue(
+      jest.fn(),
+    );
     mockedBootstrapConfigModule.hydrateBootstrapConfigCache.mockResolvedValue(
       buildMockBootstrapState(),
     );
@@ -743,7 +866,12 @@ describe('App', () => {
       duplicateCount: 0,
       remainingCount: 0,
     });
-    mockedTelemetryModule.installGlobalTelemetryErrorHandler.mockReturnValue(jest.fn());
+    mockedTelemetryModule.installGlobalTelemetryErrorHandler.mockReturnValue(
+      jest.fn(),
+    );
+    mockedPlatformCapabilitiesModule.getPlatformCapabilities.mockReturnValue(
+      buildMockPlatformCapabilities(),
+    );
   });
 
   afterEach(() => {
@@ -754,7 +882,9 @@ describe('App', () => {
     const screen = render(<App />);
 
     expect(screen.getByText('UPI Spend Tracker')).toBeTruthy();
-    expect(screen.getByText('Restoring saved state on this device')).toBeTruthy();
+    expect(
+      screen.getByText('Restoring saved state on this device'),
+    ).toBeTruthy();
 
     await act(async () => {
       await Promise.resolve();
@@ -774,9 +904,10 @@ describe('App', () => {
       expect(mockedTelemetryModule.enqueueTelemetryEvent).toHaveBeenCalled();
     });
 
-    const eventNames = mockedTelemetryModule.enqueueTelemetryEvent.mock.calls.map(
-      ([event]) => (event as { eventName: string }).eventName,
-    );
+    const eventNames =
+      mockedTelemetryModule.enqueueTelemetryEvent.mock.calls.map(
+        ([event]) => (event as { eventName: string }).eventName,
+      );
 
     expect(eventNames).toContain('onboarding_completed');
     expect(eventNames).toContain('notification_permission_denied');
@@ -817,7 +948,9 @@ describe('App', () => {
     expect(screen.getByText('Top items')).toBeTruthy();
     expect(screen.getByText('Create budget')).toBeTruthy();
     expect(screen.getByText('1 pending')).toBeTruthy();
-    expect(screen.getByText('Settings opened, permission still pending')).toBeTruthy();
+    expect(
+      screen.getByText('Settings opened, permission still pending'),
+    ).toBeTruthy();
   });
 
   it('shows the local sync queue honestly when sync mode is enabled before pairing exists', async () => {
@@ -919,11 +1052,17 @@ describe('App', () => {
 
     const screen = await renderApp();
 
-    fireEvent.press(await screen.findByRole('button', { name: 'Open settings' }));
-    fireEvent.press(await screen.findByRole('button', { name: 'Create sync session' }));
+    fireEvent.press(
+      await screen.findByRole('button', { name: 'Open settings' }),
+    );
+    fireEvent.press(
+      await screen.findByRole('button', { name: 'Create sync session' }),
+    );
 
     await waitFor(() =>
-      expect(mockedSyncSessionModule.createGuestSyncSession).toHaveBeenCalledWith({
+      expect(
+        mockedSyncSessionModule.createGuestSyncSession,
+      ).toHaveBeenCalledWith({
         deviceName: 'Android device',
       }),
     );
@@ -950,15 +1089,23 @@ describe('App', () => {
         },
       }),
     );
-    mockedLoadStoredSyncCredentials.mockResolvedValue(buildStoredSyncCredentials());
+    mockedLoadStoredSyncCredentials.mockResolvedValue(
+      buildStoredSyncCredentials(),
+    );
 
     const screen = await renderApp();
 
-    fireEvent.press(await screen.findByRole('button', { name: 'Open settings' }));
-    fireEvent.press(await screen.findByRole('button', { name: 'Generate pairing code' }));
+    fireEvent.press(
+      await screen.findByRole('button', { name: 'Open settings' }),
+    );
+    fireEvent.press(
+      await screen.findByRole('button', { name: 'Generate pairing code' }),
+    );
 
     await waitFor(() =>
-      expect(mockedSyncSessionModule.createSyncPairingCode).toHaveBeenCalledWith({
+      expect(
+        mockedSyncSessionModule.createSyncPairingCode,
+      ).toHaveBeenCalledWith({
         credentials: buildStoredSyncCredentials(),
       }),
     );
@@ -977,7 +1124,9 @@ describe('App', () => {
 
     expect(await screen.findByText('Mobile UI primitives')).toBeTruthy();
     expect(screen.getByText('Foundation preview')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Back to home' }).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole('button', { name: 'Back to home' }).length,
+    ).toBeGreaterThan(0);
   });
 
   it('creates a local budget from the budgets screen when the rollout flag is enabled', async () => {
@@ -1039,7 +1188,9 @@ describe('App', () => {
 
     fireEvent.press(screen.getByRole('button', { name: 'Insights' }));
 
-    expect(await screen.findByText('See where the current cycle is moving')).toBeTruthy();
+    expect(
+      await screen.findByText('See where the current cycle is moving'),
+    ).toBeTruthy();
     expect(screen.getByText('Trend cards')).toBeTruthy();
     expect(screen.getByText('Category rollup')).toBeTruthy();
     expect(screen.getByText('Merchant rollup')).toBeTruthy();
@@ -1084,13 +1235,17 @@ describe('App', () => {
 
     expect(await screen.findByText('Remote bootstrap config')).toBeTruthy();
     expect(screen.getByText('Stale cached config')).toBeTruthy();
-    expect(screen.getByText('Last refresh issue: Network request failed')).toBeTruthy();
+    expect(
+      screen.getByText('Last refresh issue: Network request failed'),
+    ).toBeTruthy();
     expect(screen.getByText('Capture paused remotely')).toBeTruthy();
     expect(
-      screen.getByRole('button', { name: 'View UI showcase' }).props.accessibilityState?.disabled,
+      screen.getByRole('button', { name: 'View UI showcase' }).props
+        .accessibilityState?.disabled,
     ).toBe(true);
     expect(
-      screen.getByRole('button', { name: 'Search' }).props.accessibilityState?.disabled,
+      screen.getByRole('button', { name: 'Search' }).props.accessibilityState
+        ?.disabled,
     ).toBe(true);
   });
 
@@ -1110,10 +1265,14 @@ describe('App', () => {
     const screen = await renderApp();
 
     expect(await screen.findByText('Source apps')).toBeTruthy();
-    expect(screen.getByText('Settings opened, permission still pending')).toBeTruthy();
+    expect(
+      screen.getByText('Settings opened, permission still pending'),
+    ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'BHIM' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Salary cycle' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Prepare for sync later' })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Prepare for sync later' }),
+    ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Finish setup' })).toBeTruthy();
   });
 
@@ -1126,7 +1285,9 @@ describe('App', () => {
     fireEvent.press(screen.getByRole('button', { name: 'BHIM' }));
 
     await waitFor(() =>
-      expect(mockedNativeCaptureModule.setAllowedSourceApps).toHaveBeenLastCalledWith(['bhim']),
+      expect(
+        mockedNativeCaptureModule.setAllowedSourceApps,
+      ).toHaveBeenLastCalledWith(['bhim']),
     );
     expect(screen.getByText('Native allowlist: BHIM')).toBeTruthy();
   });
@@ -1170,9 +1331,15 @@ describe('App', () => {
       ],
     });
 
-    mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(diagnostics);
-    mockedNativeCaptureModule.setNativeCaptureDedupeConfig.mockResolvedValue(diagnostics);
-    mockedNativeCaptureModule.setAllowedSourceApps.mockResolvedValue(diagnostics);
+    mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(
+      diagnostics,
+    );
+    mockedNativeCaptureModule.setNativeCaptureDedupeConfig.mockResolvedValue(
+      diagnostics,
+    );
+    mockedNativeCaptureModule.setAllowedSourceApps.mockResolvedValue(
+      diagnostics,
+    );
 
     const screen = await renderApp();
 
@@ -1182,13 +1349,44 @@ describe('App', () => {
     expect(screen.getByText('Listener permission: granted')).toBeTruthy();
     expect(screen.getByText('Allowed source apps: Google Pay')).toBeTruthy();
     expect(screen.getByText('Stored raw captures: 3')).toBeTruthy();
-    expect(screen.getByText('Suppressed duplicates: 2 exact, 1 fuzzy')).toBeTruthy();
     expect(
-      screen.getByText('Dedupe config: 120s exact · 300s fuzzy · threshold 0.88'),
+      screen.getByText('Suppressed duplicates: 2 exact, 1 fuzzy'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Dedupe config: 120s exact · 300s fuzzy · threshold 0.88',
+      ),
     ).toBeTruthy();
     expect(screen.getByText('Supported parsers: 1')).toBeTruthy();
     expect(screen.getByText('Recent parse failures: 1')).toBeTruthy();
     expect(screen.getByText(/Last dedupe: Exact duplicate/)).toBeTruthy();
+  });
+
+  it('renders the iPhone shell as manual/local-only without Android diagnostics', async () => {
+    mockedPlatformCapabilitiesModule.getPlatformCapabilities.mockReturnValue(
+      buildMockPlatformCapabilities({
+        platform: 'ios',
+        prefersBottomPrimaryNavigation: true,
+        supportsNativeCaptureDiagnostics: false,
+        supportsNativeNotificationCapture: false,
+      }),
+    );
+
+    const screen = await renderApp();
+
+    expect(await screen.findByText('iPhone capture mode')).toBeTruthy();
+    expect(screen.getByText('Manual review only on iPhone')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Open app settings' }),
+    ).toBeTruthy();
+
+    fireEvent.press(screen.getByText('Continue in local-only mode'));
+
+    expect(await screen.findByText('iPhone capture mode')).toBeTruthy();
+    expect(screen.queryByText('Android capture diagnostics')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Open support details' }),
+    ).toBeTruthy();
   });
 
   it('opens the diagnostics screen from Home and shows parser and failure details', async () => {
@@ -1230,34 +1428,52 @@ describe('App', () => {
       ],
     });
 
-    mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(diagnostics);
-    mockedNativeCaptureModule.setNativeCaptureDedupeConfig.mockResolvedValue(diagnostics);
-    mockedNativeCaptureModule.setAllowedSourceApps.mockResolvedValue(diagnostics);
+    mockedNativeCaptureModule.getNativeCaptureDiagnostics.mockResolvedValue(
+      diagnostics,
+    );
+    mockedNativeCaptureModule.setNativeCaptureDedupeConfig.mockResolvedValue(
+      diagnostics,
+    );
+    mockedNativeCaptureModule.setAllowedSourceApps.mockResolvedValue(
+      diagnostics,
+    );
 
     const screen = await renderApp();
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
     fireEvent.press(screen.getByRole('button', { name: 'Open diagnostics' }));
 
-    expect(await screen.findByText('Support-ready native capture status')).toBeTruthy();
-    expect(screen.getByText('Native google_pay_v1 v1.0.0 · Google Pay')).toBeTruthy();
+    expect(
+      await screen.findByText('Support-ready native capture status'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText('Native google_pay_v1 v1.0.0 · Google Pay'),
+    ).toBeTruthy();
     expect(
       screen.getByText('Native generic_upi_v1 v1.0.0 · Google Pay, PhonePe'),
     ).toBeTruthy();
     expect(
-      screen.getByText(/Reason: merchant_not_found · Trace: generic_upi_v1:merchant_not_found/),
+      screen.getByText(
+        /Reason: merchant_not_found · Trace: generic_upi_v1:merchant_not_found/,
+      ),
     ).toBeTruthy();
     expect(
       screen.getByText('success · captured · google_pay_v1 v1.0.0'),
     ).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Share redacted bundle' })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Share redacted bundle' }),
+    ).toBeTruthy();
   });
 
   it('opens Settings, persists local preferences, and exposes export and diagnostics entrypoints', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const alertSpy = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(() => undefined);
     const shareSpy = jest
       .spyOn(Share, 'share')
-      .mockResolvedValue({ action: 'sharedAction' } as Awaited<ReturnType<typeof Share.share>>);
+      .mockResolvedValue({ action: 'sharedAction' } as Awaited<
+        ReturnType<typeof Share.share>
+      >);
 
     try {
       const screen = await renderApp();
@@ -1265,11 +1481,15 @@ describe('App', () => {
       fireEvent.press(await screen.findByText('Continue in local-only mode'));
       fireEvent.press(screen.getAllByRole('button', { name: 'Settings' })[0]!);
 
-      expect(await screen.findByText('Capture, privacy, and support controls')).toBeTruthy();
+      expect(
+        await screen.findByText('Capture, privacy, and support controls'),
+      ).toBeTruthy();
 
       fireEvent.press(screen.getByRole('button', { name: 'BHIM' }));
       fireEvent.press(screen.getByRole('button', { name: 'Salary cycle' }));
-      fireEvent.press(screen.getByRole('button', { name: 'Prepare for sync later' }));
+      fireEvent.press(
+        screen.getByRole('button', { name: 'Prepare for sync later' }),
+      );
       fireEvent.press(screen.getByRole('button', { name: 'Mask previews' }));
 
       await waitFor(() =>
@@ -1300,8 +1520,12 @@ describe('App', () => {
         }),
       );
 
-      fireEvent.press(screen.getByRole('button', { name: 'Export local backup' }));
-      await waitFor(() => expect(mockedFileSystem.writeAsStringAsync).toHaveBeenCalledTimes(2));
+      fireEvent.press(
+        screen.getByRole('button', { name: 'Export local backup' }),
+      );
+      await waitFor(() =>
+        expect(mockedFileSystem.writeAsStringAsync).toHaveBeenCalledTimes(2),
+      );
       expect(mockedFileSystem.writeAsStringAsync.mock.calls[1]?.[0]).toContain(
         'upi-spend-tracker-local-backup-',
       );
@@ -1316,7 +1540,9 @@ describe('App', () => {
       );
 
       fireEvent.press(screen.getByRole('button', { name: 'Open diagnostics' }));
-      expect(await screen.findByText('Support-ready native capture status')).toBeTruthy();
+      expect(
+        await screen.findByText('Support-ready native capture status'),
+      ).toBeTruthy();
     } finally {
       alertSpy.mockRestore();
       shareSpy.mockRestore();
@@ -1329,7 +1555,9 @@ describe('App', () => {
       .spyOn(AppState, 'addEventListener')
       .mockImplementation((_type, listener) => {
         appStateListener = listener as (nextAppState: string) => void;
-        return { remove: jest.fn() } as ReturnType<typeof AppState.addEventListener>;
+        return { remove: jest.fn() } as ReturnType<
+          typeof AppState.addEventListener
+        >;
       });
 
     try {
@@ -1345,14 +1573,18 @@ describe('App', () => {
         appStateListener?.('background');
       });
 
-      expect(await screen.findByText('Content hidden for app previews')).toBeTruthy();
+      expect(
+        await screen.findByText('Content hidden for app previews'),
+      ).toBeTruthy();
 
       await act(async () => {
         appStateListener?.('active');
       });
 
       await waitFor(() =>
-        expect(screen.queryByText('Content hidden for app previews')).toBeNull(),
+        expect(
+          screen.queryByText('Content hidden for app previews'),
+        ).toBeNull(),
       );
     } finally {
       addEventListenerSpy.mockRestore();
@@ -1363,7 +1595,9 @@ describe('App', () => {
     await renderApp();
 
     await waitFor(() =>
-      expect(mockedNativeCaptureModule.setNativeCaptureDedupeConfig).toHaveBeenCalledWith({
+      expect(
+        mockedNativeCaptureModule.setNativeCaptureDedupeConfig,
+      ).toHaveBeenCalledWith({
         exactMatchWindowSeconds: 120,
         fuzzyMatchWindowSeconds: 300,
         merchantSimilarityThreshold: 0.88,
@@ -1379,7 +1613,9 @@ describe('App', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Deselect all' }));
     fireEvent.press(screen.getByRole('button', { name: 'BHIM' }));
     fireEvent.press(screen.getByRole('button', { name: 'Salary cycle' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Prepare for sync later' }));
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Prepare for sync later' }),
+    );
 
     await waitFor(() =>
       expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
@@ -1411,10 +1647,17 @@ describe('App', () => {
     expect(screen.getByText('Inbox for unresolved spend')).toBeTruthy();
     expect(screen.getByText('Blue Tokai Roasters')).toBeTruthy();
 
-    fireEvent.press(screen.getByRole('button', { name: 'Classify Blue Tokai Roasters' }));
-    fireEvent.changeText(screen.getByPlaceholderText('What did you buy?'), 'Cold brew');
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Classify Blue Tokai Roasters' }),
+    );
+    fireEvent.changeText(
+      screen.getByPlaceholderText('What did you buy?'),
+      'Cold brew',
+    );
     fireEvent.press(screen.getByRole('button', { name: 'Food & Drink' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Save classification' }));
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Save classification' }),
+    );
 
     expect(screen.queryByText('Blue Tokai Roasters')).toBeNull();
     expect(screen.getByText('Blinkit')).toBeTruthy();
@@ -1451,7 +1694,10 @@ describe('App', () => {
 
     expect(await screen.findByText('Inbox for unresolved spend')).toBeTruthy();
 
-    fireEvent.changeText(screen.getByPlaceholderText('Filter by merchant'), 'blue');
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Filter by merchant'),
+      'blue',
+    );
     expect(screen.getByText('Blue Tokai Roasters')).toBeTruthy();
     expect(screen.queryByText('Blinkit')).toBeNull();
 
@@ -1461,27 +1707,38 @@ describe('App', () => {
     expect(screen.queryByText('Blinkit')).toBeNull();
 
     fireEvent.press(screen.getByRole('button', { name: 'Clear filters' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Skip Blue Tokai Roasters for now' }));
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Skip Blue Tokai Roasters for now' }),
+    );
 
     expect(screen.queryByText('Blue Tokai Roasters')).toBeNull();
     expect(screen.getByText('Blinkit')).toBeTruthy();
 
     fireEvent.press(screen.getByRole('button', { name: 'Skipped' }));
     expect(await screen.findByText('Blue Tokai Roasters')).toBeTruthy();
-    fireEvent.press(screen.getByRole('button', { name: 'Review Blue Tokai Roasters again' }));
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Review Blue Tokai Roasters again' }),
+    );
 
     expect(screen.queryByText('Blue Tokai Roasters')).toBeNull();
     fireEvent.press(screen.getByRole('button', { name: 'Needs review' }));
     expect(await screen.findByText('Blue Tokai Roasters')).toBeTruthy();
 
-    fireEvent.press(screen.getByRole('button', { name: 'Delete Blue Tokai Roasters locally' }));
+    fireEvent.press(
+      screen.getByRole('button', {
+        name: 'Delete Blue Tokai Roasters locally',
+      }),
+    );
     expect(screen.queryByText('Blue Tokai Roasters')).toBeNull();
 
     await waitFor(() => {
-      const lastSavedState = mockedSaveStoredSpendTrackerState.mock.calls.at(-1)?.[0];
+      const lastSavedState =
+        mockedSaveStoredSpendTrackerState.mock.calls.at(-1)?.[0];
       expect(lastSavedState).toBeDefined();
       expect(
-        lastSavedState?.transactions.find((transaction) => transaction.id === 'txn_blue_tokai'),
+        lastSavedState?.transactions.find(
+          (transaction) => transaction.id === 'txn_blue_tokai',
+        ),
       ).toBeUndefined();
     });
   });
@@ -1504,32 +1761,45 @@ describe('App', () => {
       fireEvent.press(await screen.findByRole('button', { name: 'Inbox' }));
       await flushVirtualizedListTimers();
 
-      expect(await screen.findByText('Showing 1000 of 1000 unresolved items')).toBeTruthy();
+      expect(
+        await screen.findByText('Showing 1000 of 1000 unresolved items'),
+      ).toBeTruthy();
 
       fireEvent.press(screen.getByRole('button', { name: 'Google Pay' }));
       await flushVirtualizedListTimers();
-      expect(screen.getByText('Showing 1 of 1000 unresolved items')).toBeTruthy();
+      expect(
+        screen.getByText('Showing 1 of 1000 unresolved items'),
+      ).toBeTruthy();
       expect(screen.getByText('Target Merchant')).toBeTruthy();
 
       fireEvent.press(screen.getByRole('button', { name: 'Clear filters' }));
       await flushVirtualizedListTimers();
       fireEvent.press(screen.getByRole('button', { name: 'Over Rs 500' }));
       await flushVirtualizedListTimers();
-      expect(screen.getByText('Showing 1 of 1000 unresolved items')).toBeTruthy();
+      expect(
+        screen.getByText('Showing 1 of 1000 unresolved items'),
+      ).toBeTruthy();
       expect(screen.getByText('Target Merchant')).toBeTruthy();
 
       fireEvent.press(screen.getByRole('button', { name: 'Clear filters' }));
       await flushVirtualizedListTimers();
       fireEvent.press(screen.getByRole('button', { name: 'Older' }));
       await flushVirtualizedListTimers();
-      expect(screen.getByText('Showing 1 of 1000 unresolved items')).toBeTruthy();
+      expect(
+        screen.getByText('Showing 1 of 1000 unresolved items'),
+      ).toBeTruthy();
       expect(screen.getByText('Target Merchant')).toBeTruthy();
 
       fireEvent.press(screen.getByRole('button', { name: 'Clear filters' }));
       await flushVirtualizedListTimers();
-      fireEvent.changeText(screen.getByPlaceholderText('Filter by merchant'), 'Target');
+      fireEvent.changeText(
+        screen.getByPlaceholderText('Filter by merchant'),
+        'Target',
+      );
       await flushVirtualizedListTimers();
-      expect(screen.getByText('Showing 1 of 1000 unresolved items')).toBeTruthy();
+      expect(
+        screen.getByText('Showing 1 of 1000 unresolved items'),
+      ).toBeTruthy();
       expect(screen.getByText('Target Merchant')).toBeTruthy();
     } finally {
       jest.runOnlyPendingTimers();
@@ -1542,16 +1812,26 @@ describe('App', () => {
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
     fireEvent.press(screen.getByRole('button', { name: 'Inbox' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Classify Blue Tokai Roasters' }));
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Classify Blue Tokai Roasters' }),
+    );
 
     expect(await screen.findByText('Quick classify sheet')).toBeTruthy();
     expect(await screen.findByText('Suggested values')).toBeTruthy();
-    fireEvent.press(screen.getByRole('button', { name: 'Coffee run suggestion' }));
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Coffee run suggestion' }),
+    );
     expect(screen.getByDisplayValue('Coffee run')).toBeTruthy();
 
-    fireEvent.press(screen.getByRole('button', { name: 'Save as reusable rule' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Auto-apply this rule' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Save classification' }));
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Save as reusable rule' }),
+    );
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Auto-apply this rule' }),
+    );
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Save classification' }),
+    );
 
     await waitFor(() =>
       expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
@@ -1587,12 +1867,19 @@ describe('App', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Manage categories' }));
 
     expect(
-      await screen.findByText('Manage the labels used across your local spend data'),
+      await screen.findByText(
+        'Manage the labels used across your local spend data',
+      ),
     ).toBeTruthy();
 
-    fireEvent.changeText(screen.getByPlaceholderText('Weekend treats'), 'Weekend Treats');
     fireEvent.changeText(
-      screen.getByPlaceholderText('Short note shown while choosing this category'),
+      screen.getByPlaceholderText('Weekend treats'),
+      'Weekend Treats',
+    );
+    fireEvent.changeText(
+      screen.getByPlaceholderText(
+        'Short note shown while choosing this category',
+      ),
       'Cafe orders and local treats.',
     );
     fireEvent.press(screen.getByRole('button', { name: 'Create category' }));
@@ -1601,10 +1888,17 @@ describe('App', () => {
 
     fireEvent.press(screen.getByRole('button', { name: 'Back to home' }));
     fireEvent.press(screen.getByRole('button', { name: 'Inbox' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Classify Blue Tokai Roasters' }));
-    fireEvent.changeText(screen.getByPlaceholderText('What did you buy?'), 'Cold brew');
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Classify Blue Tokai Roasters' }),
+    );
+    fireEvent.changeText(
+      screen.getByPlaceholderText('What did you buy?'),
+      'Cold brew',
+    );
     fireEvent.press(screen.getByRole('button', { name: 'Weekend Treats' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Save classification' }));
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Save classification' }),
+    );
 
     await waitFor(() =>
       expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
@@ -1635,16 +1929,20 @@ describe('App', () => {
   });
 
   it('reviews a merchant merge suggestion and saves the resulting alias locally', async () => {
-    const mergeAlertSpy = jest.spyOn(Alert, 'alert').mockImplementation(
-      (
-        _title: string,
-        _message?: string,
-        buttons?: Parameters<typeof Alert.alert>[2],
-      ) => {
-        const mergeButton = buttons?.find((button) => button.text === 'Merge');
-        mergeButton?.onPress?.();
-      },
-    );
+    const mergeAlertSpy = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(
+        (
+          _title: string,
+          _message?: string,
+          buttons?: Parameters<typeof Alert.alert>[2],
+        ) => {
+          const mergeButton = buttons?.find(
+            (button) => button.text === 'Merge',
+          );
+          mergeButton?.onPress?.();
+        },
+      );
 
     mockedLoadStoredSpendTrackerState.mockResolvedValue({
       categories: buildDefaultCategories(),
@@ -1709,8 +2007,12 @@ describe('App', () => {
       expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
       fireEvent.press(screen.getByRole('button', { name: 'Manage merchants' }));
 
-      expect(await screen.findByText('Normalize repeated merchant variants locally')).toBeTruthy();
-      expect(screen.getByText('Blue Tokai Roaster → Blue Tokai Roasters')).toBeTruthy();
+      expect(
+        await screen.findByText('Normalize repeated merchant variants locally'),
+      ).toBeTruthy();
+      expect(
+        screen.getByText('Blue Tokai Roaster → Blue Tokai Roasters'),
+      ).toBeTruthy();
 
       fireEvent.press(
         screen.getByRole('button', {
@@ -1756,20 +2058,28 @@ describe('App', () => {
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
     fireEvent.press(screen.getByRole('button', { name: 'Inbox' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Split Blue Tokai Roasters now' }));
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Split Blue Tokai Roasters now' }),
+    );
 
-    expect(await screen.findByText('Break one payment into meaningful parts')).toBeTruthy();
+    expect(
+      await screen.findByText('Break one payment into meaningful parts'),
+    ).toBeTruthy();
 
-    fireEvent.changeText(screen.getByPlaceholderText('Amount for item 1'), '120');
-    fireEvent.changeText(screen.getByPlaceholderText('What did item 1 cover?'), 'Cold brew');
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Amount for item 1'),
+      '120',
+    );
+    fireEvent.changeText(
+      screen.getByPlaceholderText('What did item 1 cover?'),
+      'Cold brew',
+    );
     fireEvent.press(screen.getByRole('button', { name: 'Food & Drink' }));
     fireEvent.press(screen.getByRole('button', { name: 'Save partial split' }));
 
     expect(await screen.findByText('Blue Tokai Roasters')).toBeTruthy();
     expect(screen.getByText('Partially classified')).toBeTruthy();
-    expect(
-      screen.getByText(/still needs a remainder decision/),
-    ).toBeTruthy();
+    expect(screen.getByText(/still needs a remainder decision/)).toBeTruthy();
 
     await waitFor(() =>
       expect(mockedSaveStoredSpendTrackerState).toHaveBeenLastCalledWith(
@@ -1802,17 +2112,27 @@ describe('App', () => {
       fireEvent.press(await screen.findByText('Continue in local-only mode'));
 
       expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
-      fireEvent.press(screen.getAllByRole('button', { name: 'Add manual spend' })[0]!);
+      fireEvent.press(
+        screen.getAllByRole('button', { name: 'Add manual spend' })[0]!,
+      );
 
       expect(
         await screen.findByText('Capture a spend even without a notification'),
       ).toBeTruthy();
 
       fireEvent.changeText(screen.getByPlaceholderText('180 or 180.50'), '299');
-      fireEvent.changeText(screen.getByPlaceholderText('Where did you spend?'), 'Corner Store');
-      fireEvent.changeText(screen.getByPlaceholderText('What did you buy?'), 'Snacks');
+      fireEvent.changeText(
+        screen.getByPlaceholderText('Where did you spend?'),
+        'Corner Store',
+      );
+      fireEvent.changeText(
+        screen.getByPlaceholderText('What did you buy?'),
+        'Snacks',
+      );
       fireEvent.press(screen.getByRole('button', { name: 'Groceries' }));
-      fireEvent.press(screen.getByRole('button', { name: 'Save manual spend' }));
+      fireEvent.press(
+        screen.getByRole('button', { name: 'Save manual spend' }),
+      );
 
       expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
       expect(screen.getByText('Rs 2,074')).toBeTruthy();
@@ -1851,29 +2171,47 @@ describe('App', () => {
 
     fireEvent.press(screen.getByRole('button', { name: 'Search' }));
 
-    expect(await screen.findByText('Search local history and audit what changed')).toBeTruthy();
+    expect(
+      await screen.findByText('Search local history and audit what changed'),
+    ).toBeTruthy();
 
-    fireEvent.changeText(screen.getByPlaceholderText('Merchant, item, or category'), 'transport');
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Merchant, item, or category'),
+      'transport',
+    );
 
     expect(screen.getByText('Showing 1 of 5 local transactions')).toBeTruthy();
     expect(screen.getByText('Bangalore Metro')).toBeTruthy();
     expect(screen.queryByText('Blinkit')).toBeNull();
 
     fireEvent.press(
-      screen.getByRole('button', { name: 'Open transaction details for Bangalore Metro' }),
+      screen.getByRole('button', {
+        name: 'Open transaction details for Bangalore Metro',
+      }),
     );
 
-    expect(await screen.findByText('Inspect the local record before changing it')).toBeTruthy();
+    expect(
+      await screen.findByText('Inspect the local record before changing it'),
+    ).toBeTruthy();
     expect(screen.getByText('Parser: paytm_upi_v1')).toBeTruthy();
     expect(screen.getByText('Classification history')).toBeTruthy();
 
-    fireEvent.press(screen.getByRole('button', { name: 'Edit classification' }));
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Edit classification' }),
+    );
     expect(await screen.findByText('Quick classify sheet')).toBeTruthy();
 
-    fireEvent.changeText(screen.getByPlaceholderText('What did you buy?'), 'Metro day pass');
-    fireEvent.press(screen.getByRole('button', { name: 'Save classification' }));
+    fireEvent.changeText(
+      screen.getByPlaceholderText('What did you buy?'),
+      'Metro day pass',
+    );
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Save classification' }),
+    );
 
-    expect(await screen.findByText('Inspect the local record before changing it')).toBeTruthy();
+    expect(
+      await screen.findByText('Inspect the local record before changing it'),
+    ).toBeTruthy();
     expect(screen.getByText('Metro day pass')).toBeTruthy();
 
     await waitFor(() =>
@@ -1897,37 +2235,52 @@ describe('App', () => {
   });
 
   it('confirms before deleting a transaction from detail and returns to timeline', async () => {
-    const deleteAlertSpy = jest.spyOn(Alert, 'alert').mockImplementation(
-      (
-        _title: string,
-        _message?: string,
-        buttons?: Parameters<typeof Alert.alert>[2],
-      ) => {
-        const destructiveButton = buttons?.find((button) => button.style === 'destructive');
-        destructiveButton?.onPress?.();
-      },
-    );
+    const deleteAlertSpy = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(
+        (
+          _title: string,
+          _message?: string,
+          buttons?: Parameters<typeof Alert.alert>[2],
+        ) => {
+          const destructiveButton = buttons?.find(
+            (button) => button.style === 'destructive',
+          );
+          destructiveButton?.onPress?.();
+        },
+      );
 
     try {
       const screen = await renderApp();
 
       fireEvent.press(await screen.findByText('Continue in local-only mode'));
       fireEvent.press(screen.getByRole('button', { name: 'Search' }));
-      fireEvent.changeText(screen.getByPlaceholderText('Merchant, item, or category'), 'blue');
+      fireEvent.changeText(
+        screen.getByPlaceholderText('Merchant, item, or category'),
+        'blue',
+      );
       fireEvent.press(
-        screen.getByRole('button', { name: 'Open transaction details for Blue Tokai Roasters' }),
+        screen.getByRole('button', {
+          name: 'Open transaction details for Blue Tokai Roasters',
+        }),
       );
 
-      expect(await screen.findByText('Inspect the local record before changing it')).toBeTruthy();
+      expect(
+        await screen.findByText('Inspect the local record before changing it'),
+      ).toBeTruthy();
 
-      fireEvent.press(screen.getByRole('button', { name: 'Delete transaction locally' }));
+      fireEvent.press(
+        screen.getByRole('button', { name: 'Delete transaction locally' }),
+      );
 
       expect(deleteAlertSpy).toHaveBeenCalledWith(
         'Delete transaction locally?',
         expect.stringContaining('Blue Tokai Roasters will be removed'),
         expect.any(Array),
       );
-      expect(await screen.findByText('Search local history and audit what changed')).toBeTruthy();
+      expect(
+        await screen.findByText('Search local history and audit what changed'),
+      ).toBeTruthy();
       expect(screen.queryByText('Blue Tokai Roasters')).toBeNull();
     } finally {
       deleteAlertSpy.mockRestore();
@@ -1939,15 +2292,22 @@ describe('App', () => {
 
     fireEvent.press(await screen.findByText('Continue in local-only mode'));
     fireEvent.press(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.changeText(screen.getByPlaceholderText('Merchant, item, or category'), 'blue');
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Merchant, item, or category'),
+      'blue',
+    );
     fireEvent.press(
-      screen.getByRole('button', { name: 'Open transaction details for Blue Tokai Roasters' }),
+      screen.getByRole('button', {
+        name: 'Open transaction details for Blue Tokai Roasters',
+      }),
     );
 
     expect(await screen.findByText('Local note')).toBeTruthy();
 
     fireEvent.changeText(
-      screen.getByPlaceholderText('Add a local note for search and detail context'),
+      screen.getByPlaceholderText(
+        'Add a local note for search and detail context',
+      ),
       'Shared cafe catch-up',
     );
     fireEvent.press(screen.getByRole('button', { name: 'Save note' }));
@@ -1958,7 +2318,9 @@ describe('App', () => {
       'catch-up',
     );
 
-    expect(await screen.findByText('Showing 1 of 5 local transactions')).toBeTruthy();
+    expect(
+      await screen.findByText('Showing 1 of 5 local transactions'),
+    ).toBeTruthy();
     expect(screen.getByText('Blue Tokai Roasters')).toBeTruthy();
 
     await waitFor(() =>
@@ -1984,10 +2346,9 @@ describe('App', () => {
     await renderApp();
 
     await waitFor(() =>
-      expect(mockedNativeCaptureModule.markNativeCaptureImported).toHaveBeenCalledWith(
-        401,
-        'txn_capture_401',
-      ),
+      expect(
+        mockedNativeCaptureModule.markNativeCaptureImported,
+      ).toHaveBeenCalledWith(401, 'txn_capture_401'),
     );
 
     await waitFor(() =>
@@ -2034,11 +2395,12 @@ describe('App', () => {
 
     const screen = await renderApp();
 
-    expect(await screen.findByText('Turn this payment into a usable spend')).toBeTruthy();
+    expect(
+      await screen.findByText('Turn this payment into a usable spend'),
+    ).toBeTruthy();
     expect(screen.getByDisplayValue('Morning chai')).toBeTruthy();
-    expect(mockedNativeCaptureModule.markNativeCaptureImported).toHaveBeenCalledWith(
-      401,
-      'txn_capture_401',
-    );
+    expect(
+      mockedNativeCaptureModule.markNativeCaptureImported,
+    ).toHaveBeenCalledWith(401, 'txn_capture_401');
   });
 });
