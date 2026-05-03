@@ -121,20 +121,8 @@ function PrimitiveHarness({
 }
 
 describe('mobile-ui primitives', () => {
-  let originalConsoleWarn: typeof console.warn;
-
   beforeEach(() => {
-    originalConsoleWarn = console.warn;
-    jest.spyOn(console, 'warn').mockImplementation((message, ...args) => {
-      if (
-        typeof message === 'string' &&
-        message.includes('SafeAreaView has been deprecated')
-      ) {
-        return;
-      }
-
-      originalConsoleWarn(message, ...args);
-    });
+    jest.restoreAllMocks();
   });
 
   afterEach(() => {

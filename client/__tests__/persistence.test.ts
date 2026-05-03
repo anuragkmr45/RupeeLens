@@ -425,6 +425,58 @@ describe('spend-tracker persistence', () => {
     ]);
   });
 
+  it('treats migration-seeded default categories alone as an empty fresh install', async () => {
+    const database = createDatabaseMock();
+    const { openDatabaseAsync } = getExpoSqliteMock();
+    const { Storage } = getKvStoreMock();
+
+    openDatabaseAsync.mockResolvedValue(database);
+    database.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM schema_migrations')) {
+        return { count: 4 };
+      }
+
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM categories WHERE is_default = 0')) {
+        return { count: 0 };
+      }
+
+      if (
+        includesSql(sql, 'SELECT COUNT(*) as count FROM budgets') ||
+        includesSql(sql, 'SELECT COUNT(*) as count FROM budget_threshold_alerts') ||
+        includesSql(sql, 'SELECT COUNT(*) as count FROM transactions') ||
+        includesSql(sql, 'SELECT COUNT(*) as count FROM merchants') ||
+        includesSql(sql, 'SELECT COUNT(*) as count FROM merchant_aliases') ||
+        includesSql(sql, 'SELECT COUNT(*) as count FROM classification_rules') ||
+        includesSql(sql, 'SELECT COUNT(*) as count FROM settings')
+      ) {
+        return { count: 0 };
+      }
+
+      return null;
+    });
+    database.getAllAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, "FROM sqlite_master WHERE type = 'table'")) {
+        return [];
+      }
+
+      if (includesSql(sql, 'SELECT id FROM schema_migrations ORDER BY id ASC')) {
+        return [
+          { id: '001_create_settings_table' },
+          { id: '002_create_transactions_table' },
+          { id: '003_create_transaction_items_table' },
+          { id: '004_create_transaction_items_index' },
+        ];
+      }
+
+      return [];
+    });
+    Storage.getItem.mockResolvedValue(null);
+
+    const { loadStoredSpendTrackerState } = loadPersistenceModule();
+
+    await expect(loadStoredSpendTrackerState()).resolves.toBeNull();
+  });
+
   it('rewrites settings, transactions, and items on save', async () => {
     const database = createDatabaseMock();
     const { openDatabaseAsync } = getExpoSqliteMock();

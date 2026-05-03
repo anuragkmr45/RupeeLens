@@ -5,7 +5,14 @@ import {
   waitFor,
   type RenderAPI,
 } from '@testing-library/react-native';
-import { Alert, AppState, Linking, Share } from 'react-native';
+import {
+  Alert,
+  AppState,
+  BackHandler,
+  Linking,
+  Platform,
+  Share,
+} from 'react-native';
 
 import App from '../App';
 import {
@@ -38,14 +45,21 @@ import {
 } from '../src/features/sync/persistence';
 import type { StoredSyncCredentials } from '../src/features/sync/session';
 
-jest.mock('../src/lib/platform-capabilities', () => ({
-  getPlatformCapabilities: jest.fn(() => ({
-    platform: 'android',
-    prefersBottomPrimaryNavigation: false,
-    supportsNativeCaptureDiagnostics: true,
-    supportsNativeNotificationCapture: true,
-  })),
-}));
+jest.mock('../src/lib/platform-capabilities', () => {
+  const actual = jest.requireActual(
+    '../src/lib/platform-capabilities',
+  ) as object;
+
+  return {
+    ...actual,
+    getPlatformCapabilities: jest.fn(() => ({
+      opensNotificationAccessSettings: true,
+      platform: 'android',
+      supportsNativeCaptureDiagnostics: true,
+      supportsNativeNotificationCapture: true,
+    })),
+  };
+});
 
 jest.mock('../src/features/spend-tracker/persistence', () => ({
   DEFAULT_ONBOARDING_PREFERENCES: {
@@ -502,8 +516,8 @@ const mockedPlatformCapabilitiesModule = jest.requireMock(
 ) as {
   getPlatformCapabilities: jest.Mock<
     {
+      opensNotificationAccessSettings: boolean;
       platform: 'android' | 'ios';
-      prefersBottomPrimaryNavigation: boolean;
       supportsNativeCaptureDiagnostics: boolean;
       supportsNativeNotificationCapture: boolean;
     },
@@ -585,8 +599,8 @@ function buildMockPlatformCapabilities(
   > = {},
 ) {
   return {
+    opensNotificationAccessSettings: true,
     platform: 'android' as const,
-    prefersBottomPrimaryNavigation: false,
     supportsNativeCaptureDiagnostics: true,
     supportsNativeNotificationCapture: true,
     ...overrides,
@@ -745,21 +759,8 @@ type EnsureFreshSyncCredentialsArgs = Parameters<
 >[0];
 
 describe('App', () => {
-  let originalConsoleWarn: typeof console.warn;
-
   beforeEach(() => {
-    originalConsoleWarn = console.warn;
     jest.clearAllMocks();
-    jest.spyOn(console, 'warn').mockImplementation((message, ...args) => {
-      if (
-        typeof message === 'string' &&
-        message.includes('SafeAreaView has been deprecated')
-      ) {
-        return;
-      }
-
-      originalConsoleWarn(message, ...args);
-    });
     jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(null);
     jest
       .spyOn(Linking, 'addEventListener')
@@ -1365,8 +1366,8 @@ describe('App', () => {
   it('renders the iPhone shell as manual/local-only without Android diagnostics', async () => {
     mockedPlatformCapabilitiesModule.getPlatformCapabilities.mockReturnValue(
       buildMockPlatformCapabilities({
+        opensNotificationAccessSettings: false,
         platform: 'ios',
-        prefersBottomPrimaryNavigation: true,
         supportsNativeCaptureDiagnostics: false,
         supportsNativeNotificationCapture: false,
       }),
@@ -1379,14 +1380,111 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'Open app settings' }),
     ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'This iPhone build focuses on manual spend entry, shared local review screens, and shell verification without implying background capture that this build does not provide.',
+      ),
+    ).toBeTruthy();
 
     fireEvent.press(screen.getByText('Continue in local-only mode'));
 
     expect(await screen.findByText('iPhone capture mode')).toBeTruthy();
+    expect(
+      screen.getAllByText(
+        'Local-first UPI review with a cycle-aware dashboard, shared manual and history flows, privacy-safe exports, support tooling, and an honest manual/local-only shell on iPhone.',
+      ).length,
+    ).toBeGreaterThan(0);
     expect(screen.queryByText('Android capture diagnostics')).toBeNull();
     expect(
       screen.getByRole('button', { name: 'Open support details' }),
     ).toBeTruthy();
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Open support details' }),
+    );
+    expect(
+      await screen.findByText('Support-ready local shell status'),
+    ).toBeTruthy();
+    expect(screen.getByText('Settings visit: not opened yet')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Remote template versions stay visible here for shell verification, even though native parser inventory and capture logs are not part of this iPhone build.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText('Android capture diagnostics')).toBeNull();
+    fireEvent.press(screen.getByRole('button', { name: 'Back to Home' }));
+    expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
+    fireEvent.press(
+      screen.getAllByRole('button', { name: 'Add manual spend' })[0]!,
+    );
+    expect(
+      await screen.findByText('Add a spend directly on this iPhone'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Use manual add as the primary iPhone capture path in v1. It keeps spend review local, truthful, and available even without background notification ingestion.',
+      ),
+    ).toBeTruthy();
+
+    const eventNames =
+      mockedTelemetryModule.enqueueTelemetryEvent.mock.calls.map(
+        ([event]) => (event as { eventName: string }).eventName,
+      );
+
+    expect(eventNames).toContain('onboarding_completed');
+    expect(eventNames).not.toContain('notification_permission_denied');
+  });
+
+  it('still opens iPhone app settings when Android capture is remotely paused', async () => {
+    const openSettingsSpy = jest
+      .spyOn(Linking, 'openSettings')
+      .mockResolvedValue();
+    const alertSpy = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(() => undefined);
+
+    try {
+      mockedPlatformCapabilitiesModule.getPlatformCapabilities.mockReturnValue(
+        buildMockPlatformCapabilities({
+          opensNotificationAccessSettings: false,
+          platform: 'ios',
+          supportsNativeCaptureDiagnostics: false,
+          supportsNativeNotificationCapture: false,
+        }),
+      );
+      mockedBootstrapConfigModule.hydrateBootstrapConfigCache.mockResolvedValue(
+        buildMockBootstrapState({
+          config: {
+            ...buildMockBootstrapState().config,
+            featureFlags: {
+              ...buildMockBootstrapState().config.featureFlags,
+              notification_capture_enabled: false,
+            },
+            runtimeCompatibility: {
+              compatible: false,
+              reason:
+                'Background capture is not available for this build configuration.',
+            },
+          },
+        }),
+      );
+
+      const screen = await renderApp();
+
+      fireEvent.press(
+        screen.getByRole('button', { name: 'Open app settings' }),
+      );
+
+      await waitFor(() => {
+        expect(openSettingsSpy).toHaveBeenCalledTimes(1);
+      });
+      expect(alertSpy).not.toHaveBeenCalledWith(
+        'Capture paused by remote config',
+        expect.any(String),
+      );
+    } finally {
+      openSettingsSpy.mockRestore();
+      alertSpy.mockRestore();
+    }
   });
 
   it('opens the diagnostics screen from Home and shows parser and failure details', async () => {
@@ -2160,6 +2258,54 @@ describe('App', () => {
       );
     } finally {
       jest.useRealTimers();
+    }
+  });
+
+  it('returns to home when Android hardware back is pressed from manual add', async () => {
+    let onHardwareBackPress: (() => boolean) | null = null;
+    const originalPlatform = Platform.OS;
+    const backHandlerSpy = jest
+      .spyOn(BackHandler, 'addEventListener')
+      .mockImplementation((eventName, handler) => {
+        if (eventName === 'hardwareBackPress') {
+          onHardwareBackPress = () => Boolean(handler());
+        }
+
+        return {
+          remove: jest.fn(),
+        } as ReturnType<typeof BackHandler.addEventListener>;
+      });
+
+    try {
+      Object.defineProperty(Platform, 'OS', {
+        configurable: true,
+        value: 'android',
+      });
+      const screen = await renderApp();
+
+      fireEvent.press(await screen.findByText('Continue in local-only mode'));
+      expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
+
+      fireEvent.press(
+        screen.getAllByRole('button', { name: 'Add manual spend' })[0]!,
+      );
+
+      expect(
+        await screen.findByText('Capture a spend even without a notification'),
+      ).toBeTruthy();
+      expect(onHardwareBackPress).not.toBeNull();
+
+      act(() => {
+        expect(onHardwareBackPress?.()).toBe(true);
+      });
+
+      expect(await screen.findByText('Current cycle at a glance')).toBeTruthy();
+    } finally {
+      Object.defineProperty(Platform, 'OS', {
+        configurable: true,
+        value: originalPlatform,
+      });
+      backHandlerSpy.mockRestore();
     }
   });
 

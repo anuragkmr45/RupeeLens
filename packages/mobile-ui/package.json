@@ -20,14 +20,16 @@
   ],
   "peerDependencies": {
     "react": "19.2.0",
-    "react-native": "0.83.2"
+    "react-native": "0.83.2",
+    "react-native-safe-area-context": "~5.6.2"
   },
   "devDependencies": {
     "@types/react": "~19.2.14",
     "@upi-spend-tracker/eslint-config": "workspace:*",
     "@upi-spend-tracker/tsconfig": "workspace:*",
     "react": "19.2.0",
-    "react-native": "0.83.2"
+    "react-native": "0.83.2",
+    "react-native-safe-area-context": "~5.6.2"
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",

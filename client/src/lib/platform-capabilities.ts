@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 
 export interface PlatformCapabilities {
   platform: 'android' | 'ios';
-  prefersBottomPrimaryNavigation: boolean;
+  opensNotificationAccessSettings: boolean;
   supportsNativeCaptureDiagnostics: boolean;
   supportsNativeNotificationCapture: boolean;
 }
@@ -13,8 +13,29 @@ export function getPlatformCapabilities(): PlatformCapabilities {
 
   return {
     platform,
-    prefersBottomPrimaryNavigation: platform === 'ios',
+    opensNotificationAccessSettings: supportsNativeNotificationCapture,
     supportsNativeCaptureDiagnostics: supportsNativeNotificationCapture,
     supportsNativeNotificationCapture,
   };
+}
+
+export function getSettingsActionLabel({
+  opensNotificationAccessSettings,
+}: Pick<PlatformCapabilities, 'opensNotificationAccessSettings'>): string {
+  return opensNotificationAccessSettings
+    ? 'Open notification access'
+    : 'Open app settings';
+}
+
+export function getSettingsVisitLabel(
+  {
+    opensNotificationAccessSettings,
+  }: Pick<PlatformCapabilities, 'opensNotificationAccessSettings'>,
+  settingsOpened: boolean,
+): string {
+  if (opensNotificationAccessSettings) {
+    return settingsOpened ? 'notification settings opened' : 'not started';
+  }
+
+  return settingsOpened ? 'app settings opened' : 'not opened yet';
 }

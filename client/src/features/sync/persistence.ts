@@ -1,6 +1,9 @@
-import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
+import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { applyMobileMigrations } from '../spend-tracker/db/migration-runner';
+import {
+  getSpendTrackerDatabase,
+  runSpendTrackerDatabaseWrite,
+} from '../spend-tracker/db/shared-database';
 import {
   createInitialSyncState,
   type PersistedSyncState,
@@ -16,7 +19,6 @@ import {
 import type { StoredSyncCredentials } from './session';
 import { sanitizeTrustedApiBaseUrl } from './transport-policy';
 
-const DATABASE_NAME = 'spend-tracker.db';
 const SYNC_STATE_SETTING_KEYS = [
   'device_id',
   'last_cursor',
@@ -76,9 +78,6 @@ interface SyncConflictRow {
   serverVersion: number;
   source: SyncConflictQueueEntry['source'];
 }
-
-let databasePromise: Promise<SQLiteDatabase> | null = null;
-let schemaPromise: Promise<void> | null = null;
 
 export async function loadStoredSyncState(): Promise<PersistedSyncState> {
   const database = await getDatabase();
@@ -182,101 +181,101 @@ export async function loadStoredSyncState(): Promise<PersistedSyncState> {
 export async function saveStoredSyncState(
   syncState: PersistedSyncState,
 ): Promise<void> {
-  const database = await getDatabase();
+  await runSpendTrackerDatabaseWrite(async (database) => {
+    await database.withTransactionAsync(async () => {
+      await database.runAsync('DELETE FROM sync_conflicts');
+      await database.runAsync('DELETE FROM sync_outbox');
+      await database.runAsync('DELETE FROM sync_entity_versions');
+      await deleteSyncSettings(database, SYNC_STATE_SETTING_KEYS);
 
-  await database.withTransactionAsync(async () => {
-    await database.runAsync('DELETE FROM sync_conflicts');
-    await database.runAsync('DELETE FROM sync_outbox');
-    await database.runAsync('DELETE FROM sync_entity_versions');
-    await deleteSyncSettings(database, SYNC_STATE_SETTING_KEYS);
+      await writeSyncSetting(database, 'device_id', syncState.deviceId);
+      await writeSyncSetting(database, 'last_cursor', syncState.lastCursor);
+      await writeSyncSetting(database, 'last_error_message', syncState.lastErrorMessage);
+      await writeSyncSetting(database, 'last_status', syncState.lastStatus);
+      await writeSyncSetting(database, 'last_sync_attempt_at', syncState.lastSyncAttemptAt);
+      await writeSyncSetting(database, 'last_sync_success_at', syncState.lastSyncSuccessAt);
 
-    await writeSyncSetting(database, 'device_id', syncState.deviceId);
-    await writeSyncSetting(database, 'last_cursor', syncState.lastCursor);
-    await writeSyncSetting(database, 'last_error_message', syncState.lastErrorMessage);
-    await writeSyncSetting(database, 'last_status', syncState.lastStatus);
-    await writeSyncSetting(database, 'last_sync_attempt_at', syncState.lastSyncAttemptAt);
-    await writeSyncSetting(database, 'last_sync_success_at', syncState.lastSyncSuccessAt);
+      for (const entityVersion of syncState.entityVersions) {
+        await database.runAsync(
+          `
+            INSERT INTO sync_entity_versions (
+              entity_type,
+              entity_id,
+              version
+            ) VALUES (?, ?, ?)
+          `,
+          entityVersion.entityType,
+          entityVersion.entityId,
+          entityVersion.version,
+        );
+      }
 
-    for (const entityVersion of syncState.entityVersions) {
-      await database.runAsync(
-        `
-          INSERT INTO sync_entity_versions (
-            entity_type,
-            entity_id,
-            version
-          ) VALUES (?, ?, ?)
-        `,
-        entityVersion.entityType,
-        entityVersion.entityId,
-        entityVersion.version,
-      );
-    }
+      for (const outboxEntry of syncState.outbox) {
+        await database.runAsync(
+          `
+            INSERT INTO sync_outbox (
+              op_id,
+              entity_type,
+              entity_id,
+              entity_version,
+              op_type,
+              payload_json,
+              occurred_at,
+              created_at,
+              status,
+              attempt_count,
+              last_attempt_at,
+              last_error_code,
+              last_error_message,
+              next_retry_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          outboxEntry.opId,
+          outboxEntry.entityType,
+          outboxEntry.entityId,
+          outboxEntry.entityVersion,
+          outboxEntry.opType,
+          JSON.stringify(outboxEntry.payload),
+          outboxEntry.occurredAt,
+          outboxEntry.createdAt,
+          outboxEntry.status,
+          outboxEntry.attemptCount,
+          outboxEntry.lastAttemptAt ?? null,
+          outboxEntry.lastErrorCode ?? null,
+          outboxEntry.lastErrorMessage ?? null,
+          outboxEntry.nextRetryAt ?? null,
+        );
+      }
 
-    for (const outboxEntry of syncState.outbox) {
-      await database.runAsync(
-        `
-          INSERT INTO sync_outbox (
-            op_id,
-            entity_type,
-            entity_id,
-            entity_version,
-            op_type,
-            payload_json,
-            occurred_at,
-            created_at,
-            status,
-            attempt_count,
-            last_attempt_at,
-            last_error_code,
-            last_error_message,
-            next_retry_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        outboxEntry.opId,
-        outboxEntry.entityType,
-        outboxEntry.entityId,
-        outboxEntry.entityVersion,
-        outboxEntry.opType,
-        JSON.stringify(outboxEntry.payload),
-        outboxEntry.occurredAt,
-        outboxEntry.createdAt,
-        outboxEntry.status,
-        outboxEntry.attemptCount,
-        outboxEntry.lastAttemptAt ?? null,
-        outboxEntry.lastErrorCode ?? null,
-        outboxEntry.lastErrorMessage ?? null,
-        outboxEntry.nextRetryAt ?? null,
-      );
-    }
-
-    for (const conflict of syncState.conflicts) {
-      await database.runAsync(
-        `
-          INSERT INTO sync_conflicts (
-            id,
-            source,
-            op_id,
-            entity_type,
-            entity_id,
-            client_version,
-            server_version,
-            conflict_reason,
-            detected_at,
-            server_state_json
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        conflict.id,
-        conflict.source,
-        conflict.opId,
-        conflict.entityType,
-        conflict.entityId,
-        conflict.clientVersion,
-        conflict.serverVersion,
-        conflict.conflictReason,
-        conflict.detectedAt,
-        JSON.stringify(conflict.serverState),
-      );
-    }
+      for (const conflict of syncState.conflicts) {
+        await database.runAsync(
+          `
+            INSERT INTO sync_conflicts (
+              id,
+              source,
+              op_id,
+              entity_type,
+              entity_id,
+              client_version,
+              server_version,
+              conflict_reason,
+              detected_at,
+              server_state_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          conflict.id,
+          conflict.source,
+          conflict.opId,
+          conflict.entityType,
+          conflict.entityId,
+          conflict.clientVersion,
+          conflict.serverVersion,
+          conflict.conflictReason,
+          conflict.detectedAt,
+          JSON.stringify(conflict.serverState),
+        );
+      }
+    });
   });
 }
 
@@ -308,7 +307,12 @@ export async function loadStoredSyncCredentials(): Promise<StoredSyncCredentials
         refreshToken: legacyRefreshToken,
       };
       await saveStoredSyncSecrets(secureSecrets);
-      await deleteSyncSettings(database, SYNC_CREDENTIAL_LEGACY_SECRET_SETTING_KEYS);
+      await runSpendTrackerDatabaseWrite(async (writeDatabase) => {
+        await deleteSyncSettings(
+          writeDatabase,
+          SYNC_CREDENTIAL_LEGACY_SECRET_SETTING_KEYS,
+        );
+      });
     }
   }
 
@@ -341,44 +345,50 @@ export async function saveStoredSyncCredentials(
       : null,
   );
 
-  const database = await getDatabase();
+  await runSpendTrackerDatabaseWrite(async (database) => {
+    await database.withTransactionAsync(async () => {
+      await deleteSyncSettings(database, SYNC_CREDENTIAL_METADATA_SETTING_KEYS);
+      await deleteSyncSettings(
+        database,
+        SYNC_CREDENTIAL_LEGACY_SECRET_SETTING_KEYS,
+      );
 
-  await database.withTransactionAsync(async () => {
-    await deleteSyncSettings(database, SYNC_CREDENTIAL_METADATA_SETTING_KEYS);
-    await deleteSyncSettings(database, SYNC_CREDENTIAL_LEGACY_SECRET_SETTING_KEYS);
+      if (!credentials) {
+        return;
+      }
 
-    if (!credentials) {
-      return;
-    }
-
-    await writeSyncSetting(
-      database,
-      'credential_api_base_url',
-      sanitizeTrustedApiBaseUrl(credentials.apiBaseUrl ?? null),
-    );
-    await writeSyncSetting(database, 'credential_device_id', credentials.deviceId);
-    await writeSyncSetting(database, 'credential_user_id', credentials.userId);
+      await writeSyncSetting(
+        database,
+        'credential_api_base_url',
+        sanitizeTrustedApiBaseUrl(credentials.apiBaseUrl ?? null),
+      );
+      await writeSyncSetting(database, 'credential_device_id', credentials.deviceId);
+      await writeSyncSetting(database, 'credential_user_id', credentials.userId);
+    });
   });
 }
 
 export async function clearStoredSyncCredentials(): Promise<void> {
   await clearStoredSyncSecrets();
-  const database = await getDatabase();
-
-  await database.withTransactionAsync(async () => {
-    await deleteSyncSettings(database, SYNC_CREDENTIAL_METADATA_SETTING_KEYS);
-    await deleteSyncSettings(database, SYNC_CREDENTIAL_LEGACY_SECRET_SETTING_KEYS);
+  await runSpendTrackerDatabaseWrite(async (database) => {
+    await database.withTransactionAsync(async () => {
+      await deleteSyncSettings(database, SYNC_CREDENTIAL_METADATA_SETTING_KEYS);
+      await deleteSyncSettings(
+        database,
+        SYNC_CREDENTIAL_LEGACY_SECRET_SETTING_KEYS,
+      );
+    });
   });
 }
 
 export async function clearStoredSyncState(): Promise<void> {
-  const database = await getDatabase();
-
-  await database.withTransactionAsync(async () => {
-    await database.runAsync('DELETE FROM sync_conflicts');
-    await database.runAsync('DELETE FROM sync_outbox');
-    await database.runAsync('DELETE FROM sync_entity_versions');
-    await deleteSyncSettings(database, SYNC_STATE_SETTING_KEYS);
+  await runSpendTrackerDatabaseWrite(async (database) => {
+    await database.withTransactionAsync(async () => {
+      await database.runAsync('DELETE FROM sync_conflicts');
+      await database.runAsync('DELETE FROM sync_outbox');
+      await database.runAsync('DELETE FROM sync_entity_versions');
+      await deleteSyncSettings(database, SYNC_STATE_SETTING_KEYS);
+    });
   });
 }
 
@@ -408,22 +418,7 @@ async function writeSyncSetting(
 }
 
 async function getDatabase(): Promise<SQLiteDatabase> {
-  if (!databasePromise) {
-    databasePromise = openDatabaseAsync(DATABASE_NAME);
-  }
-
-  const database = await databasePromise;
-
-  if (!schemaPromise) {
-    const schemaTask = applyMobileMigrations(database);
-    schemaPromise = schemaTask.catch((error: unknown) => {
-      schemaPromise = null;
-      throw error;
-    });
-  }
-
-  await schemaPromise;
-  return database;
+  return getSpendTrackerDatabase();
 }
 
 function normalizeOptionalString(value: string | null | undefined): string | null {

@@ -7,7 +7,7 @@ import type {
   RolloutChannel,
 } from '@upi-spend-tracker/contracts';
 import { createIntegritySignature } from '@upi-spend-tracker/shared-utils';
-import { Storage } from 'expo-sqlite/kv-store';
+import { getKvItem, removeKvItem, setKvItem } from '../../lib/kv-storage';
 import * as Updates from 'expo-updates';
 import { NativeModules, Platform } from 'react-native';
 
@@ -328,7 +328,7 @@ export async function hydrateBootstrapConfigCache(
   _query = getDefaultBootstrapConfigQuery(),
   now = Date.now(),
 ): Promise<BootstrapConfigState | null> {
-  const storedValue = await Storage.getItem(BOOTSTRAP_CACHE_KEY);
+  const storedValue = await getKvItem(BOOTSTRAP_CACHE_KEY);
 
   if (!storedValue) {
     return null;
@@ -338,7 +338,7 @@ export async function hydrateBootstrapConfigCache(
     const parsedValue: unknown = JSON.parse(storedValue);
 
     if (!isCachedBootstrapConfigEnvelope(parsedValue)) {
-      await Storage.removeItem(BOOTSTRAP_CACHE_KEY);
+      await removeKvItem(BOOTSTRAP_CACHE_KEY);
       return null;
     }
 
@@ -354,7 +354,7 @@ export async function hydrateBootstrapConfigCache(
       isStale ? 'stale' : 'fresh',
     );
   } catch {
-    await Storage.removeItem(BOOTSTRAP_CACHE_KEY);
+    await removeKvItem(BOOTSTRAP_CACHE_KEY);
     return null;
   }
 }
@@ -417,7 +417,7 @@ export async function refreshBootstrapConfig(
     fetchedAt,
   };
 
-  await Storage.setItem(BOOTSTRAP_CACHE_KEY, JSON.stringify(envelope));
+  await setKvItem(BOOTSTRAP_CACHE_KEY, JSON.stringify(envelope));
 
   return buildBootstrapState(payload, fetchedAt, 'network', 'fresh');
 }

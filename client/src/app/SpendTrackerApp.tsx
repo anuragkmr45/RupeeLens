@@ -18,11 +18,11 @@ import type {
 import {
   AppState,
   Alert,
+  BackHandler,
   FlatList,
   Linking,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   Share,
   StyleSheet,
@@ -36,12 +36,19 @@ import {
   Button,
   Card,
   Chip,
+  darkTheme,
   EmptyState,
   KPIBlock,
+  lightTheme,
   ListItem,
+  MobileUiThemeProvider,
   SectionHeader,
   TextField,
 } from '@upi-spend-tracker/mobile-ui';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import {
   DEFAULT_BUDGET_ALERT_SETTINGS,
@@ -233,8 +240,12 @@ import {
   flushTelemetryEvents,
   installGlobalTelemetryErrorHandler,
 } from '../features/telemetry/runtime';
-import { APP_COPY } from '../lib/app-info';
-import { getPlatformCapabilities } from '../lib/platform-capabilities';
+import { APP_COPY, getAppSubtitle } from '../lib/app-info';
+import {
+  getPlatformCapabilities,
+  getSettingsActionLabel,
+  getSettingsVisitLabel,
+} from '../lib/platform-capabilities';
 import { colors } from '../theme/colors';
 import { DesignSystemShowcaseScreen } from './DesignSystemShowcaseScreen';
 
@@ -418,6 +429,9 @@ const WEEKDAY_OPTIONS: Array<{ id: number; label: string }> = [
 
 export function SpendTrackerApp() {
   const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
+  const platformCapabilities = getPlatformCapabilities();
+  const appSubtitle = getAppSubtitle(platformCapabilities);
   const [isHydrating, setIsHydrating] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [screen, setScreen] = useState<Screen>('onboarding');
@@ -512,6 +526,7 @@ export function SpendTrackerApp() {
   const currentPrimaryScreen = getActivePrimaryScreen(screen);
   const showPrimaryTabBar = !isHydrating && currentPrimaryScreen !== null;
   const isDarkMode = colorScheme === 'dark';
+  const mobileUiTheme = isDarkMode ? darkTheme : lightTheme;
   const deferredInboxFilters = useDeferredValue(inboxFilters);
   const deferredTimelineFilters = useDeferredValue(timelineFilters);
   const cycleStartDay = getBudgetCycleStartDay(
@@ -912,6 +927,50 @@ export function SpendTrackerApp() {
       linkingSubscription.remove();
     };
   }, [isHydrating]);
+
+  useEffect(() => {
+    if (isHydrating || Platform.OS !== 'android') {
+      return;
+    }
+
+    const handleHardwareBackPress = () => {
+      switch (screen) {
+        case 'manual':
+          handleCancelManualEntry();
+          return true;
+        case 'classify':
+          handleCancelClassification();
+          return true;
+        case 'split':
+          handleCancelSplit();
+          return true;
+        case 'detail':
+          handleCloseTransactionDetail();
+          return true;
+        case 'diagnostics':
+          setScreen(diagnosticsReturnScreen);
+          return true;
+        case 'budgets':
+        case 'categories':
+        case 'insights':
+        case 'merchants':
+        case 'showcase':
+          setScreen('home');
+          return true;
+        default:
+          return false;
+      }
+    };
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      handleHardwareBackPress,
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [diagnosticsReturnScreen, isHydrating, screen]);
 
   useEffect(() => {
     if (isHydrating) {
@@ -1383,7 +1442,10 @@ export function SpendTrackerApp() {
   async function handleOpenNotificationAccess() {
     const platformCapabilities = getPlatformCapabilities();
 
-    if (capturePausedRemotely) {
+    if (
+      platformCapabilities.opensNotificationAccessSettings &&
+      capturePausedRemotely
+    ) {
       Alert.alert(
         'Capture paused by remote config',
         bootstrapState.config.runtimeCompatibility?.reason ??
@@ -2522,23 +2584,32 @@ export function SpendTrackerApp() {
 
   if (!isHydrating && screen === 'showcase') {
     return (
-      <SafeAreaView style={styles.screen}>
-        <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-        <DesignSystemShowcaseScreen onBack={() => setScreen('home')} />
-      </SafeAreaView>
+      <MobileUiThemeProvider theme={mobileUiTheme}>
+        <SafeAreaView
+          edges={['top', 'left', 'right', 'bottom']}
+          style={styles.screen}
+        >
+          <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+          <DesignSystemShowcaseScreen onBack={() => setScreen('home')} />
+        </SafeAreaView>
+      </MobileUiThemeProvider>
     );
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      <View style={styles.heroGlowPrimary} />
-      <View style={styles.heroGlowSecondary} />
-      <View style={styles.screenContent}>
+    <MobileUiThemeProvider theme={mobileUiTheme}>
+      <SafeAreaView
+        edges={['top', 'left', 'right', 'bottom']}
+        style={styles.screen}
+      >
+        <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+        <View style={styles.heroGlowPrimary} />
+        <View style={styles.heroGlowSecondary} />
+        <View style={styles.screenContent}>
         <View style={styles.header}>
           <Text style={styles.eyebrow}>{APP_COPY.stage}</Text>
           <Text style={styles.title}>{APP_COPY.title}</Text>
-          <Text style={styles.subtitle}>{APP_COPY.subtitle}</Text>
+          <Text style={styles.subtitle}>{appSubtitle}</Text>
         </View>
 
         {isInboxScreen ? (
@@ -2694,9 +2765,12 @@ export function SpendTrackerApp() {
           />
         ) : (
           <ScrollView
+            key={`scroll_${screen}`}
             contentContainerStyle={[
               styles.scrollContent,
-              showPrimaryTabBar ? styles.scrollContentWithPrimaryTabBar : null,
+              showPrimaryTabBar
+                ? { paddingBottom: 120 + Math.max(insets.bottom, 16) }
+                : null,
             ]}
           >
             {isHydrating ? <HydrationScreen /> : null}
@@ -2708,6 +2782,8 @@ export function SpendTrackerApp() {
                 onboardingPreferences={onboardingPreferences}
                 notificationAccessState={notificationAccessState}
                 onContinue={() => {
+                  const platformCapabilities = getPlatformCapabilities();
+
                   trackTelemetryEvent(
                     createOnboardingCompletedTelemetryEvent({
                       permissionGranted:
@@ -2721,6 +2797,7 @@ export function SpendTrackerApp() {
                   );
 
                   if (
+                    platformCapabilities.supportsNativeNotificationCapture &&
                     onboardingPreferences.syncMode === 'local_only' &&
                     !captureDiagnostics.listenerPermissionGranted &&
                     !isRemoteCapturePaused(bootstrapState.config)
@@ -2902,7 +2979,8 @@ export function SpendTrackerApp() {
           </View>
         </View>
       ) : null}
-    </SafeAreaView>
+      </SafeAreaView>
+    </MobileUiThemeProvider>
   );
 }
 
@@ -2946,6 +3024,8 @@ function OnboardingScreen({
   onToggleSourceApp: (sourceAppId: SupportedSourceAppId) => void;
 }) {
   const platformCapabilities = getPlatformCapabilities();
+  const supportsNativeCaptureDiagnostics =
+    platformCapabilities.supportsNativeCaptureDiagnostics;
   const supportsNativeNotificationCapture =
     platformCapabilities.supportsNativeNotificationCapture;
   const selectedSourceAppsSummary =
@@ -2993,7 +3073,7 @@ function OnboardingScreen({
         <Text style={styles.bodyCopy}>
           {supportsNativeNotificationCapture
             ? 'Start with notification access on Android, choose your source apps and budget cycle, then keep the first review loop local-first.'
-            : 'This iPhone build focuses on manual spend entry, shared local review screens, and shell verification while Android-only notification capture stays out of scope for v1.'}
+            : 'This iPhone build focuses on manual spend entry, shared local review screens, and shell verification without implying background capture that this build does not provide.'}
         </Text>
         <StatusChip
           label={completionLabel}
@@ -3028,18 +3108,18 @@ function OnboardingScreen({
             : 'iPhone capture mode'}
         </Text>
         <Text style={styles.bodyCopy}>
-          {capturePausedRemotely
+          {supportsNativeNotificationCapture && capturePausedRemotely
             ? (bootstrapState.config.runtimeCompatibility?.reason ??
               'Remote config currently pauses notification capture. Keep the local review loop running with manual add while refresh retries.')
             : listenerPermissionGranted
               ? 'Android now reports notification-listener access as granted for this app. Allowed source apps below will drive native filtering.'
               : supportsNativeNotificationCapture
                 ? 'Notification access is needed before Android can hand UPI payment alerts to the app. Open the system screen, grant access, then return here and retry the permission check.'
-                : 'Manual add, Inbox review, Timeline history, and Settings all stay available on iPhone. Notification capture and parser diagnostics remain Android-only by design in v1.'}
+                : 'Manual add, Inbox review, Timeline history, and Settings all stay available on iPhone. Background capture and native parser diagnostics are not part of this iPhone build in v1.'}
         </Text>
         <StatusChip
           label={
-            capturePausedRemotely
+            supportsNativeNotificationCapture && capturePausedRemotely
               ? 'Capture paused remotely'
               : listenerPermissionGranted
                 ? 'Permission granted'
@@ -3051,7 +3131,7 @@ function OnboardingScreen({
                     : 'Manual review only on iPhone'
           }
           tone={
-            capturePausedRemotely ||
+            (supportsNativeNotificationCapture && capturePausedRemotely) ||
             listenerPermissionGranted ||
             !supportsNativeNotificationCapture
               ? 'ready'
@@ -3075,16 +3155,15 @@ function OnboardingScreen({
         </View>
         <View style={styles.actionRow}>
           <ActionButton
-            disabled={capturePausedRemotely}
-            label={
-              supportsNativeNotificationCapture
-                ? 'Open notification access'
-                : 'Open app settings'
+            disabled={
+              platformCapabilities.opensNotificationAccessSettings &&
+              capturePausedRemotely
             }
+            label={getSettingsActionLabel(platformCapabilities)}
             onPress={onOpenNotificationAccess}
             tone="primary"
           />
-          {supportsNativeNotificationCapture ? (
+          {supportsNativeCaptureDiagnostics ? (
             <ActionButton
               label="Retry permission check"
               onPress={onRefreshCaptureDiagnostics}
@@ -3283,6 +3362,8 @@ function HomeScreen({
   syncSummary: SyncQueueSummary;
 }) {
   const platformCapabilities = getPlatformCapabilities();
+  const supportsNativeCaptureDiagnostics =
+    platformCapabilities.supportsNativeCaptureDiagnostics;
   const supportsNativeNotificationCapture =
     platformCapabilities.supportsNativeNotificationCapture;
   const selectedSourceAppsSummary =
@@ -3324,9 +3405,9 @@ function HomeScreen({
         <Text style={styles.sectionEyebrow}>Today</Text>
         <Text style={styles.sectionTitle}>Current cycle at a glance</Text>
         <Text style={styles.bodyCopy}>
-          This local-first shell now covers the core review loop: cycle-aware
-          totals on Home, uncategorized work in Inbox, quick classify, and
-          manual spend entry without leaving the device.
+          {supportsNativeNotificationCapture
+            ? 'This local-first shell now covers the core review loop: cycle-aware totals on Home, uncategorized work in Inbox, quick classify, and manual spend entry without leaving the device.'
+            : 'Local-first UPI review with a cycle-aware dashboard, shared manual and history flows, privacy-safe exports, support tooling, and an honest manual/local-only shell on iPhone.'}
         </Text>
       </SectionCard>
 
@@ -3655,12 +3736,11 @@ function HomeScreen({
         </Text>
         <View style={styles.actionRow}>
           <ActionButton
-            disabled={capturePausedRemotely}
-            label={
-              supportsNativeNotificationCapture
-                ? 'Review notification access'
-                : 'Open app settings'
+            disabled={
+              platformCapabilities.opensNotificationAccessSettings &&
+              capturePausedRemotely
             }
+            label={getSettingsActionLabel(platformCapabilities)}
             onPress={onOpenNotificationAccess}
             tone="secondary"
           />
@@ -3715,6 +3795,8 @@ function DiagnosticsScreen({
   onShareDiagnosticsBundle: () => Promise<void>;
 }) {
   const platformCapabilities = getPlatformCapabilities();
+  const supportsNativeCaptureDiagnostics =
+    platformCapabilities.supportsNativeCaptureDiagnostics;
   const supportsNativeNotificationCapture =
     platformCapabilities.supportsNativeNotificationCapture;
   const enabledParserTemplates =
@@ -3736,10 +3818,11 @@ function DiagnosticsScreen({
         </Text>
         <View style={styles.helperStack}>
           <Text style={styles.helperCopy}>
-            Notification setup:{' '}
-            {notificationAccessState === 'settings_opened'
-              ? 'settings opened'
-              : 'not started'}
+            Settings visit:{' '}
+            {getSettingsVisitLabel(
+              platformCapabilities,
+              notificationAccessState === 'settings_opened',
+            )}
           </Text>
           <Text style={styles.helperCopy}>
             Selected source apps:{' '}
@@ -3775,12 +3858,12 @@ function DiagnosticsScreen({
       <SectionCard accentColor={colors.successSoft}>
         <Text style={styles.cardTitle}>Parser versions</Text>
         <Text style={styles.bodyCopy}>
-          {supportsNativeNotificationCapture
+          {supportsNativeCaptureDiagnostics
             ? 'Native parser bundle versions and remote template versions are shown together so QA can tell whether the issue came from parser code, template rollout, or permission state.'
-            : 'Remote template versions stay visible here for shell verification, even though native parser inventory and capture logs remain Android-only.'}
+            : 'Remote template versions stay visible here for shell verification, even though native parser inventory and capture logs are not part of this iPhone build.'}
         </Text>
         <View style={styles.helperStack}>
-          {supportsNativeNotificationCapture &&
+          {supportsNativeCaptureDiagnostics &&
           captureDiagnostics.supportedParsers.length > 0 ? (
             captureDiagnostics.supportedParsers.map((parserDescriptor) => (
               <Text key={parserDescriptor.parserId} style={styles.helperCopy}>
@@ -3789,7 +3872,7 @@ function DiagnosticsScreen({
                 {formatSourceAppIdsList(parserDescriptor.sourceAppIds)}
               </Text>
             ))
-          ) : supportsNativeNotificationCapture ? (
+          ) : supportsNativeCaptureDiagnostics ? (
             <Text style={styles.helperCopy}>
               Native parser inventory is not available yet.
             </Text>
@@ -3969,6 +4052,8 @@ function SettingsScreen({
   syncSummary: SyncQueueSummary;
 }) {
   const platformCapabilities = getPlatformCapabilities();
+  const supportsNativeCaptureDiagnostics =
+    platformCapabilities.supportsNativeCaptureDiagnostics;
   const supportsNativeNotificationCapture =
     platformCapabilities.supportsNativeNotificationCapture;
   const capturePausedRemotely = isRemoteCapturePaused(bootstrapState.config);
@@ -4054,19 +4139,11 @@ function SettingsScreen({
           )}
         </View>
         <View style={styles.actionRow}>
-          {supportsNativeNotificationCapture ? (
-            <ActionButton
-              label="Open notification access"
-              onPress={onOpenNotificationAccess}
-              tone="secondary"
-            />
-          ) : (
-            <ActionButton
-              label="Open app settings"
-              onPress={onOpenNotificationAccess}
-              tone="secondary"
-            />
-          )}
+          <ActionButton
+            label={getSettingsActionLabel(platformCapabilities)}
+            onPress={onOpenNotificationAccess}
+            tone="secondary"
+          />
           <ActionButton
             label="Select all"
             onPress={onSelectAllSourceApps}
@@ -5014,6 +5091,8 @@ function CaptureDiagnosticsCard({
   onRefreshCaptureDiagnostics: () => Promise<void>;
 }) {
   const platformCapabilities = getPlatformCapabilities();
+  const supportsNativeCaptureDiagnostics =
+    platformCapabilities.supportsNativeCaptureDiagnostics;
   const supportsNativeNotificationCapture =
     platformCapabilities.supportsNativeNotificationCapture;
 
@@ -5030,7 +5109,7 @@ function CaptureDiagnosticsCard({
           : 'This iPhone build stays honest about scope: manual add, shared review screens, exports, and support tooling are live, while Android notification capture remains out of scope in v1.'}
       </Text>
       <View style={styles.helperStack}>
-        {supportsNativeNotificationCapture ? (
+        {supportsNativeCaptureDiagnostics ? (
           <>
             <Text style={styles.helperCopy}>
               Listener permission:{' '}
@@ -5097,10 +5176,10 @@ function CaptureDiagnosticsCard({
               Capture path: manual add and local review
             </Text>
             <Text style={styles.helperCopy}>
-              Native capture service: not available on iPhone
+              Native capture service: not part of this iPhone build
             </Text>
             <Text style={styles.helperCopy}>
-              Background parser logs: Android-only by design
+              Background parser logs: not part of this iPhone build
             </Text>
             <Text style={styles.helperCopy}>
               Support bundle: redacted local state, config, and shell
@@ -5110,7 +5189,7 @@ function CaptureDiagnosticsCard({
         )}
       </View>
       <View style={styles.actionRow}>
-        {supportsNativeNotificationCapture ? (
+        {supportsNativeCaptureDiagnostics ? (
           <ActionButton
             label="Refresh diagnostics"
             onPress={onRefreshCaptureDiagnostics}
@@ -5118,18 +5197,14 @@ function CaptureDiagnosticsCard({
           />
         ) : null}
         <ActionButton
-          label={
-            supportsNativeNotificationCapture
-              ? 'Review notification access'
-              : 'Open app settings'
-          }
+          label={getSettingsActionLabel(platformCapabilities)}
           onPress={onOpenNotificationAccess}
           tone="secondary"
         />
         {onOpenDiagnostics ? (
           <ActionButton
             label={
-              supportsNativeNotificationCapture
+              supportsNativeCaptureDiagnostics
                 ? 'Open diagnostics'
                 : 'Open support details'
             }
@@ -5173,6 +5248,7 @@ function InboxScreen({
   onStartSplit: (transactionId: string) => void;
   onUpdateFilters: (nextFilters: Partial<InboxFilters>) => void;
 }) {
+  const insets = useSafeAreaInsets();
   const statusHeadline =
     filteredReviewTransactions.length > 0
       ? filters.statusFilter === 'partially_classified'
@@ -5194,7 +5270,10 @@ function InboxScreen({
 
   return (
     <FlatList
-      contentContainerStyle={styles.inboxListContentWithPrimaryTabBar}
+      contentContainerStyle={[
+        styles.inboxListContent,
+        { paddingBottom: 120 + insets.bottom },
+      ]}
       data={filteredReviewTransactions}
       initialNumToRender={12}
       ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
@@ -5642,9 +5721,14 @@ function TimelineScreen({
   timelineDayGroups: TimelineDayGroup[];
   timelineSourceAppOptions: string[];
 }) {
+  const insets = useSafeAreaInsets();
+
   return (
     <FlatList
-      contentContainerStyle={styles.inboxListContentWithPrimaryTabBar}
+      contentContainerStyle={[
+        styles.inboxListContent,
+        { paddingBottom: 120 + insets.bottom },
+      ]}
       data={timelineDayGroups}
       initialNumToRender={8}
       ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
@@ -7309,6 +7393,9 @@ function ManualEntryScreen({
   onToggleSaveAsRule: () => void;
   suggestions: ClassificationSuggestion[];
 }) {
+  const platformCapabilities = getPlatformCapabilities();
+  const supportsNativeNotificationCapture =
+    platformCapabilities.supportsNativeNotificationCapture;
   const saveDisabled =
     !amountMinor ||
     amountMinor <= 0 ||
@@ -7325,11 +7412,14 @@ function ManualEntryScreen({
       <SectionCard accentColor={colors.accentSoft}>
         <Text style={styles.sectionEyebrow}>Manual add</Text>
         <Text style={styles.sectionTitle}>
-          Capture a spend even without a notification
+          {supportsNativeNotificationCapture
+            ? 'Capture a spend even without a notification'
+            : 'Add a spend directly on this iPhone'}
         </Text>
         <Text style={styles.bodyCopy}>
-          This is the fallback path for denied notification access, missed
-          captures, or cashless spends the user wants logged immediately.
+          {supportsNativeNotificationCapture
+            ? 'This is the fallback path for denied notification access, missed captures, or cashless spends the user wants logged immediately.'
+            : 'Use manual add as the primary iPhone capture path in v1. It keeps spend review local, truthful, and available even without background notification ingestion.'}
         </Text>
       </SectionCard>
 
@@ -7651,8 +7741,13 @@ function PrimaryTabBar({
   activeScreen: PrimaryScreen;
   onSelectTab: (screen: PrimaryScreen) => void;
 }) {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View pointerEvents="box-none" style={styles.primaryTabBarScene}>
+    <View
+      pointerEvents="box-none"
+      style={[styles.primaryTabBarScene, { bottom: Math.max(insets.bottom, 16) }]}
+    >
       <View style={styles.primaryTabBar}>
         {PRIMARY_SCREENS.map((screen) => {
           const label =
@@ -8692,9 +8787,6 @@ const styles = StyleSheet.create({
   inboxListContent: {
     paddingBottom: 40,
   },
-  inboxListContentWithPrimaryTabBar: {
-    paddingBottom: 120,
-  },
   inputStack: {
     gap: 14,
   },
@@ -8843,7 +8935,6 @@ const styles = StyleSheet.create({
   screenContent: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 28,
   },
   sheetBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -8883,9 +8974,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     gap: 20,
     paddingBottom: 40,
-  },
-  scrollContentWithPrimaryTabBar: {
-    paddingBottom: 120,
   },
   sectionAccent: {
     borderRadius: 20,

@@ -1,7 +1,6 @@
 import { createContext, type ReactNode, useContext } from 'react';
 import {
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   designTokens,
@@ -196,6 +196,7 @@ export function AppShell({
   return (
     <MobileUiThemeProvider theme={theme}>
       <SafeAreaView
+        edges={['top', 'left', 'right', 'bottom']}
         style={[styles.shellSafeArea, { backgroundColor: theme.colors.canvas }]}
         testID={testID}
       >
@@ -837,7 +838,7 @@ const styles = StyleSheet.create({
   shellScrollContent: {
     paddingBottom: 40,
     paddingHorizontal: 20,
-    paddingTop: 32,
+    paddingTop: 20,
   },
   textField: {
     borderRadius: designTokens.radius.md,

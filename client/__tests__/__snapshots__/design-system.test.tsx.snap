@@ -1,7 +1,15 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`mobile-ui primitives matches the dark theme sheet snapshot 1`] = `
-<RCTSafeAreaView
+<RNCSafeAreaView
+  edges={
+    {
+      "bottom": "additive",
+      "left": "additive",
+      "right": "additive",
+      "top": "additive",
+    }
+  }
   style={
     [
       {
@@ -55,7 +63,7 @@ exports[`mobile-ui primitives matches the dark theme sheet snapshot 1`] = `
         {
           "paddingBottom": 40,
           "paddingHorizontal": 20,
-          "paddingTop": 32,
+          "paddingTop": 20,
         },
         undefined,
       ]
@@ -1442,11 +1450,19 @@ exports[`mobile-ui primitives matches the dark theme sheet snapshot 1`] = `
       </View>
     </View>
   </RCTScrollView>
-</RCTSafeAreaView>
+</RNCSafeAreaView>
 `;
 
 exports[`mobile-ui primitives matches the light theme snapshot 1`] = `
-<RCTSafeAreaView
+<RNCSafeAreaView
+  edges={
+    {
+      "bottom": "additive",
+      "left": "additive",
+      "right": "additive",
+      "top": "additive",
+    }
+  }
   style={
     [
       {
@@ -1500,7 +1516,7 @@ exports[`mobile-ui primitives matches the light theme snapshot 1`] = `
         {
           "paddingBottom": 40,
           "paddingHorizontal": 20,
-          "paddingTop": 32,
+          "paddingTop": 20,
         },
         undefined,
       ]
@@ -2666,5 +2682,5 @@ exports[`mobile-ui primitives matches the light theme snapshot 1`] = `
       </View>
     </View>
   </RCTScrollView>
-</RCTSafeAreaView>
+</RNCSafeAreaView>
 `;

@@ -8,6 +8,10 @@ type DatabaseMock = MobileMigrationDatabase & {
   getAllAsync: jest.MockedFunction<MobileMigrationDatabase['getAllAsync']>;
   getFirstAsync: jest.MockedFunction<MobileMigrationDatabase['getFirstAsync']>;
   runAsync: jest.MockedFunction<MobileMigrationDatabase['runAsync']>;
+  withExclusiveTransactionAsync?: jest.Mock<
+    Promise<void>,
+    [(transaction: MobileMigrationDatabase) => Promise<void>]
+  >;
 };
 
 function includesSql(sql: string, snippet: string): boolean {
@@ -45,6 +49,10 @@ describe('mobile migration runner', () => {
         return [];
       }
 
+      if (includesSql(sql, 'PRAGMA table_info(transactions)')) {
+        return [{ name: 'merchant_raw' }];
+      }
+
       if (includesSql(sql, 'SELECT id FROM schema_migrations ORDER BY id ASC')) {
         return [];
       }
@@ -56,8 +64,11 @@ describe('mobile migration runner', () => {
       now: () => '2026-03-26T00:00:00.000Z',
     });
 
-    expect(database.execAsync).toHaveBeenCalledTimes(29);
+    expect(database.execAsync.mock.calls.length).toBeGreaterThan(28);
     expect(database.runAsync).toHaveBeenCalledTimes(28);
+    expect(database.execAsync).not.toHaveBeenCalledWith(
+      expect.stringContaining('ADD COLUMN merchant_raw TEXT NOT NULL DEFAULT'),
+    );
     expect(database.runAsync).toHaveBeenCalledWith(
       'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
       '001_create_settings_table',
@@ -73,6 +84,68 @@ describe('mobile migration runner', () => {
       '028_create_transactions_status_source_app_captured_at_index',
       '2026-03-26T00:00:00.000Z',
     );
+  });
+
+  it('uses an exclusive transaction connection when the database supports it', async () => {
+    const database = createDatabaseMock();
+    const transaction = createDatabaseMock();
+
+    database.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM schema_migrations')) {
+        return { count: 0 };
+      }
+
+      return null;
+    });
+    transaction.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM schema_migrations')) {
+        return { count: 0 };
+      }
+
+      return null;
+    });
+    database.getAllAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, "FROM sqlite_master WHERE type = 'table'")) {
+        return [];
+      }
+
+      if (includesSql(sql, 'PRAGMA table_info(transactions)')) {
+        return [{ name: 'merchant_raw' }];
+      }
+
+      if (includesSql(sql, 'SELECT id FROM schema_migrations ORDER BY id ASC')) {
+        return [];
+      }
+
+      return [];
+    });
+    transaction.getAllAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, "FROM sqlite_master WHERE type = 'table'")) {
+        return [];
+      }
+
+      if (includesSql(sql, 'PRAGMA table_info(transactions)')) {
+        return [{ name: 'merchant_raw' }];
+      }
+
+      if (includesSql(sql, 'SELECT id FROM schema_migrations ORDER BY id ASC')) {
+        return [];
+      }
+
+      return [];
+    });
+    database.withExclusiveTransactionAsync = jest.fn(async (task) => {
+      await task(transaction);
+    });
+
+    await applyMobileMigrations(database, {
+      now: () => '2026-03-26T00:00:00.000Z',
+    });
+
+    expect(database.withExclusiveTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(database.execAsync).not.toHaveBeenCalled();
+    expect(transaction.execAsync).toHaveBeenCalled();
+    expect(transaction.runAsync).toHaveBeenCalledTimes(28);
   });
 
   it('adopts a legacy schema without migration metadata before recording all migrations', async () => {
@@ -98,6 +171,10 @@ describe('mobile migration runner', () => {
             sql: 'CREATE TABLE transaction_items (id TEXT PRIMARY KEY, transaction_id TEXT)',
           },
         ];
+      }
+
+      if (includesSql(sql, 'PRAGMA table_info(transactions)')) {
+        return [{ name: 'merchant_raw' }];
       }
 
       if (includesSql(sql, 'SELECT id FROM schema_migrations ORDER BY id ASC')) {
@@ -170,9 +247,45 @@ describe('mobile migration runner', () => {
     expect(database.execAsync).toHaveBeenCalledWith(
       expect.stringContaining('CREATE TABLE IF NOT EXISTS sync_conflicts'),
     );
-    expect(database.execAsync).toHaveBeenCalledWith(
+    expect(database.execAsync).not.toHaveBeenCalledWith(
       expect.stringContaining('ADD COLUMN merchant_raw TEXT NOT NULL DEFAULT'),
     );
     expect(database.runAsync).toHaveBeenCalledTimes(28);
+  });
+
+  it('records the merchant_raw migration without reapplying it when the column already exists', async () => {
+    const database = createDatabaseMock();
+
+    database.getFirstAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, 'SELECT COUNT(*) as count FROM schema_migrations')) {
+        return { count: 1 };
+      }
+
+      return null;
+    });
+    database.getAllAsync.mockImplementation(async (sql: string) => {
+      if (includesSql(sql, 'PRAGMA table_info(transactions)')) {
+        return [{ name: 'id' }, { name: 'merchant_raw' }];
+      }
+
+      if (includesSql(sql, 'SELECT id FROM schema_migrations ORDER BY id ASC')) {
+        return [{ id: '001_create_settings_table' }];
+      }
+
+      return [];
+    });
+
+    await applyMobileMigrations(database, {
+      now: () => '2026-03-26T00:00:00.000Z',
+    });
+
+    expect(database.execAsync).not.toHaveBeenCalledWith(
+      expect.stringContaining('ADD COLUMN merchant_raw TEXT NOT NULL DEFAULT'),
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
+      '015_add_transaction_merchant_raw',
+      '2026-03-26T00:00:00.000Z',
+    );
   });
 });

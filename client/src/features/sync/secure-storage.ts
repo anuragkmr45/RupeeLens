@@ -7,15 +7,24 @@ export interface StoredSyncSecrets {
 }
 
 const ACCESS_TOKEN_KEY = 'sync_credentials_v1_access_token';
-const ACCESS_TOKEN_EXPIRES_AT_KEY = 'sync_credentials_v1_access_token_expires_at';
+const ACCESS_TOKEN_EXPIRES_AT_KEY =
+  'sync_credentials_v1_access_token_expires_at';
 const REFRESH_TOKEN_KEY = 'sync_credentials_v1_refresh_token';
+const warnedSecureStoreFailures = new Set<string>();
 
 export async function clearStoredSyncSecrets(): Promise<void> {
-  await Promise.all([
+  const results = await Promise.allSettled([
     SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
     SecureStore.deleteItemAsync(ACCESS_TOKEN_EXPIRES_AT_KEY),
     SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
   ]);
+
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      warnSecureStoreFailure('clear', result.reason);
+      return;
+    }
+  }
 }
 
 export async function loadStoredSyncSecrets(): Promise<StoredSyncSecrets | null> {
@@ -50,17 +59,21 @@ export async function saveStoredSyncSecrets(
   }
 
   await Promise.all([
-    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, secrets.accessToken),
-    SecureStore.setItemAsync(
-      ACCESS_TOKEN_EXPIRES_AT_KEY,
-      secrets.accessTokenExpiresAt,
-    ),
-    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, secrets.refreshToken),
+    writeSecureValue(ACCESS_TOKEN_KEY, secrets.accessToken),
+    writeSecureValue(ACCESS_TOKEN_EXPIRES_AT_KEY, secrets.accessTokenExpiresAt),
+    writeSecureValue(REFRESH_TOKEN_KEY, secrets.refreshToken),
   ]);
 }
 
 async function readNormalizedSecureValue(key: string): Promise<string | null> {
-  const value = await SecureStore.getItemAsync(key);
+  let value: string | null = null;
+
+  try {
+    value = await SecureStore.getItemAsync(key);
+  } catch (error) {
+    warnSecureStoreFailure('read', error);
+    return null;
+  }
 
   if (typeof value !== 'string') {
     return null;
@@ -68,4 +81,34 @@ async function readNormalizedSecureValue(key: string): Promise<string | null> {
 
   const normalizedValue = value.trim();
   return normalizedValue.length > 0 ? normalizedValue : null;
+}
+
+async function writeSecureValue(key: string, value: string): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(key, value);
+  } catch (error) {
+    warnSecureStoreFailure('write', error);
+    await clearStoredSyncSecrets();
+  }
+}
+
+function warnSecureStoreFailure(
+  operation: 'clear' | 'read' | 'write',
+  error: unknown,
+): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const warningKey = `${operation}:${message}`;
+
+  if (warnedSecureStoreFailures.has(warningKey)) {
+    return;
+  }
+
+  warnedSecureStoreFailures.add(warningKey);
+  console.warn(
+    `SecureStore ${operation} failed; continuing without persisted sync secrets. ${message}`,
+  );
+}
+
+export function resetSecureStoreWarningsForTests(): void {
+  warnedSecureStoreFailures.clear();
 }

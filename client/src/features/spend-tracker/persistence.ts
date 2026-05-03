@@ -1,5 +1,4 @@
-import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
-import { Storage } from 'expo-sqlite/kv-store';
+import type { SQLiteDatabase } from 'expo-sqlite';
 
 import {
   DEFAULT_BUDGET_ALERT_SETTINGS,
@@ -25,7 +24,11 @@ import {
   type TransactionParserInfo,
   type MerchantMatchKind,
 } from './domain';
-import { applyMobileMigrations } from './db/migration-runner';
+import {
+  getSpendTrackerDatabase,
+  runSpendTrackerDatabaseWrite,
+} from './db/shared-database';
+import { getKvItem, removeKvItem } from '../../lib/kv-storage';
 
 export type NotificationAccessState = 'not_started' | 'settings_opened';
 export type SupportedSourceAppId =
@@ -168,7 +171,6 @@ interface TransactionHistoryRow {
   transactionId: string;
 }
 
-const DATABASE_NAME = 'spend-tracker.db';
 const LEGACY_STORAGE_KEY = 'spend_tracker_demo_state_v1';
 export const DEFAULT_ONBOARDING_PREFERENCES: OnboardingPreferences = {
   budgetCycleId: 'calendar_month',
@@ -177,26 +179,23 @@ export const DEFAULT_ONBOARDING_PREFERENCES: OnboardingPreferences = {
 };
 export const DEFAULT_PRIVACY_MODE_ENABLED = true;
 
-let databasePromise: Promise<SQLiteDatabase> | null = null;
-let schemaPromise: Promise<void> | null = null;
-
 export async function clearStoredSpendTrackerState(): Promise<void> {
-  const database = await getDatabase();
-
-  await database.withTransactionAsync(async () => {
-    await database.runAsync('DELETE FROM budget_threshold_alerts');
-    await database.runAsync('DELETE FROM budgets');
-    await database.runAsync('DELETE FROM transaction_history');
-    await database.runAsync('DELETE FROM transaction_items');
-    await database.runAsync('DELETE FROM transactions');
-    await database.runAsync('DELETE FROM classification_rules');
-    await database.runAsync('DELETE FROM merchant_aliases');
-    await database.runAsync('DELETE FROM merchants');
-    await database.runAsync('DELETE FROM categories');
-    await database.runAsync('DELETE FROM settings');
+  await runSpendTrackerDatabaseWrite(async (database) => {
+    await database.withTransactionAsync(async () => {
+      await database.runAsync('DELETE FROM budget_threshold_alerts');
+      await database.runAsync('DELETE FROM budgets');
+      await database.runAsync('DELETE FROM transaction_history');
+      await database.runAsync('DELETE FROM transaction_items');
+      await database.runAsync('DELETE FROM transactions');
+      await database.runAsync('DELETE FROM classification_rules');
+      await database.runAsync('DELETE FROM merchant_aliases');
+      await database.runAsync('DELETE FROM merchants');
+      await database.runAsync('DELETE FROM categories');
+      await database.runAsync('DELETE FROM settings');
+    });
   });
 
-  await Storage.removeItem(LEGACY_STORAGE_KEY);
+  await removeKvItem(LEGACY_STORAGE_KEY);
 }
 
 export async function loadStoredSpendTrackerState(): Promise<PersistedSpendTrackerState | null> {
@@ -212,8 +211,10 @@ export async function loadStoredSpendTrackerState(): Promise<PersistedSpendTrack
     return null;
   }
 
-  await writeStateToDatabase(database, legacyState);
-  await Storage.removeItem(LEGACY_STORAGE_KEY);
+  await runSpendTrackerDatabaseWrite(async (writeDatabase) => {
+    await writeStateToDatabase(writeDatabase, legacyState);
+  });
+  await removeKvItem(LEGACY_STORAGE_KEY);
 
   return legacyState;
 }
@@ -221,27 +222,13 @@ export async function loadStoredSpendTrackerState(): Promise<PersistedSpendTrack
 export async function saveStoredSpendTrackerState(
   state: PersistedSpendTrackerState,
 ): Promise<void> {
-  const database = await getDatabase();
-  await writeStateToDatabase(database, state);
+  await runSpendTrackerDatabaseWrite(async (database) => {
+    await writeStateToDatabase(database, state);
+  });
 }
 
 async function getDatabase(): Promise<SQLiteDatabase> {
-  if (!databasePromise) {
-    databasePromise = openDatabaseAsync(DATABASE_NAME);
-  }
-
-  const database = await databasePromise;
-
-  if (!schemaPromise) {
-    const schemaTask = applyMobileMigrations(database);
-    schemaPromise = schemaTask.catch((error: unknown) => {
-      schemaPromise = null;
-      throw error;
-    });
-  }
-
-  await schemaPromise;
-  return database;
+  return getSpendTrackerDatabase();
 }
 
 async function hasStoredState(database: SQLiteDatabase): Promise<boolean> {
@@ -263,8 +250,8 @@ async function hasStoredState(database: SQLiteDatabase): Promise<boolean> {
   const ruleCountRow = await database.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM classification_rules',
   );
-  const categoryCountRow = await database.getFirstAsync<{ count: number }>(
-    'SELECT COUNT(*) as count FROM categories',
+  const customCategoryCountRow = await database.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM categories WHERE is_default = 0',
   );
   const settingsCountRow = await database.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM settings',
@@ -277,7 +264,7 @@ async function hasStoredState(database: SQLiteDatabase): Promise<boolean> {
     (merchantCountRow?.count ?? 0) > 0 ||
     (merchantAliasCountRow?.count ?? 0) > 0 ||
     (ruleCountRow?.count ?? 0) > 0 ||
-    (categoryCountRow?.count ?? 0) > 0 ||
+    (customCategoryCountRow?.count ?? 0) > 0 ||
     (settingsCountRow?.count ?? 0) > 0
   );
 }
@@ -946,7 +933,7 @@ async function readStateFromDatabase(
 
 async function readLegacyState(): Promise<PersistedSpendTrackerState | null> {
   try {
-    const storedValue = await Storage.getItem(LEGACY_STORAGE_KEY);
+    const storedValue = await getKvItem(LEGACY_STORAGE_KEY);
 
     if (!storedValue) {
       return null;

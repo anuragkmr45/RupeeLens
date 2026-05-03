@@ -67,6 +67,20 @@ In a continuing Codex thread for this repo, a user message of `next` means rerun
 - Store money in integer minor units
 - Use UTC at boundaries, render user timezone in UI
 
+## Mobile platform rules
+
+- Treat `client/src/lib/platform-capabilities.ts` as the single source of truth for platform-dependent product behavior.
+- Keep iOS truthful as `manual/local-only` unless a real native iOS ingestion path is implemented in code.
+- Do not imply iOS background notification capture, parser logs, native capture diagnostics, or Android-equivalent parity in copy or UI.
+- Android remains the only native notification-capture platform in v1; preserve the Android listener/parser/allowlist/diagnostics path unless a verified bug requires change.
+- Prefer small extracted helpers or platform-capability helpers over adding more inline platform conditionals to `client/src/app/SpendTrackerApp.tsx`.
+- When adding platform-specific copy, write the iOS path positively in terms of what iPhone supports; do not leak Android diagnostics or Android-only affordances into iOS screens.
+- Do not force light mode unless there is an explicit product or platform reason documented in code and docs.
+- Use safe-area-aware primitives (`react-native-safe-area-context`) for app shells, scroll padding, and bottom navigation; avoid hardcoded top offsets when insets should drive layout.
+- Keep adaptive appearance and color usage aligned with the shared mobile UI theme; if new primitives depend on theme context, ensure the provider is present in runtime code and tests.
+- When platform scope changes, update `README.md`, `docs/01_PRD.md`, `docs/02_Engineering_Design.md`, `docs/14_Quality_Matrix.md`, and relevant client tests in the same change.
+- Keep local runtime artifacts in ignored scratch locations such as `tmp/`; do not commit screenshots, ad hoc flow files, or root-level helper entrypoints unless they are intentionally part of the repo.
+
 ## Testing expectations
 
 Before opening or merging a PR:

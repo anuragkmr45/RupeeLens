@@ -189,6 +189,7 @@ export const TRANSACTIONS_TABLE_SQL = `
     amount_minor INTEGER NOT NULL,
     captured_at TEXT NOT NULL,
     merchant TEXT NOT NULL,
+    merchant_raw TEXT NOT NULL DEFAULT '',
     source_app TEXT NOT NULL,
     status TEXT NOT NULL CHECK(status IN ('classified', 'partially_classified', 'uncategorized', 'skipped')),
     note TEXT NOT NULL DEFAULT '',
@@ -267,6 +268,7 @@ export const TRANSACTIONS_V2_REBUILD_SQL = `
     amount_minor,
     captured_at,
     merchant,
+    merchant_raw,
     source_app,
     status,
     note,
@@ -278,6 +280,7 @@ export const TRANSACTIONS_V2_REBUILD_SQL = `
     id,
     amount_minor,
     captured_at,
+    merchant,
     merchant,
     source_app,
     CASE

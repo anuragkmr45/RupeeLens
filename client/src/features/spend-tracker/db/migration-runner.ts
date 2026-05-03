@@ -37,6 +37,12 @@ export interface MobileMigrationDatabase {
   runAsync(sql: string, ...params: unknown[]): Promise<unknown>;
 }
 
+interface ExclusiveTransactionDatabase extends MobileMigrationDatabase {
+  withExclusiveTransactionAsync(
+    task: (transaction: MobileMigrationDatabase) => Promise<void>,
+  ): Promise<void>;
+}
+
 interface SqliteTableRow {
   name: string;
   sql: string | null;
@@ -44,6 +50,10 @@ interface SqliteTableRow {
 
 interface AppliedMigrationRow {
   id: string;
+}
+
+interface TableColumnRow {
+  name: string;
 }
 
 interface CountRow {
@@ -58,10 +68,27 @@ export async function applyMobileMigrations(
   database: MobileMigrationDatabase,
   { now = () => new Date().toISOString() }: ApplyMobileMigrationsOptions = {},
 ): Promise<void> {
-  await database.execAsync(`
+  if (supportsExclusiveTransaction(database)) {
+    await database.withExclusiveTransactionAsync(async (transaction) => {
+      await applyMobileMigrationsInternal(transaction, now);
+    });
+    return;
+  }
+
+  await applyMobileMigrationsInternal(database, now);
+}
+
+async function applyMobileMigrationsInternal(
+  database: MobileMigrationDatabase,
+  now: () => string,
+): Promise<void> {
+  await executeSqlScript(
+    database,
+    `
     PRAGMA foreign_keys = ON;
     ${MOBILE_MIGRATION_TABLE_SQL}
-  `);
+  `,
+  );
 
   await adoptLegacySchema(database, now);
 
@@ -75,7 +102,15 @@ export async function applyMobileMigrations(
       continue;
     }
 
-    await database.execAsync(migration.sql);
+    if (
+      migration.id === '015_add_transaction_merchant_raw' &&
+      (await tableHasColumn(database, 'transactions', 'merchant_raw'))
+    ) {
+      await recordMobileMigration(database, migration.id, now);
+      continue;
+    }
+
+    await executeSqlScript(database, migration.sql);
     await recordMobileMigration(database, migration.id, now);
   }
 }
@@ -108,8 +143,6 @@ async function adoptLegacySchema(
 
   const transactionsTableSql =
     existingTables.find((table) => table.name === 'transactions')?.sql ?? null;
-  const needsMerchantRawUpgrade =
-    !transactionsTableSql || !transactionsTableSql.includes('merchant_raw TEXT');
 
   if (
     transactionsTableSql &&
@@ -117,10 +150,12 @@ async function adoptLegacySchema(
       !transactionsTableSql.includes('note TEXT') ||
       !transactionsTableSql.includes('parser_id TEXT'))
   ) {
-    await database.execAsync(TRANSACTIONS_V2_REBUILD_SQL);
+    await executeSqlScript(database, TRANSACTIONS_V2_REBUILD_SQL);
   }
 
-  await database.execAsync(`
+  await executeSqlScript(
+    database,
+    `
     PRAGMA foreign_keys = ON;
     ${SETTINGS_TABLE_SQL}
     ${SYNC_SETTINGS_TABLE_SQL}
@@ -146,10 +181,11 @@ async function adoptLegacySchema(
     ${SYNC_OUTBOX_ENTITY_INDEX_SQL}
     ${SYNC_CONFLICTS_TABLE_SQL}
     ${SYNC_CONFLICTS_ENTITY_INDEX_SQL}
-  `);
+  `,
+  );
 
-  if (needsMerchantRawUpgrade) {
-    await database.execAsync(TRANSACTIONS_V3_ADD_MERCHANT_RAW_SQL);
+  if (!(await tableHasColumn(database, 'transactions', 'merchant_raw'))) {
+    await executeSqlScript(database, TRANSACTIONS_V3_ADD_MERCHANT_RAW_SQL);
   }
 
   for (const migration of mobileMigrations) {
@@ -167,4 +203,36 @@ async function recordMobileMigration(
     migrationId,
     now(),
   );
+}
+
+async function tableHasColumn(
+  database: MobileMigrationDatabase,
+  tableName: string,
+  columnName: string,
+): Promise<boolean> {
+  const columns = await database.getAllAsync<TableColumnRow>(
+    `PRAGMA table_info(${tableName})`,
+  );
+
+  return columns.some((column) => column.name === columnName);
+}
+
+async function executeSqlScript(
+  database: MobileMigrationDatabase,
+  sqlScript: string,
+): Promise<void> {
+  const statements = sqlScript
+    .split(';')
+    .map((statement) => statement.trim())
+    .filter((statement) => statement.length > 0);
+
+  for (const statement of statements) {
+    await database.execAsync(`${statement};`);
+  }
+}
+
+function supportsExclusiveTransaction(
+  database: MobileMigrationDatabase,
+): database is ExclusiveTransactionDatabase {
+  return 'withExclusiveTransactionAsync' in database;
 }

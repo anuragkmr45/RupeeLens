@@ -4,7 +4,7 @@ import type {
   TelemetryIngestResponse,
 } from '@upi-spend-tracker/contracts';
 import { TELEMETRY_SCHEMA_VERSION } from '@upi-spend-tracker/contracts';
-import { Storage } from 'expo-sqlite/kv-store';
+import { getKvItem, removeKvItem, setKvItem } from '../../lib/kv-storage';
 
 import { resolveBootstrapBaseUrl } from '../bootstrap-config/runtime-config';
 import type { StoredSyncCredentials } from '../sync/session';
@@ -36,7 +36,7 @@ let queueOperationPromise: Promise<void> = Promise.resolve();
 
 export async function clearQueuedTelemetryEvents(): Promise<void> {
   await runSerialized(async () => {
-    await Storage.removeItem(TELEMETRY_STORAGE_KEY);
+    await removeKvItem(TELEMETRY_STORAGE_KEY);
   });
 }
 
@@ -158,7 +158,7 @@ export function installGlobalTelemetryErrorHandler(
 }
 
 async function readTelemetryQueue(): Promise<PersistedTelemetryQueue> {
-  const storedValue = await Storage.getItem(TELEMETRY_STORAGE_KEY);
+  const storedValue = await getKvItem(TELEMETRY_STORAGE_KEY);
 
   if (!storedValue) {
     return {
@@ -185,7 +185,7 @@ async function readTelemetryQueue(): Promise<PersistedTelemetryQueue> {
 }
 
 async function writeTelemetryQueue(queue: PersistedTelemetryQueue): Promise<void> {
-  await Storage.setItem(TELEMETRY_STORAGE_KEY, JSON.stringify(queue));
+  await setKvItem(TELEMETRY_STORAGE_KEY, JSON.stringify(queue));
 }
 
 function cloneTelemetryEvent(event: TelemetryEvent): TelemetryEvent {
